@@ -16,16 +16,18 @@ export function getBounds(geojson: FeatureCollection | Feature | Geometry): [num
     };
 
     const processGeometry = (geometry: Geometry): void => {
-        if (geometry.type === 'GeometryCollection') {
-            geometry.geometries.forEach(processGeometry);
-        } else if (geometry.type === 'Point') {
-            processCoords(geometry.coordinates);
-        } else if (geometry.type === 'MultiPoint' || geometry.type === 'LineString') {
-            processCoords(geometry.coordinates);
-        } else if (geometry.type === 'MultiLineString' || geometry.type === 'Polygon') {
-            processCoords(geometry.coordinates);
-        } else if (geometry.type === 'MultiPolygon') {
-            processCoords(geometry.coordinates);
+        switch (geometry.type) {
+            case 'GeometryCollection':
+                geometry.geometries.forEach(processGeometry);
+                break;
+            case 'Point':
+            case 'MultiPoint':
+            case 'LineString':
+            case 'MultiLineString':
+            case 'Polygon':
+            case 'MultiPolygon':
+                processCoords(geometry.coordinates);
+                break;
         }
     };
 

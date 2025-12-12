@@ -42,7 +42,7 @@ export const createGpx = (route: Feature<LineString | MultiLineString>): string 
     const name = route.properties?.name || 'Route';
     
     if (!route.geometry) {
-        return ''; // Return empty string if no geometry
+        throw new Error('Cannot create GPX: route geometry is missing');
     }
 
     const coords = route.geometry.coordinates;
