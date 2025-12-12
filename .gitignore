@@ -1,0 +1,14 @@
+# see also client.gitignore
+
+*.osm.pbf
+
+# Logs
+logs
+*.log
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+.DS_Store
