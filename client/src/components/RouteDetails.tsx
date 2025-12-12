@@ -119,15 +119,19 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) =>
                         </TouchableOpacity>
                     )}
 
-                    {route.tags?.url && (
-                        <TouchableOpacity style={styles.linkRow} onPress={() => {
-                            const raw = route.tags!.url;
-                            const url = raw.startsWith('http') ? raw : `https://${raw}`;
-                            Linking.openURL(url);
-                        }}>
-                            <Text style={styles.link}>URL</Text>
-                        </TouchableOpacity>
-                    )}
+                    {(() => {
+                        const url = route.tags?.url;
+                        if (!url) return null;
+                        return (
+                            <TouchableOpacity style={styles.linkRow} onPress={() => {
+                                const raw = url;
+                                const finalUrl = raw.startsWith('http') ? raw : `https://${raw}`;
+                                Linking.openURL(finalUrl);
+                            }}>
+                                <Text style={styles.link}>URL</Text>
+                            </TouchableOpacity>
+                        );
+                    })()}
 
                     {route.tags?.wikipedia && (
                         <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`https://wikipedia.org/wiki/${route.tags!.wikipedia}`)}>
