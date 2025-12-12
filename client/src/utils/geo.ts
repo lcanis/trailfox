@@ -15,35 +15,6 @@ export function getBounds(geojson: FeatureCollection | Feature | Geometry): [num
         }
     };
 
-    const processGeometry = (geometry: Geometry): void => {
-        switch (geometry.type) {
-            case 'GeometryCollection':
-                geometry.geometries.forEach(processGeometry);
-                break;
-            case 'Point':
-            case 'MultiPoint':
-            case 'LineString':
-            case 'MultiLineString':
-            case 'Polygon':
-            case 'MultiPolygon':
-                processCoords(geometry.coordinates);
-                break;
-        }
-    };
-
-    if (geojson.type === 'FeatureCollection') {
-        geojson.features.forEach((f) => {
-            if (f.geometry) processGeometry(f.geometry);
-        });
-    } else if (geojson.type === 'Feature') {
-        if (geojson.geometry) processGeometry(geojson.geometry);
-    } else {
-        processGeometry(geojson);
-    }
-
-    if (minX === Infinity) return null;
-    return [minX, minY, maxX, maxY];
-
     function processGeometry(geometry: Geometry): void {
         if (geometry.type === 'GeometryCollection') {
             geometry.geometries.forEach(processGeometry);
@@ -57,17 +28,20 @@ export function getBounds(geojson: FeatureCollection | Feature | Geometry): [num
             processCoords(geometry.coordinates as Position[][][]);
         }
     }
+
+    if (geojson.type === 'FeatureCollection') {
+        geojson.features.forEach((f) => {
+            if (f.geometry) processGeometry(f.geometry);
+        });
+    } else if (geojson.type === 'Feature') {
+        if (geojson.geometry) processGeometry(geojson.geometry);
+    } else {
+        processGeometry(geojson);
+    }
+
+    if (minX === Infinity) return null;
+    return [minX, minY, maxX, maxY];
 }
-<<<<<<< HEAD
-import { GeoJSON, Feature, FeatureCollection, Geometry } from 'geojson';
-
-export function getBounds(geojson: GeoJSON): [number, number, number, number] | null {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-    // GeoJSON coordinates can be deeply nested arrays of numbers
-    const processCoords = (coords: any) => {
-        if (Array.isArray(coords) && typeof coords[0] === 'number') {
-            const [x, y] = coords as [number, number];
 =======
 import type { FeatureCollection, Feature, Geometry, Position } from 'geojson';
 
