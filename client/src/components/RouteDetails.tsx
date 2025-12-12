@@ -14,25 +14,30 @@ interface RouteDetailsProps {
 export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) => {
     const [osmTagsCollapsed, setOsmTagsCollapsed] = React.useState(COLLAPSE_OSM_TAGS_BY_DEFAULT);
 
+    // Utility function to handle GPX file download per platform
+    const downloadGpxFile = (gpxContent: string, fileName: string) => {
+        if (Platform.OS === 'web') {
+            const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        } else {
+            // Placeholder for native implementation
+            console.log('GPX download not implemented for native yet');
+        }
+    };
+
     const handleDownloadGpx = async () => {
         try {
             const geojson = await RouteService.fetchGeoJSON(route.osm_id);
             // geojson is a FeatureCollection
             if (geojson.features && geojson.features.length > 0) {
                 const gpxContent = createGpx(geojson.features[0]);
-
-                // Web download
-                if (Platform.OS === 'web') {
-                    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${route.name || 'route'}.gpx`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                } else {
-                    console.log('GPX download not implemented for native yet');
-                }
+                const fileName = `${route.name || 'route'}.gpx`;
+                downloadGpxFile(gpxContent, fileName);
             }
         } catch (e) {
             console.error('Failed to download GPX', e);
