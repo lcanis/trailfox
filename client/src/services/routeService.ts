@@ -26,7 +26,7 @@ export const RouteService = {
             if (!response.ok) throw new Error('Failed to fetch geometry');
             return await response.json();
         } catch (error) {
-            console.error('GPX fetch error:', error);
+            console.error('GeoJSON fetch error:', error);
             throw error;
         }
     }
