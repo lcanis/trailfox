@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
+import type { Feature, LineString, MultiLineString } from 'geojson';
 import { Route } from '../types';
 import { NETWORK_MAP, IGNORED_TAGS, COLLAPSE_OSM_TAGS_BY_DEFAULT } from '../constants';
 import { RouteService } from '../services/routeService';
@@ -35,7 +36,8 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) =>
             const geojson = await RouteService.fetchGeoJSON(route.osm_id);
             // geojson is a FeatureCollection
             if (geojson.features && geojson.features.length > 0) {
-                const gpxContent = createGpx(geojson.features[0]);
+                const feature = geojson.features[0] as Feature<LineString | MultiLineString>;
+                const gpxContent = createGpx(feature);
                 const fileName = `${route.name || 'route'}.gpx`;
                 downloadGpxFile(gpxContent, fileName);
             }
@@ -139,7 +141,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) =>
                     })()}
 
                     {route.tags?.wikipedia && (
-                        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`https://wikipedia.org/wiki/${route.tags.wikipedia}`)}>
+                        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`https://wikipedia.org/wiki/${route.tags!.wikipedia}`)}>
                             <Text style={styles.link}>Wikipedia</Text>
                         </TouchableOpacity>
                     )}

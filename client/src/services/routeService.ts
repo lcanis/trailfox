@@ -1,4 +1,5 @@
 import { Route } from '../types';
+import type { FeatureCollection } from 'geojson';
 
 const API_URL = '/api/routes';
 const SELECT_FIELDS = 'osm_id,name,network,length_m,route_type,symbol,tags';
@@ -18,7 +19,7 @@ export const RouteService = {
         }
     },
 
-    async fetchGeoJSON(id: number): Promise<any> {
+    async fetchGeoJSON(id: number): Promise<FeatureCollection> {
         try {
             const response = await fetch(`${API_URL}?osm_id=eq.${id}`, {
                 headers: { 'Accept': 'application/geo+json' }

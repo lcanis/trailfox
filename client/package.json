@@ -20,6 +20,7 @@
   },
   "private": true,
   "devDependencies": {
+    "@types/geojson": "^7946.0.16",
     "@types/lodash.debounce": "^4.0.9",
     "@types/react": "^19.2.7",
     "@types/react-native": "^0.72.8",
