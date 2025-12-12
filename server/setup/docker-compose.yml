@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   postgis:
-    image: postgis/postgis:18-3.6
+    image: postgis/postgis:16-3.4
     container_name: postgis
     restart: unless-stopped
     environment:
@@ -10,9 +8,9 @@ services:
       POSTGRES_DB: itinerarius
       POSTGRES_USER: gisuser
     ports:
-      - "127.0.0.1:5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
-      - pg_data:/var/lib/postgresql
+      - trailfox_pg_data:/var/lib/postgresql/data
     shm_size: 1g
 
   martin:
@@ -22,7 +20,7 @@ services:
     depends_on:
       - postgis
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${MARTIN_PORT}:3000"
     command: postgresql://calixtinus:${CALIXTINUS_PASSWORD}@postgis/itinerarius
 
   postgrest:
@@ -32,12 +30,24 @@ services:
     depends_on:
       - postgis
     ports:
-      - "127.0.0.1:3001:3000"
+      - "${POSTGREST_PORT}:3000"
     environment:
       PGRST_DB_URI: postgres://calixtinus:${CALIXTINUS_PASSWORD}@postgis:5432/itinerarius
       PGRST_DB_SCHEMA: api
       PGRST_DB_ANON_ROLE: calixtinus
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    depends_on:
+      - martin
+      - postgrest
+    ports:
+      - "${CADDY_PORT:-8090}:8090"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+
 volumes:
-  pg_data:
+  trailfox_pg_data:
     driver: local

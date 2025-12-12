@@ -1,0 +1,9 @@
+:8090 {
+	handle_path /tiles/* {
+		reverse_proxy martin:3000
+	}
+	handle_path /api/* {
+		reverse_proxy postgrest:3000
+	}
+	respond / "Trailfox API Gateway" 200
+}

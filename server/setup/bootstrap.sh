@@ -5,7 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 DB_HOST="${DB_HOST:-127.0.0.1}"
-DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-itinerarius}"
 DB_ADMIN_USER="${DB_ADMIN_USER:-gisuser}"
 IMPORTER_USER="${IMPORTER_USER:-importer}"
@@ -52,6 +51,13 @@ fi
 
 # shellcheck disable=SC1090
 source "$ENV_FILE"
+
+# DB_PORT must be set via POSTGRES_PORT in the .env file; do not override via DB_PORT
+if [ -z "${POSTGRES_PORT:-}" ]; then
+    echo "Missing POSTGRES_PORT in $ENV_FILE. Please set POSTGRES_PORT and retry." >&2
+    exit 1
+fi
+DB_PORT="$POSTGRES_PORT"
 
 if [ -z "${DB_ADMIN_PASSWORD:-}" ]; then
     echo "Missing DB_ADMIN_PASSWORD (set in $ENV_FILE or environment)" >&2
@@ -106,25 +112,25 @@ fi
 export PGPASSWORD="$DB_ADMIN_PASSWORD"
 
 echo "-- ensuring roles"
-psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres \
-    -v IMPORTER_USER="$IMPORTER_USER" -v IMPORTER_PASSWORD="$IMPORTER_PASSWORD" \
-    -v APP_USER="$APP_USER" -v APP_PASSWORD="$APP_PASSWORD" <<'SQL'
-DO $$
+# Using shell interpolation for role creation to avoid psql variable issues in DO blocks
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres <<EOF
+DO \$\$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'IMPORTER_USER') THEN
-        EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L NOCREATEDB NOCREATEROLE NOINHERIT', :'IMPORTER_USER', :'IMPORTER_PASSWORD');
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$IMPORTER_USER') THEN
+        CREATE ROLE "$IMPORTER_USER" WITH LOGIN PASSWORD '$IMPORTER_PASSWORD' NOCREATEDB NOCREATEROLE NOINHERIT;
     ELSE
-        EXECUTE format('ALTER ROLE %I WITH PASSWORD %L NOCREATEDB NOCREATEROLE NOINHERIT', :'IMPORTER_USER', :'IMPORTER_PASSWORD');
+        ALTER ROLE "$IMPORTER_USER" WITH PASSWORD '$IMPORTER_PASSWORD' NOCREATEDB NOCREATEROLE NOINHERIT;
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'APP_USER') THEN
-        EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L NOINHERIT NOCREATEDB NOCREATEROLE', :'APP_USER', :'APP_PASSWORD');
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$APP_USER') THEN
+        CREATE ROLE "$APP_USER" WITH LOGIN PASSWORD '$APP_PASSWORD' NOINHERIT NOCREATEDB NOCREATEROLE;
     ELSE
-        EXECUTE format('ALTER ROLE %I WITH PASSWORD %L NOINHERIT NOCREATEDB NOCREATEROLE', :'APP_USER', :'APP_PASSWORD');
+        ALTER ROLE "$APP_USER" WITH PASSWORD '$APP_PASSWORD' NOINHERIT NOCREATEDB NOCREATEROLE;
     END IF;
 END
-$$;
-SQL
+\$\$;
+EOF
+
 
 if $FORCE_RESET; then
     echo "-- dropping database $DB_NAME"
@@ -146,10 +152,6 @@ echo "-- applying base schema setup"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
     -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_itinerarius.sql"
 
-echo "-- applying api schema"
-psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
-    -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_api.sql"
-
 echo "-- granting connect to app user"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -c "GRANT CONNECT ON DATABASE $DB_NAME TO $APP_USER;"
 
@@ -161,7 +163,12 @@ export LUA_PATH="$ROOT_DIR/osm2pgsql/?.lua;;"
 osm2pgsql -H "$DB_HOST" -P "$DB_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
     -O flex -S "$LUA_SCRIPT" --create --drop "$PBF_FILE"
 
+# Reset PGPASSWORD for admin tasks
+export PGPASSWORD="$DB_ADMIN_PASSWORD"
+
 echo "-- post-import maintenance"
+# Use IMPORTER_PASSWORD for maintenance as IMPORTER_USER
+export PGPASSWORD="$IMPORTER_PASSWORD"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" <<'SQL'
 CREATE INDEX IF NOT EXISTS idx_amenities_geom ON itinerarius.amenities USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_amenities_class ON itinerarius.amenities (class);
@@ -180,9 +187,27 @@ ANALYZE itinerarius.amenities;
 ANALYZE itinerarius.routes;
 SQL
 
+# Reset PGPASSWORD for admin tasks
+export PGPASSWORD="$DB_ADMIN_PASSWORD"
+
+if command -v docker >/dev/null 2>&1; then
+  if ! docker volume inspect trailfox_pg_data >/dev/null 2>&1; then
+    docker volume create trailfox_pg_data >/dev/null
+  fi
+fi
+
+echo "-- applying api schema"
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
+    -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_api.sql"
+
+echo "-- applying tiles schema"
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
+    -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_tiles.sql"
+
+
 echo "-- results"
-AMENITIES=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")
-ROUTES=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM itinerarius.routes")
+AMENITIES=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")
+ROUTES=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM itinerarius.routes")
 echo "amenities: $AMENITIES"
 echo "routes: $ROUTES"
 echo "done"
