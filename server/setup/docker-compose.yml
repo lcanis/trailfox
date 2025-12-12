@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgis:
+    image: postgis/postgis:18-3.6
+    container_name: postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD}
+      POSTGRES_DB: itinerarius
+      POSTGRES_USER: gisuser
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql
+    shm_size: 1g
+
+  martin:
+    image: maplibre/martin:latest
+    container_name: martin
+    restart: unless-stopped
+    depends_on:
+      - postgis
+    ports:
+      - "127.0.0.1:3000:3000"
+    command: postgresql://calixtinus:${CALIXTINUS_PASSWORD}@postgis/itinerarius
+
+  postgrest:
+    image: postgrest/postgrest:latest
+    container_name: postgrest
+    restart: unless-stopped
+    depends_on:
+      - postgis
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      PGRST_DB_URI: postgres://calixtinus:${CALIXTINUS_PASSWORD}@postgis:5432/itinerarius
+      PGRST_DB_SCHEMA: api
+      PGRST_DB_ANON_ROLE: calixtinus
+
+volumes:
+  pg_data:
+    driver: local
