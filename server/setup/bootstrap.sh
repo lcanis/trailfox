@@ -89,7 +89,16 @@ for _ in {1..5}; do
 done
 
 if [ "$READY" = false ]; then
-        echo "Postgres not reachable after 5s" >&2
+    cat >&2 <<EOF
+Postgres not reachable after 5s.
+
+Troubleshooting steps:
+  - Check if the Docker containers are running: docker compose ps
+  - Verify your .env file configuration: $ENV_FILE
+  - Examine the Postgres container logs: docker compose logs postgis
+
+If Postgres is running on a different host or port, check your DB_HOST and DB_PORT settings.
+EOF
     exit 1
 fi
 
