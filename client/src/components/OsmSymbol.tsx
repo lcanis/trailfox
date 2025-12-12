@@ -12,7 +12,6 @@ export const OsmSymbol: React.FC<OsmSymbolProps> = ({ symbol }) => {
     // Format: waycolor:background:foreground:text:textcolor
     const parts = symbol.split(':');
     const background = parts[1];
-    const foreground = parts[2];
     const text = parts[3];
     const textColor = parts[4];
 
