@@ -15,6 +15,20 @@ export function getBounds(geojson: FeatureCollection | Feature | Geometry): [num
         }
     };
 
+    const processGeometry = (geometry: Geometry): void => {
+        if (geometry.type === 'GeometryCollection') {
+            geometry.geometries.forEach(processGeometry);
+        } else if (geometry.type === 'Point') {
+            processCoords(geometry.coordinates);
+        } else if (geometry.type === 'MultiPoint' || geometry.type === 'LineString') {
+            processCoords(geometry.coordinates);
+        } else if (geometry.type === 'MultiLineString' || geometry.type === 'Polygon') {
+            processCoords(geometry.coordinates);
+        } else if (geometry.type === 'MultiPolygon') {
+            processCoords(geometry.coordinates);
+        }
+    };
+
     if (geojson.type === 'FeatureCollection') {
         geojson.features.forEach((f) => {
             if (f.geometry) processGeometry(f.geometry);
@@ -114,18 +128,4 @@ export function getBounds(geojson: FeatureCollection | Feature | Geometry): [num
 
     if (minX === Infinity) return null;
     return [minX, minY, maxX, maxY];
-
-    function processGeometry(geometry: Geometry): void {
-        if (geometry.type === 'GeometryCollection') {
-            geometry.geometries.forEach(processGeometry);
-        } else if (geometry.type === 'Point') {
-            processCoords(geometry.coordinates);
-        } else if (geometry.type === 'MultiPoint' || geometry.type === 'LineString') {
-            processCoords(geometry.coordinates);
-        } else if (geometry.type === 'MultiLineString' || geometry.type === 'Polygon') {
-            processCoords(geometry.coordinates);
-        } else if (geometry.type === 'MultiPolygon') {
-            processCoords(geometry.coordinates);
-        }
-    }
 }
