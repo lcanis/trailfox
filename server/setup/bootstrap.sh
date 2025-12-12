@@ -10,6 +10,7 @@ DB_NAME="${DB_NAME:-itinerarius}"
 DB_ADMIN_USER="${DB_ADMIN_USER:-gisuser}"
 IMPORTER_USER="${IMPORTER_USER:-importer}"
 APP_USER="${APP_USER:-calixtinus}"
+DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-30}"
 LUA_SCRIPT="$ROOT_DIR/osm2pgsql/itinerarius.lua"
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 FORCE_RESET=false
@@ -80,7 +81,7 @@ fi
 
 echo "Waiting for Postgres at $DB_HOST:$DB_PORT..."
 READY=false
-for _ in {1..5}; do
+for ((i=1; i<=DB_WAIT_TIMEOUT; i++)); do
     if PGPASSWORD="$DB_ADMIN_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -c "SELECT 1" >/dev/null 2>&1; then
         READY=true
         break
@@ -89,8 +90,8 @@ for _ in {1..5}; do
 done
 
 if [ "$READY" = false ]; then
+    echo "Postgres not reachable after ${DB_WAIT_TIMEOUT}s" >&2
     cat >&2 <<EOF
-Postgres not reachable after 5s.
 
 Troubleshooting steps:
   - Check if the Docker containers are running: docker compose ps
