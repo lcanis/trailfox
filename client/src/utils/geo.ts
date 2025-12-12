@@ -15,7 +15,7 @@ export function getBounds(geojson: FeatureCollection | Feature | Geometry): [num
         }
     };
 
-    function processGeometry(geometry: Geometry): void {
+    const processGeometry = (geometry: Geometry): void => {
         if (geometry.type === 'GeometryCollection') {
             geometry.geometries.forEach(processGeometry);
         } else if (geometry.type === 'Point') {

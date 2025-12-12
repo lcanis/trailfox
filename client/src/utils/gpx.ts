@@ -1,3 +1,4 @@
+
 import type { Feature, LineString, MultiLineString, Position } from 'geojson';
 
 export const createGpx = (route: Feature<LineString | MultiLineString>): string => {
