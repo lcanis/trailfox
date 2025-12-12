@@ -134,7 +134,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) =>
                     })()}
 
                     {route.tags?.wikipedia && (
-                        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`https://wikipedia.org/wiki/${route.tags!.wikipedia}`)}>
+                        <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(`https://wikipedia.org/wiki/${route.tags.wikipedia}`)}>
                             <Text style={styles.link}>Wikipedia</Text>
                         </TouchableOpacity>
                     )}
