@@ -1,4 +1,14 @@
-export const createGpx = (route: any): string => {
+interface Route {
+    properties?: {
+        name?: string;
+    };
+    geometry?: {
+        type?: string;
+        coordinates?: number[][] | number[][][];
+    };
+}
+
+export const createGpx = (route: Route): string => {
     const name = route.properties?.name || 'Route';
     const coords = route.geometry?.coordinates || [];
 
