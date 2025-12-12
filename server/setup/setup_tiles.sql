@@ -1,14 +1,7 @@
 -- Function to serve vector tiles with zoom-based filtering
 -- This moves the heavy lifting from the browser to the database
 
--- Ensure the function is in the api schema so Martin can find it (if configured to look there)
--- or public if that's the default. Based on setup_api.sql, 'api' schema is used for PostgREST.
--- Martin usually defaults to 'public' for functions unless configured otherwise.
--- However, the user's previous setup_api.sql created views in 'api'.
--- Let's check where Martin is looking. The docker-compose usually specifies the connection string.
--- If Martin is auto-discovering tables in 'itinerarius', it might be looking everywhere.
--- But for functions, it's safer to put it in 'api' and grant permissions.
-
+-- Martin expects functions in the 'api' schema
 CREATE OR REPLACE FUNCTION api.mvt_routes(z integer, x integer, y integer)
 RETURNS bytea AS $$
 DECLARE
