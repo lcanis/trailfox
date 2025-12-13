@@ -25,7 +25,8 @@ if (Platform.OS === 'web') {
     const hostname = window.location.hostname;
     const port = window.location.port;
     const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
-    const isLocalLan = hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
+    const isLocalLan =
+      hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
     const isExpoWebPort = port === '8081' || port === '19006' || port === '19000';
     // Default to local Caddy proxy when running Expo locally (localhost, LAN IP, or dev ports)
     if (isLocalHost || isLocalLan || isExpoWebPort) {

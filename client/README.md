@@ -5,11 +5,13 @@ This is the React Native / Expo client for Itinerarius.
 ## Setup
 
 1.  Install dependencies:
+
     ```bash
     npm install
     ```
 
 2.  Run for web:
+
     ```bash
     npx expo start --web
     ```
@@ -23,6 +25,7 @@ This is the React Native / Expo client for Itinerarius.
 
 The web build is deployed to `poc.trailfox.app`.
 To deploy manually:
+
 ```bash
 npx expo export -p web
 sudo cp -r dist/* /var/www/trailfox.app/poc/html/
