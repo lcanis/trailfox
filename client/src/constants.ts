@@ -5,14 +5,9 @@ export const NETWORK_MAP: Record<string, { label: string, color: string }> = {
     'lwn': { label: 'Local', color: '#ff7f00' },
 };
 
-// Map Start Location Configuration
-// Options: 'luxembourg', 'munich', 'user'
-export const START_LOCATION_MODE: 'luxembourg' | 'munich' | 'user' = 'user';
-
-export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number], zoom: number }> = {
-    luxembourg: { center: [6.13, 49.61], zoom: 9 },
-    munich: { center: [11.58, 48.13], zoom: 10 },
-};
+// START_LOCATION_MODE, PREDEFINED_LOCATIONS and DEVELOPER_MODE have been moved
+// to src/config/settings.ts to make them easily editable by developers.
+export { START_LOCATION_MODE, PREDEFINED_LOCATIONS, DEVELOPER_MODE } from './config/settings';
 
 export const IGNORED_TAGS = [
     'network',
@@ -33,5 +28,4 @@ export const IGNORED_TAGS = [
     'url'
 ];
 
-export const DEVELOPER_MODE = true;
 export const COLLAPSE_OSM_TAGS_BY_DEFAULT = true;

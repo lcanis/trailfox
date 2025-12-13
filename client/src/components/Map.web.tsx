@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import debounce from 'lodash.debounce';
 import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
-import { START_LOCATION_MODE, PREDEFINED_LOCATIONS, DEVELOPER_MODE } from '../constants';
+import { START_LOCATION_MODE, PREDEFINED_LOCATIONS, DEVELOPER_MODE, TILES_BASE_URL } from '../config/settings';
 
 interface MapProps {
     onHover: (id: number | null) => void;
@@ -70,7 +70,7 @@ export default function Map({ onHover, onSelect, onViewChange, selectedId, highl
 
             map.current.addSource('routes', {
                 type: 'vector',
-                tiles: [window.location.origin + '/tiles/mvt_routes/{z}/{x}/{y}'],
+                tiles: [TILES_BASE_URL + '/mvt_routes/{z}/{x}/{y}'],
                 minzoom: 0,
                 maxzoom: 20,
             });

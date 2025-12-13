@@ -1,6 +1,6 @@
 import { Route } from '../types';
+import { API_URL } from '../config/settings';
 
-const API_URL = '/api/routes';
 const SELECT_FIELDS = 'osm_id,name,network,length_m,route_type,symbol,tags';
 
 export const RouteService = {
@@ -26,7 +26,7 @@ export const RouteService = {
             if (!response.ok) throw new Error('Failed to fetch geometry');
             return await response.json();
         } catch (error) {
-            console.error('GPX fetch error:', error);
+            console.error('GeoJSON fetch error:', error);
             throw error;
         }
     }
