@@ -32,12 +32,38 @@ export default function Map({
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [zoom, setZoom] = useState<number>(0);
 
-  // Debounced hover handler
-  const handleHover = useRef(
+  // Callback refs so event listeners can call latest prop callbacks without
+  // needing to re-register listeners when props change.
+  const onHoverRef = useRef(onHover);
+  const onSelectRef = useRef(onSelect);
+  const onViewChangeRef = useRef(onViewChange);
+
+  useEffect(() => {
+    onHoverRef.current = onHover;
+  }, [onHover]);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
+    onViewChangeRef.current = onViewChange;
+  }, [onViewChange]);
+
+  // Debounced hover handler uses the ref to always call the latest callback.
+  const handleHoverRef = useRef(
     debounce((id: number | null) => {
-      onHover(id);
+      onHoverRef.current(id);
     }, 50)
-  ).current;
+  );
+
+  useEffect(() => {
+    const h = handleHoverRef.current;
+    return () => {
+      // Cancel pending debounce when unmounting
+      h?.cancel?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
@@ -76,7 +102,6 @@ export default function Map({
 
     map.current.on('load', () => {
       if (!map.current) return;
-      console.log('Map loaded');
       setIsMapLoaded(true);
 
       map.current.addSource('routes', {
@@ -189,20 +214,20 @@ export default function Map({
 
       map.current.on('mouseleave', 'routes-hit-area', () => {
         map.current?.getCanvas().style.removeProperty('cursor');
-        handleHover(null);
+        handleHoverRef.current(null);
       });
 
       map.current.on('mousemove', 'routes-hit-area', (e) => {
         if (e.features && e.features.length > 0) {
           const id = e.features[0].properties.osm_id;
-          handleHover(id);
+          handleHoverRef.current(id);
         }
       });
 
       map.current.on('click', 'routes-hit-area', (e) => {
         if (e.features && e.features.length > 0) {
           const id = e.features[0].properties.osm_id;
-          onSelect(id);
+          onSelectRef.current(id);
         }
       });
 
@@ -211,7 +236,7 @@ export default function Map({
           layers: ['routes-hit-area'],
         });
         if (!features || features.length === 0) {
-          onSelect(null);
+          onSelectRef.current(null);
         }
       });
 
@@ -219,7 +244,7 @@ export default function Map({
         if (!map.current) return;
         const visibleFeatures = map.current.queryRenderedFeatures({ layers: ['routes-hit-area'] });
         const visibleIds = new Set(visibleFeatures.map((f) => f.properties.osm_id));
-        onViewChange(visibleIds);
+        onViewChangeRef.current(visibleIds);
       }, 200);
 
       map.current.on('moveend', updateVisible);

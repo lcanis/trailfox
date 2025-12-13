@@ -2,7 +2,7 @@
 
 ## Developers
 
-see backend/README.md and frontend/README.md
+see backend/README.md and frontend/CONTRIBUTING.md
 
 ### Development Setup
 

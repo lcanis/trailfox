@@ -39,7 +39,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) =>
           a.click();
           URL.revokeObjectURL(url);
         } else {
-          console.log('GPX download not implemented for native yet');
+          console.error('GPX download not implemented for native yet');
         }
       }
     } catch (e) {

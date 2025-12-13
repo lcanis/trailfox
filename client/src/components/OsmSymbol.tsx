@@ -12,7 +12,7 @@ export const OsmSymbol: React.FC<OsmSymbolProps> = ({ symbol }) => {
   // Format: waycolor:background:foreground:text:textcolor
   const parts = symbol.split(':');
   const background = parts[1];
-  const foreground = parts[2];
+  // const foreground = parts[2];
   const text = parts[3];
   const textColor = parts[4];
 
@@ -33,7 +33,7 @@ export const OsmSymbol: React.FC<OsmSymbolProps> = ({ symbol }) => {
   const bgColor = colorMap[background] || '#eee';
   const txtColor = colorMap[textColor] || 'black';
 
-  // Simple rendering: Box with background color and text
+  // TODO: Simple rendering: Box with background color and text
   // Foreground symbols (bars, stripes) are hard to do with just CSS/View without SVG paths
   // For now, we just show the background and text.
 
