@@ -1,4 +1,5 @@
 import React from 'react';
+import debounce from 'lodash.debounce';
 import {
   ActivityIndicator,
   Platform,
@@ -76,6 +77,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
   onSelectClusterKey,
 }) => {
   const [radiusKm, setRadiusKm] = React.useState(0.2);
+  const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
   const [invert, setInvert] = React.useState(false);
   const [selectedClasses, setSelectedClasses] = React.useState<Set<string>>(new Set());
   const [internalSelectedKey, setInternalSelectedKey] = React.useState<string | null>(null);
@@ -149,16 +151,36 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     }, 120);
   }, [clearHoverHideTimer]);
 
+  const debouncedSetRadius = React.useMemo(
+    () => debounce((v: number) => setRadiusKm(v), 550),
+    [setRadiusKm]
+  );
+
+  React.useEffect(() => {
+    // Keep the tempRadius synced if external radius changes (e.g., via code).
+    setTempRadiusKm(radiusKm);
+  }, [radiusKm]);
+
+  React.useEffect(() => {
+    return () => {
+      debouncedSetRadius.cancel();
+    };
+  }, [debouncedSetRadius]);
+
   const controlsNode = (
     <View style={styles.controlsBar}>
       <View style={styles.controlsLeft}>
         <View style={styles.radiusRow}>
           <Text style={styles.controlLabel}>Radius</Text>
-          <Text style={styles.radiusValue}>{radiusKm.toFixed(1)} km</Text>
+          <Text style={styles.radiusValue}>{tempRadiusKm.toFixed(1)} km</Text>
         </View>
         <RadiusSlider
-          value={radiusKm}
-          onValueChange={(v: number) => setRadiusKm(clamp(Math.round(v * 10) / 10, 0.1, 1))}
+          value={tempRadiusKm}
+          onValueChange={(v: number) => {
+            const newV = clamp(Math.round(v * 10) / 10, 0.1, 1);
+            setTempRadiusKm(newV);
+            debouncedSetRadius(newV);
+          }}
           minimumValue={0.1}
           maximumValue={1}
           step={0.1}
@@ -224,10 +246,77 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     </View>
   );
 
+  const clustersWithEndpoints = React.useMemo(() => {
+    const epsKm = 0.001;
+    const out: AmenityCluster[] = [...clusters];
+    // Start (trail_km=0)
+    const hasStart = out.some((c) => Math.abs(c.trail_km - 0) <= epsKm);
+    if (!hasStart) {
+      const startName = route.tags?.from || 'Start';
+      const startAmenity: RouteAmenity = {
+        route_osm_id: route.osm_id,
+        osm_type: 'N',
+        osm_id: -1,
+        name: startName,
+        class: 'Place',
+        subclass: null,
+        lon: out.length ? out[0].lon : 0,
+        lat: out.length ? out[0].lat : 0,
+        distance_from_trail_m: 0,
+        trail_km: 0,
+        tags: null,
+      };
+      out.unshift({
+        key: `start-${route.osm_id}`,
+        trail_km: 0,
+        amenities: [startAmenity],
+        countsByClass: { Place: 1 },
+        size: 1,
+        lon: startAmenity.lon,
+        lat: startAmenity.lat,
+      });
+    }
+
+    // End (trail_km = route.length_m / 1000)
+    const routeKm = route.length_m ? route.length_m / 1000.0 : null;
+    if (routeKm !== null) {
+      const hasEnd = out.some((c) => Math.abs((c.trail_km || 0) - routeKm) <= epsKm);
+      if (!hasEnd) {
+        const endName = route.tags?.to || 'End';
+        const endAmenity: RouteAmenity = {
+          route_osm_id: route.osm_id,
+          osm_type: 'N',
+          osm_id: -2,
+          name: endName,
+          class: 'Place',
+          subclass: null,
+          lon: out.length ? out[out.length - 1].lon : 0,
+          lat: out.length ? out[out.length - 1].lat : 0,
+          distance_from_trail_m: 0,
+          trail_km: routeKm,
+          tags: null,
+        };
+        out.push({
+          key: `end-${route.osm_id}`,
+          trail_km: routeKm,
+          amenities: [endAmenity],
+          countsByClass: { Place: 1 },
+          size: 1,
+          lon: endAmenity.lon,
+          lat: endAmenity.lat,
+        });
+      }
+    }
+
+    // Sort by trail_km ascending
+    out.sort((a, b) => (a.trail_km || 0) - (b.trail_km || 0));
+    return out;
+  }, [clusters, route]);
+
   const displayedClusters = React.useMemo(() => {
-    if (!invert) return clusters;
-    return [...clusters].reverse();
-  }, [clusters, invert]);
+    if (!invert) return clustersWithEndpoints;
+    return [...clustersWithEndpoints].reverse();
+  }, [clustersWithEndpoints, invert]);
 
   React.useEffect(() => {
     if (!effectiveSelectedKey) return;
@@ -239,7 +328,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     if (!renderRightPane) return null;
     return renderRightPane({
       route,
-      clusters,
+      clusters: clustersWithEndpoints,
       rawAmenities,
       radiusKm,
       allowedClasses,
@@ -249,7 +338,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
   }, [
     renderRightPane,
     route,
-    clusters,
+    clustersWithEndpoints,
     rawAmenities,
     radiusKm,
     allowedClasses,
