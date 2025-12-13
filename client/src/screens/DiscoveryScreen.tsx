@@ -6,6 +6,7 @@ import { RouteList } from '../components/RouteList';
 import { RouteDetails } from '../components/RouteDetails';
 import Map from '../components/Map.web';
 import { Route, RouteFilter as RouteFilterType } from '../types';
+import { ItineraryScreen } from './ItineraryScreen';
 
 // Fisher-Yates shuffle
 const shuffleArray = (array: Route[]) => {
@@ -41,6 +42,7 @@ export const DiscoveryScreen = () => {
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(null);
 
   // Derived Data
   // Use shuffledRoutes as base if no sort is active, otherwise use original routes (or shuffled, doesn't matter if sorted)
@@ -48,6 +50,9 @@ export const DiscoveryScreen = () => {
 
   const activeId = selectedId || hoveredId;
   const activeRoute = activeId ? routes.find((r) => r.osm_id === activeId) : null;
+  const itineraryRoute = itineraryRouteId
+    ? routes.find((r) => r.osm_id === itineraryRouteId)
+    : null;
 
   // Handlers
   const handleViewChange = useCallback((ids: Set<number>) => {
@@ -64,6 +69,10 @@ export const DiscoveryScreen = () => {
 
   const handleMapHover = useCallback((id: number | null) => {
     setHoveredId(id);
+  }, []);
+
+  const handleOpenItinerary = useCallback((route: Route) => {
+    setItineraryRouteId(route.osm_id);
   }, []);
 
   if (loading) {
@@ -104,7 +113,17 @@ export const DiscoveryScreen = () => {
         />
       </View>
 
-      {activeRoute && <RouteDetails route={activeRoute} onClose={() => setSelectedId(null)} />}
+      {activeRoute && (
+        <RouteDetails
+          route={activeRoute}
+          onClose={() => setSelectedId(null)}
+          onOpenItinerary={handleOpenItinerary}
+        />
+      )}
+
+      {itineraryRoute && (
+        <ItineraryScreen route={itineraryRoute} onClose={() => setItineraryRouteId(null)} />
+      )}
     </View>
   );
 };

@@ -21,6 +21,32 @@ Itinerarius is a **vertical, linear trail guide**: a logistics-first view of lon
   - Read-only queries from the GeoPackage (no editing).
 - **Design priority:** Clean, focused UI with strong typographic hierarchy and intuitive iconography.
 
+File structure for multi-platform:
+
+```text
+app/
+├── screens/
+│   ├── Timeline.tsx (shared logic)
+│   ├── Timeline.web.tsx (web-only UI)
+│   └── Timeline.ios.tsx (iOS-only UI)
+├── hooks/ (100% shared)
+├── services/geopackage.ts (100% shared, but different imports per platform)
+└── types/ (100% shared)
+````
+
+Shared hooks for timeline logic:
+
+```text
+// Reusable across web + iOS
+export const useTrailTimeline = (trailId: string) => {
+  const [stops, setStops] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [filter, setFilter] = useState({...});
+  // All your filtering, sorting, clustering logic
+  return { stops, userLocation, filter, setFilter };
+}
+```
+
 ### 2.2 Main Screen – Vertical Trail Timeline
 
 The main screen is a **vertical, scrollable timeline** of the selected trail or stage.
@@ -221,11 +247,14 @@ These tags are used on the backend to derive `env_class` per trail segment; fron
 
 ### 4.4 Environment Classification (Why Not Boundaries?)
 
-- **Administrative boundaries** (`boundary=administrative`) are too coarse:
-  - One municipality can contain large forests or fields.
-- **Better approach: landuse/natural/building polygons**
+- Initial approach:
+  - Get all place nodes
+
+- **Better approach: landuse/natural/building clusters**
   - Use `landuse=*`, `natural=*`, `building=*` as a vector map of actual ground usage.
   - Intersect the trail with these polygons to derive `env_class` per distance segment.
+
+see town-location.md for details
 
 ### 4.5 GeoPackage Export
 
@@ -247,7 +276,7 @@ The mobile app only needs read-only access to these tables.
 - Target user: **hikers** (walking speed, 1 km default radius).
 - Geography: limited to 1–2 showcase trails for development.
 - Features:
-  - Offline trail data via GeoPackage.
+  - query db online for development and validation
   - Vertical timeline with stops and amenity clusters.
   - Basic filters and distance filter.
   - Simple trail selection from a list.
@@ -255,13 +284,6 @@ The mobile app only needs read-only access to these tables.
 
 ### 5.2 Implementation Steps – Backend
 
-1. **OSM Data Ingestion**
-   - Load OSM data into PostGIS (via osm2pgsql or similar).
-   - Build `amenities` and `landuse_areas` tables using tag filters above.
-
-2. **Trail Extraction**
-   - Either fork or reuse **Waymarked Trails** processing (lonvia) OR
-   - Extract hiking routes (`route=hiking/foot`) and store in `trails`.
 
 3. **Linear Referencing & Amenity Association**
    - For each trail, compute length and distance measures along the line.
@@ -269,12 +291,6 @@ The mobile app only needs read-only access to these tables.
      - Compute `distance_from_trail_m` and `trail_km`.
      - Assign `cluster_id` (by bucketing or spatial grouping).
 
-4. **Environment Segmentation**
-   - Intersect trails with `landuse_areas` to get `env_class` segments.
-
-5. **GeoPackage Export & API**
-   - Export per-trail GeoPackage with required tables.
-   - Provide `/trails` and `/trails/{id}/package` endpoints.
 
 ### 5.3 Implementation Steps – Frontend
 

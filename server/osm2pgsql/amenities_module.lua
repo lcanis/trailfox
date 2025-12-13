@@ -128,6 +128,15 @@ local allowed_vendings = {
 	bread = true,
 }
 
+local allowed_places = {
+	town = true,
+	city = true,
+	village = true,
+	hamlet = true,
+	isolated_dwelling = true,
+	farm = true,
+}
+
 local function process_poi(object, geom)
 	local a = {
 		name = object.tags.name,
@@ -210,6 +219,19 @@ end
 -- ----------------------------------------------------------------------------
 
 function module.process_node(object)
+	-- Import place=* nodes as itinerary-relevant "Place" POIs.
+	-- Spec: class=Place, subclass=place value.
+	if object.tags.place and allowed_places[object.tags.place] then
+		pois:insert({
+			name = object.tags.name,
+			class = "Place",
+			subclass = object.tags.place,
+			geom = object:as_point(),
+			tags = object.tags,
+		})
+		return
+	end
+
 	process_poi(object, object:as_point())
 end
 

@@ -11,7 +11,11 @@ Discovery:
 * review and update symbol generation (should it be done in the backend maybe?)
 * filter routes by Network/pilgrimage=yes/Length/arbitrary OSM tag (dev mode)/
 * add: offer order by distance from current location
-
 Itinerary:
 
 * TODO - ALL
+
+then
+
+* Stage-ifier
+* QR code/links for planning

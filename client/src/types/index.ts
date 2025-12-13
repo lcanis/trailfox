@@ -8,6 +8,8 @@ export interface Route {
   tags: Record<string, string> | null;
 }
 
+export * from './itinerary';
+
 export type SortOption = 'name' | 'length' | null;
 
 export interface RouteFilter {

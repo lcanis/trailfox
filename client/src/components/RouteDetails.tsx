@@ -17,9 +17,10 @@ import { OsmSymbol } from './OsmSymbol';
 interface RouteDetailsProps {
   route: Route;
   onClose: () => void;
+  onOpenItinerary: (route: Route) => void;
 }
 
-export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) => {
+export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOpenItinerary }) => {
   const [osmTagsCollapsed, setOsmTagsCollapsed] = React.useState(COLLAPSE_OSM_TAGS_BY_DEFAULT);
 
   const handleDownloadGpx = async () => {
@@ -184,6 +185,10 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose }) =>
             <InfoRow label="Type" value={route.route_type} />
           )}
 
+          <TouchableOpacity style={styles.itineraryBtn} onPress={() => onOpenItinerary(route)}>
+            <Text style={styles.itineraryBtnText}>Itinerary</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.downloadBtn} onPress={handleDownloadGpx}>
             <Text style={styles.downloadBtnText}>Download GPX</Text>
           </TouchableOpacity>
@@ -245,6 +250,17 @@ const styles = StyleSheet.create({
     zIndex: 30,
     borderLeftWidth: 1,
     borderLeftColor: '#eee',
+  },
+  itineraryBtn: {
+    backgroundColor: '#111',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  itineraryBtnText: {
+    color: 'white',
+    fontWeight: '600',
   },
   sidebarHeader: {
     flexDirection: 'row',

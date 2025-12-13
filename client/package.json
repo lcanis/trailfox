@@ -17,6 +17,7 @@
     "expo": "~54.0.27",
     "expo-constants": "~18.0.12",
     "expo-status-bar": "~3.0.9",
+    "@react-native-community/slider": "^4.5.7",
     "lodash.debounce": "^4.0.8",
     "maplibre-gl": "^5.14.0",
     "react": "19.1.0",

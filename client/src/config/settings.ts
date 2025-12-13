@@ -18,7 +18,7 @@ export const DEVELOPER_MODE = true;
 // API configuration used by the client during development and production.
 // Local dev: use Caddy reverse proxy running on localhost:8090 (see server setup)
 // Production: blank base URL means same-origin (served via reverse proxy)
-let API_BASE_URL = '';
+export let API_BASE_URL = '';
 
 if (Platform.OS === 'web') {
   if (typeof window !== 'undefined') {
