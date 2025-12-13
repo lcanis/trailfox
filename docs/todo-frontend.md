@@ -11,9 +11,15 @@ Discovery:
 * review and update symbol generation (should it be done in the backend maybe?)
 * filter routes by Network/pilgrimage=yes/Length/arbitrary OSM tag (dev mode)/
 * add: offer order by distance from current location
+
 Itinerary:
 
-* TODO - ALL
+* start and end should always be included
+* radius filter should be debounced.
+* amenities filter too.
+* amenities filter should be progressive and handle small geometries better (reflow)
+* better names for amenities, more granular
+* icons!
 
 then
 

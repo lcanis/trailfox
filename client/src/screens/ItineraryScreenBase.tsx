@@ -75,7 +75,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
   selectedClusterKey,
   onSelectClusterKey,
 }) => {
-  const [radiusKm, setRadiusKm] = React.useState(1);
+  const [radiusKm, setRadiusKm] = React.useState(0.2);
   const [invert, setInvert] = React.useState(false);
   const [selectedClasses, setSelectedClasses] = React.useState<Set<string>>(new Set());
   const [internalSelectedKey, setInternalSelectedKey] = React.useState<string | null>(null);
@@ -83,6 +83,22 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     title: string;
     tags: Record<string, string> | null;
   } | null>(null);
+
+  const hoverHideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverKeyRef = React.useRef<string | null>(null);
+
+  const clearHoverHideTimer = React.useCallback(() => {
+    if (hoverHideTimerRef.current) {
+      clearTimeout(hoverHideTimerRef.current);
+      hoverHideTimerRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      clearHoverHideTimer();
+    };
+  }, [clearHoverHideTimer]);
 
   const effectiveSelectedKey = selectedClusterKey ?? internalSelectedKey;
   const setSelectedKey = onSelectClusterKey ?? setInternalSelectedKey;
@@ -103,10 +119,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
   const fromLoc = route.tags?.from;
   const toLoc = route.tags?.to;
 
-  const displayedClusters = React.useMemo(() => {
-    if (!invert) return clusters;
-    return [...clusters].reverse();
-  }, [clusters, invert]);
+  const isWebSplit = Platform.OS === 'web' && Boolean(split && renderRightPane);
 
   const availableClasses = React.useMemo(() => {
     const counts = new Map<string, number>();
@@ -115,6 +128,106 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([cls]) => cls);
   }, [rawAmenities]);
+
+  const showDevTags = React.useCallback(
+    (key: string, overlay: { title: string; tags: Record<string, string> | null }) => {
+      if (!DEVELOPER_MODE) return;
+      clearHoverHideTimer();
+      if (Platform.OS === 'web' && hoverKeyRef.current === key) return;
+      hoverKeyRef.current = key;
+      setDevTagsOverlay(overlay);
+    },
+    [clearHoverHideTimer]
+  );
+
+  const scheduleHideDevTags = React.useCallback(() => {
+    if (!DEVELOPER_MODE) return;
+    clearHoverHideTimer();
+    hoverHideTimerRef.current = setTimeout(() => {
+      hoverKeyRef.current = null;
+      setDevTagsOverlay(null);
+    }, 120);
+  }, [clearHoverHideTimer]);
+
+  const controlsNode = (
+    <View style={styles.controlsBar}>
+      <View style={styles.controlsLeft}>
+        <View style={styles.radiusRow}>
+          <Text style={styles.controlLabel}>Radius</Text>
+          <Text style={styles.radiusValue}>{radiusKm.toFixed(1)} km</Text>
+        </View>
+        <RadiusSlider
+          value={radiusKm}
+          onValueChange={(v: number) => setRadiusKm(clamp(Math.round(v * 10) / 10, 0.1, 1))}
+          minimumValue={0.1}
+          maximumValue={1}
+          step={0.1}
+          minimumTrackTintColor={THEME.accent}
+          maximumTrackTintColor={THEME.border}
+          thumbTintColor={THEME.accent}
+        />
+
+        <View style={styles.filterRow}>
+          <Text style={styles.controlLabel}>Filter</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterChips}
+          >
+            <Pressable
+              onPress={() => setSelectedClasses(new Set())}
+              style={[styles.filterChip, selectedClasses.size === 0 && styles.filterChipActive]}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedClasses.size === 0 && styles.filterChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </Pressable>
+            {availableClasses.map((cls) => {
+              const active = selectedClasses.has(cls);
+              return (
+                <Pressable
+                  key={cls}
+                  onPress={() => {
+                    setSelectedClasses((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(cls)) next.delete(cls);
+                      else next.add(cls);
+                      return next;
+                    });
+                  }}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                >
+                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                    {normalizeLabel(cls)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+
+      <View style={styles.controlsRight}>
+        <Text style={styles.controlLabel}>Invert</Text>
+        <Switch
+          value={invert}
+          onValueChange={setInvert}
+          trackColor={{ false: THEME.border, true: THEME.accent }}
+          thumbColor={THEME.surface}
+        />
+      </View>
+    </View>
+  );
+
+  const displayedClusters = React.useMemo(() => {
+    if (!invert) return clusters;
+    return [...clusters].reverse();
+  }, [clusters, invert]);
 
   React.useEffect(() => {
     if (!effectiveSelectedKey) return;
@@ -192,78 +305,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      <View style={styles.controlsBar}>
-        <View style={styles.controlsLeft}>
-          <View style={styles.radiusRow}>
-            <Text style={styles.controlLabel}>Radius</Text>
-            <Text style={styles.radiusValue}>{radiusKm.toFixed(1)} km</Text>
-          </View>
-          <RadiusSlider
-            value={radiusKm}
-            onValueChange={(v: number) => setRadiusKm(clamp(Math.round(v * 10) / 10, 0.1, 1))}
-            minimumValue={0.1}
-            maximumValue={1}
-            step={0.1}
-            minimumTrackTintColor={THEME.accent}
-            maximumTrackTintColor={THEME.border}
-            thumbTintColor={THEME.accent}
-          />
-
-          <View style={styles.filterRow}>
-            <Text style={styles.controlLabel}>Filter</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChips}
-            >
-              <Pressable
-                onPress={() => setSelectedClasses(new Set())}
-                style={[styles.filterChip, selectedClasses.size === 0 && styles.filterChipActive]}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedClasses.size === 0 && styles.filterChipTextActive,
-                  ]}
-                >
-                  All
-                </Text>
-              </Pressable>
-              {availableClasses.map((cls) => {
-                const active = selectedClasses.has(cls);
-                return (
-                  <Pressable
-                    key={cls}
-                    onPress={() => {
-                      setSelectedClasses((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(cls)) next.delete(cls);
-                        else next.add(cls);
-                        return next;
-                      });
-                    }}
-                    style={[styles.filterChip, active && styles.filterChipActive]}
-                  >
-                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                      {normalizeLabel(cls)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-
-        <View style={styles.controlsRight}>
-          <Text style={styles.controlLabel}>Invert</Text>
-          <Switch
-            value={invert}
-            onValueChange={setInvert}
-            trackColor={{ false: THEME.border, true: THEME.accent }}
-            thumbColor={THEME.surface}
-          />
-        </View>
-      </View>
+      {!isWebSplit ? controlsNode : null}
 
       <View style={[styles.content, split && styles.contentSplit]}>
         {loading && (
@@ -282,146 +324,156 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
 
         {!loading && !error && (
           <View style={[styles.splitRow, Platform.OS !== 'web' && styles.splitRowSingle]}>
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
-              <View style={styles.currentMarker}>
-                <Text style={styles.currentMarkerText}>
-                  Timeline view · within {radiusKm.toFixed(1)} km of trail
-                </Text>
-              </View>
+            <View style={styles.leftPane}>
+              {isWebSplit ? controlsNode : null}
+              <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+                <View style={styles.currentMarker}>
+                  <Text style={styles.currentMarkerText}>
+                    Timeline view · within {radiusKm.toFixed(1)} km of trail
+                  </Text>
+                </View>
 
-              {displayedClusters.length === 0 ? (
-                <Text style={styles.muted}>
-                  No amenities found within {radiusKm.toFixed(1)} km of this route.
-                </Text>
-              ) : (
-                displayedClusters.map((cluster, index) => {
-                  const placeTitle = getClusterPlaceTitle(cluster);
-                  const firstNamed = cluster.amenities.find((a) => a.name)?.name;
-                  const title = placeTitle || firstNamed || pickClusterTitle(cluster.countsByClass);
-                  const isPlaceHeader = Boolean(placeTitle);
-                  const minDist = Math.min(
-                    ...cluster.amenities.map((a) => a.distance_from_trail_m)
-                  );
-                  const isCurrent = index === 0;
+                {displayedClusters.length === 0 ? (
+                  <Text style={styles.muted}>
+                    No amenities found within {radiusKm.toFixed(1)} km of this route.
+                  </Text>
+                ) : (
+                  displayedClusters.map((cluster, index) => {
+                    const placeTitle = getClusterPlaceTitle(cluster);
+                    const firstNamed = cluster.amenities.find((a) => a.name)?.name;
+                    const title =
+                      placeTitle || firstNamed || pickClusterTitle(cluster.countsByClass);
+                    const isPlaceHeader = Boolean(placeTitle);
+                    const minDist = Math.min(
+                      ...cluster.amenities.map((a) => a.distance_from_trail_m)
+                    );
+                    const isCurrent = index === 0;
 
-                  const prevKm =
-                    index === 0 ? cluster.trail_km : displayedClusters[index - 1].trail_km;
-                  const deltaKm = Math.abs(cluster.trail_km - prevKm);
-                  const marginTop = index === 0 ? 0 : deltaKm * 90;
+                    const prevKm =
+                      index === 0 ? cluster.trail_km : displayedClusters[index - 1].trail_km;
+                    const deltaKm = Math.abs(cluster.trail_km - prevKm);
+                    const marginTop = index === 0 ? 0 : deltaKm * 90;
 
-                  const isSelected = cluster.key === effectiveSelectedKey;
+                    const isSelected = cluster.key === effectiveSelectedKey;
 
-                  return (
-                    <Pressable
-                      key={cluster.key}
-                      onPress={() =>
-                        setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)
-                      }
-                      style={({ pressed }) => [
-                        { marginTop },
-                        styles.timelineItem,
-                        isCurrent && styles.timelineItemCurrent,
-                        isSelected && styles.timelineItemSelected,
-                        pressed && styles.timelineItemPressed,
-                        { minHeight: 70 + cluster.size * 3 },
-                      ]}
-                    >
-                      <View style={styles.timelineMarker}>
-                        <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
-                        {index < displayedClusters.length - 1 && (
-                          <View
-                            style={[styles.markerLine, isCurrent && styles.markerLineCurrent]}
-                          />
-                        )}
-                      </View>
+                    return (
+                      <Pressable
+                        key={cluster.key}
+                        onPress={() =>
+                          setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)
+                        }
+                        style={({ pressed }) => [
+                          { marginTop },
+                          styles.timelineItem,
+                          isCurrent && styles.timelineItemCurrent,
+                          isSelected && styles.timelineItemSelected,
+                          pressed && styles.timelineItemPressed,
+                          { minHeight: 70 + cluster.size * 3 },
+                        ]}
+                      >
+                        <View style={styles.timelineMarker}>
+                          <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
+                          {index < displayedClusters.length - 1 && (
+                            <View
+                              style={[styles.markerLine, isCurrent && styles.markerLineCurrent]}
+                            />
+                          )}
+                        </View>
 
-                      <View style={styles.timelineContent}>
-                        <Text
-                          style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
-                          numberOfLines={1}
-                        >
-                          {title}
-                        </Text>
-                        <View style={styles.stopLocationRow}>
-                          <Text style={styles.stopMeta}>
-                            {formatKm(cluster.trail_km)} from start
+                        <View style={styles.timelineContent}>
+                          <Text
+                            style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
+                            numberOfLines={1}
+                          >
+                            {title}
                           </Text>
-                          <Text style={styles.stopMeta}>·</Text>
-                          <Text style={styles.stopMeta}>{formatMeters(minDist)} from trail</Text>
-                          <Text style={styles.stopMeta}>·</Text>
-                          <Text style={styles.stopMeta}>{cluster.size} items</Text>
-                        </View>
-
-                        <View style={styles.amenityTagsRow}>
-                          {Object.entries(cluster.countsByClass)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 6)
-                            .map(([cls, count]) => (
-                              <View key={cls} style={styles.amenityTag}>
-                                <Text style={styles.amenityTagText}>
-                                  {normalizeLabel(cls)} ×{count}
-                                </Text>
-                              </View>
-                            ))}
-                        </View>
-
-                        {isSelected && (
-                          <View style={styles.detailsBox}>
-                            {cluster.amenities
-                              .slice()
-                              .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m)
-                              .slice(0, 10)
-                              .map((a) => (
-                                <Pressable
-                                  key={`${a.osm_type}-${a.osm_id}`}
-                                  onHoverIn={() =>
-                                    setDevTagsOverlay({
-                                      title:
-                                        a.name ||
-                                        `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                                      tags: a.tags,
-                                    })
-                                  }
-                                  onHoverOut={() => setDevTagsOverlay(null)}
-                                  onPressIn={() =>
-                                    DEVELOPER_MODE
-                                      ? setDevTagsOverlay({
-                                          title:
-                                            a.name ||
-                                            `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                                          tags: a.tags,
-                                        })
-                                      : undefined
-                                  }
-                                  style={styles.detailsLineRow}
-                                >
-                                  <Text style={styles.detailsLine}>• </Text>
-                                  <Text style={styles.detailsLine}>
-                                    {a.name
-                                      ? a.name
-                                      : a.subclass
-                                        ? titleize(a.subclass)
-                                        : 'Unnamed'}
-                                    {a.subclass && a.name ? ` — ${titleize(a.subclass)}` : ''}{' '}
-                                  </Text>
-                                  <Text style={styles.detailsLine}>
-                                    ({formatMeters(a.distance_from_trail_m)})
-                                  </Text>
-                                </Pressable>
-                              ))}
-                            {cluster.amenities.length > 10 && (
-                              <Text style={styles.detailsMore}>
-                                +{cluster.amenities.length - 10} more
-                              </Text>
-                            )}
+                          <View style={styles.stopLocationRow}>
+                            <Text style={styles.stopMeta}>
+                              {formatKm(cluster.trail_km)} from start
+                            </Text>
+                            <Text style={styles.stopMeta}>·</Text>
+                            <Text style={styles.stopMeta}>{formatMeters(minDist)} from trail</Text>
+                            <Text style={styles.stopMeta}>·</Text>
+                            <Text style={styles.stopMeta}>{cluster.size} items</Text>
                           </View>
-                        )}
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </ScrollView>
+
+                          <View style={styles.amenityTagsRow}>
+                            {Object.entries(cluster.countsByClass)
+                              .sort((a, b) => b[1] - a[1])
+                              .slice(0, 6)
+                              .map(([cls, count]) => (
+                                <View key={cls} style={styles.amenityTag}>
+                                  <Text style={styles.amenityTagText}>
+                                    {normalizeLabel(cls)} ×{count}
+                                  </Text>
+                                </View>
+                              ))}
+                          </View>
+
+                          {isSelected && (
+                            <View style={styles.detailsBox}>
+                              {cluster.amenities
+                                .slice()
+                                .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m)
+                                .slice(0, 10)
+                                .map((a) => (
+                                  <Pressable
+                                    key={`${a.osm_type}-${a.osm_id}`}
+                                    onHoverIn={() =>
+                                      Platform.OS === 'web'
+                                        ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
+                                            title:
+                                              a.name ||
+                                              `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
+                                            tags: a.tags,
+                                          })
+                                        : undefined
+                                    }
+                                    onHoverOut={() =>
+                                      Platform.OS === 'web' ? scheduleHideDevTags() : undefined
+                                    }
+                                    onPressIn={() =>
+                                      DEVELOPER_MODE
+                                        ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
+                                            title:
+                                              a.name ||
+                                              `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
+                                            tags: a.tags,
+                                          })
+                                        : undefined
+                                    }
+                                    style={styles.detailsLineRow}
+                                  >
+                                    <Text style={styles.detailsLine}>• </Text>
+                                    <Text style={styles.detailsLine}>
+                                      {a.name
+                                        ? a.name
+                                        : a.subclass
+                                          ? titleize(a.subclass)
+                                          : 'Unnamed'}
+                                      {a.subclass && a.name
+                                        ? ` — ${titleize(a.subclass)}`
+                                        : ''}{' '}
+                                    </Text>
+                                    <Text style={styles.detailsLine}>
+                                      ({formatMeters(a.distance_from_trail_m)})
+                                    </Text>
+                                  </Pressable>
+                                ))}
+                              {cluster.amenities.length > 10 && (
+                                <Text style={styles.detailsMore}>
+                                  +{cluster.amenities.length - 10} more
+                                </Text>
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
 
             {Platform.OS === 'web' && split && rightPaneNode ? (
               <View style={styles.mapPane}>{rightPaneNode}</View>
@@ -431,22 +483,35 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
       </View>
 
       {DEVELOPER_MODE && devTagsOverlay ? (
-        <View style={styles.devOverlayBackdrop}>
-          <View style={styles.devOverlayCard}>
+        <View
+          style={styles.devOverlayBackdrop}
+          pointerEvents={Platform.OS === 'web' ? 'none' : 'auto'}
+        >
+          <View
+            style={styles.devOverlayCard}
+            pointerEvents={Platform.OS === 'web' ? 'none' : 'auto'}
+          >
             <View style={styles.devOverlayHeader}>
-              <Text style={styles.devOverlayTitle}>{devTagsOverlay.title}</Text>
-              <Pressable onPress={() => setDevTagsOverlay(null)} style={styles.devOverlayCloseBtn}>
-                <Text style={styles.devOverlayCloseText}>×</Text>
-              </Pressable>
+              <Text style={styles.devOverlayTitle} numberOfLines={1}>
+                {devTagsOverlay.title}
+              </Text>
+              {Platform.OS !== 'web' ? (
+                <Pressable
+                  onPress={() => setDevTagsOverlay(null)}
+                  style={styles.devOverlayCloseBtn}
+                >
+                  <Text style={styles.devOverlayCloseText}>×</Text>
+                </Pressable>
+              ) : null}
             </View>
-            <ScrollView style={styles.devOverlayScroll}>
+            <View style={styles.devOverlayScroll}>
               {tagsToList(devTagsOverlay.tags).map(([k, v]) => (
                 <View key={k} style={styles.devTagRow}>
                   <Text style={styles.devTagKey}>{k}:</Text>
                   <Text style={styles.devTagValue}>{v}</Text>
                 </View>
               ))}
-            </ScrollView>
+            </View>
           </View>
         </View>
       ) : null}
@@ -601,6 +666,10 @@ const styles = StyleSheet.create({
   },
   splitRowSingle: {
     flexDirection: 'column',
+  },
+  leftPane: {
+    flex: 1,
+    minWidth: 0,
   },
   scroll: {
     flex: 1,
@@ -772,19 +841,13 @@ const styles = StyleSheet.create({
 
   devOverlayBackdrop: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
+    left: 10,
+    right: 10,
+    bottom: 10,
   },
   devOverlayCard: {
     width: '100%',
     maxWidth: 720,
-    maxHeight: '80%',
     backgroundColor: THEME.surface,
     borderRadius: 12,
     borderWidth: 1,
@@ -820,6 +883,7 @@ const styles = StyleSheet.create({
   },
   devOverlayScroll: {
     padding: 14,
+    maxHeight: 180,
   },
   devTagRow: {
     flexDirection: 'row',

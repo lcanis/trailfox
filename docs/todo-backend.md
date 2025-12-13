@@ -28,6 +28,14 @@ Routes:
 
 - add `landuse_areas` tables and implement algorithm from town-location.md
 
+Discovered corner cases:
+
+- route `1952362` (Sentier du Sud 1) geometry is a highly fragmented `MULTILINESTRING` (many segments/branches). Our current linear-referencing/segment ordering can pick a “start” that is effectively mid-trail (e.g. timeline starts near Noertzange) instead of the intended `from=Pulvermühle → to=Dudelange`.
+  - Hypothesis: route relation is composed of many member ways/relations that are not strictly sequential (possibly dozens), with gaps/branches; simple heuristics (bbox projection ordering, longest-segment, etc.) are not sufficient.
+  - Needs: robust path ordering (topology walk) and/or explicit start anchoring using route tags (`from`/`to`) or user-selected start.
+  - see https://hiking.waymarkedtrails.org/#route?id=1952362&type=relation&map=14.0/49.527/6.086
+  - https://github.com/waymarkedtrails/waymarked-trails-site/issues/2
+
 4. **Environment Segmentation**
    - Intersect trails with `landuse_areas` to get `env_class` segments.
 
