@@ -1,5 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
+import MapLibreGL from '@maplibre/maplibre-react-native';
+import { PREDEFINED_LOCATIONS, START_LOCATION_MODE } from '../config/settings';
+
+// Set the access token if needed, or leave empty for self-hosted/open tiles
+MapLibreGL.setAccessToken(null);
 
 interface MapProps {
   onHover: (id: number | null) => void;
@@ -9,10 +14,40 @@ interface MapProps {
   highlightedId: number | null;
 }
 
-export default function Map(props: MapProps) {
+export default function Map({
+  onHover,
+  onSelect,
+  onViewChange,
+  selectedId,
+  highlightedId,
+}: MapProps) {
+  const cameraRef = useRef<MapLibreGL.Camera>(null);
+  const [zoom, setZoom] = useState<number>(0);
+
+  let initialCenter = PREDEFINED_LOCATIONS.munich.center;
+  let initialZoom = PREDEFINED_LOCATIONS.munich.zoom;
+
+  if (START_LOCATION_MODE !== 'user' && PREDEFINED_LOCATIONS[START_LOCATION_MODE]) {
+    initialCenter = PREDEFINED_LOCATIONS[START_LOCATION_MODE].center;
+    initialZoom = PREDEFINED_LOCATIONS[START_LOCATION_MODE].zoom;
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Map is not yet implemented for native.</Text>
+      <MapLibreGL.MapView
+        style={styles.map}
+        styleURL="https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06"
+        logoEnabled={false}
+        attributionEnabled={true}
+      >
+        <MapLibreGL.Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: initialCenter,
+            zoomLevel: initialZoom,
+          }}
+        />
+      </MapLibreGL.MapView>
     </View>
   );
 }
@@ -20,11 +55,8 @@ export default function Map(props: MapProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e0e0e0',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  text: {
-    color: '#666',
+  map: {
+    flex: 1,
   },
 });
