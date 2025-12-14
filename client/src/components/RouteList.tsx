@@ -84,24 +84,31 @@ export const RouteList: React.FC<RouteListProps> = ({
             <TouchableOpacity
               style={[styles.listItem, isSmallScreen && styles.listItemSmall]}
               onPress={() => onSelect(item)}
+              activeOpacity={0.7}
             >
-              <Text
-                style={[styles.listItemTitle, isSmallScreen && styles.listItemTitleSmall]}
-                numberOfLines={1}
-              >
-                {item.name || 'Unnamed'}
-              </Text>
-              <View style={styles.listItemMeta}>
-                {networkInfo ? (
-                  <View style={[styles.badge, { backgroundColor: networkInfo.color }]}>
-                    <Text style={styles.badgeText}>{networkInfo.label}</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.listItemBadge}>{item.network || '?'}</Text>
-                )}
-                <Text style={styles.listItemSub}>
-                  {item.length_m ? `${(item.length_m / 1000).toFixed(1)} km` : ''}
-                </Text>
+              <View style={styles.listItemContent}>
+                <View style={styles.listItemHeader}>
+                  <Text
+                    style={[styles.listItemTitle, isSmallScreen && styles.listItemTitleSmall]}
+                    numberOfLines={1}
+                  >
+                    {item.name || 'Unnamed Route'}
+                  </Text>
+                  <Text style={styles.chevron}>›</Text>
+                </View>
+
+                <View style={styles.listItemMeta}>
+                  {networkInfo ? (
+                    <View style={[styles.badge, { backgroundColor: networkInfo.color }]}>
+                      <Text style={styles.badgeText}>{networkInfo.label}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.listItemBadge}>{item.network || '?'}</Text>
+                  )}
+                  <Text style={styles.listItemSub}>
+                    {item.length_m ? `${(item.length_m / 1000).toFixed(1)} km` : ''}
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           );
@@ -142,19 +149,22 @@ const styles = StyleSheet.create({
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    backgroundColor: '#fff',
   },
   searchInput: {
     margin: 10,
-    padding: 8,
+    padding: 10,
     backgroundColor: 'white',
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 4,
+    borderRadius: 8,
+    fontSize: 16,
   },
   controls: {
     padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    backgroundColor: '#fff',
   },
   controlRow: {
     flexDirection: 'row',
@@ -165,23 +175,25 @@ const styles = StyleSheet.create({
   controlLabel: {
     fontSize: 14,
     color: '#555',
+    fontWeight: '600',
   },
   sortButtons: {
     flexDirection: 'row',
     backgroundColor: '#e9ecef',
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: 'hidden',
   },
   sortBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   sortBtnActive: {
     backgroundColor: '#007bff',
   },
   sortBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#555',
+    fontWeight: '500',
   },
   sortBtnTextActive: {
     color: 'white',
@@ -190,64 +202,81 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listItem: {
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
     backgroundColor: 'white',
   },
+  listItemContent: {
+    gap: 6,
+  },
+  listItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   listItemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    marginRight: 10,
+  },
+  chevron: {
+    fontSize: 24,
+    color: '#ccc',
+    fontWeight: '300',
+    lineHeight: 24,
   },
   listItemMeta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
   },
   listItemBadge: {
-    fontSize: 10,
-    backgroundColor: '#eee',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 2,
+    fontSize: 11,
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
     color: '#666',
+    overflow: 'hidden',
   },
   listItemSub: {
-    fontSize: 12,
-    color: '#888',
+    fontSize: 14,
+    color: '#666',
   },
   // Small screen variants
   panelTitleSmall: {
-    fontSize: 16,
-    padding: 10,
+    fontSize: 18,
+    padding: 12,
   },
   searchInputSmall: {
-    margin: 5,
-    padding: 6,
-    fontSize: 12,
+    margin: 8,
+    padding: 8,
+    fontSize: 14,
   },
   controlsSmall: {
-    padding: 5,
-  },
-  controlLabelSmall: {
-    fontSize: 12,
-  },
-  listItemSmall: {
     padding: 8,
   },
-  listItemTitleSmall: {
+  controlLabelSmall: {
     fontSize: 13,
-    marginBottom: 2,
+  },
+  listItemSmall: {
+    padding: 14,
+  },
+  listItemTitleSmall: {
+    fontSize: 16,
   },
   badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
     alignSelf: 'flex-start',
   },
   badgeText: {
     color: 'white',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
   },
 });

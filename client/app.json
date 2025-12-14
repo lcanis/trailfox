@@ -24,16 +24,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      [
-        "@maplibre/maplibre-react-native",
-        {
-          "ios": {
-            "useFrameworks": "static"
-          }
-        }
-      ]
-    ]
+    }
   }
 }

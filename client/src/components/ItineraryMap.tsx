@@ -1,8 +1,6 @@
-import React, { useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
-import MapLibreGL from '@maplibre/maplibre-react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { AmenityCluster } from '../types';
-import { ITINERARY_THEME } from '../styles/itineraryTheme';
 
 interface ItineraryMapProps {
   routeOsmId: number;
@@ -11,30 +9,10 @@ interface ItineraryMapProps {
   onSelectClusterKey: (key: string | null) => void;
 }
 
-export default function ItineraryMap({
-  routeOsmId,
-  clusters,
-  selectedClusterKey,
-  onSelectClusterKey,
-}: ItineraryMapProps) {
-  const cameraRef = useRef<MapLibreGL.Camera>(null);
-
+export default function ItineraryMap(props: ItineraryMapProps) {
   return (
     <View style={styles.container}>
-      <MapLibreGL.MapView
-        style={styles.map}
-        styleURL="https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06"
-        logoEnabled={false}
-        attributionEnabled={true}
-      >
-        <MapLibreGL.Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: [6.1, 49.7],
-            zoomLevel: 10,
-          }}
-        />
-      </MapLibreGL.MapView>
+      <Text style={styles.text}>Itinerary Map Pending...</Text>
     </View>
   );
 }
@@ -42,8 +20,17 @@ export default function ItineraryMap({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    margin: 10,
+    borderRadius: 8,
+    minHeight: 200,
   },
-  map: {
-    flex: 1,
+  text: {
+    fontSize: 16,
+    color: '#666',
   },
 });

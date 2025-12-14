@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AmenityCluster, Route, RouteAmenity } from '../types';
 import { useItinerary } from '../hooks/useItinerary';
 import RadiusSlider from '../components/RadiusSlider';
@@ -76,6 +77,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
   selectedClusterKey,
   onSelectClusterKey,
 }) => {
+  const insets = useSafeAreaInsets();
   const [radiusKm, setRadiusKm] = React.useState(0.2);
   const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
   const [invert, setInvert] = React.useState(false);
@@ -365,7 +367,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
   }, []);
 
   return (
-    <View style={styles.overlay}>
+    <View style={[styles.overlay, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>{route.name || 'Itinerary'}</Text>
@@ -413,6 +415,9 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
 
         {!loading && !error && (
           <View style={[styles.splitRow, Platform.OS !== 'web' && styles.splitRowSingle]}>
+            {Platform.OS !== 'web' && split && rightPaneNode ? (
+              <View style={styles.mapPane}>{rightPaneNode}</View>
+            ) : null}
             <View style={styles.leftPane}>
               {isWebSplit ? controlsNode : null}
               <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
@@ -764,9 +769,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapPane: {
-    width: '45%',
-    borderLeftWidth: 2,
+    width: Platform.OS === 'web' ? '45%' : '100%',
+    height: Platform.OS === 'web' ? '100%' : 200,
+    borderLeftWidth: Platform.OS === 'web' ? 2 : 0,
+    borderBottomWidth: Platform.OS === 'web' ? 0 : 2,
     borderLeftColor: THEME.border,
+    borderBottomColor: THEME.border,
     backgroundColor: THEME.background,
   },
   center: {

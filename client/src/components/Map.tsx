@@ -1,10 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import MapLibreGL from '@maplibre/maplibre-react-native';
-import { PREDEFINED_LOCATIONS, START_LOCATION_MODE } from '../config/settings';
-
-// Set the access token if needed, or leave empty for self-hosted/open tiles
-MapLibreGL.setAccessToken(null);
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 
 interface MapProps {
   onHover: (id: number | null) => void;
@@ -14,40 +9,11 @@ interface MapProps {
   highlightedId: number | null;
 }
 
-export default function Map({
-  onHover,
-  onSelect,
-  onViewChange,
-  selectedId,
-  highlightedId,
-}: MapProps) {
-  const cameraRef = useRef<MapLibreGL.Camera>(null);
-  const [zoom, setZoom] = useState<number>(0);
-
-  let initialCenter = PREDEFINED_LOCATIONS.munich.center;
-  let initialZoom = PREDEFINED_LOCATIONS.munich.zoom;
-
-  if (START_LOCATION_MODE !== 'user' && PREDEFINED_LOCATIONS[START_LOCATION_MODE]) {
-    initialCenter = PREDEFINED_LOCATIONS[START_LOCATION_MODE].center;
-    initialZoom = PREDEFINED_LOCATIONS[START_LOCATION_MODE].zoom;
-  }
-
+export default function Map(props: MapProps) {
   return (
     <View style={styles.container}>
-      <MapLibreGL.MapView
-        style={styles.map}
-        styleURL="https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06"
-        logoEnabled={false}
-        attributionEnabled={true}
-      >
-        <MapLibreGL.Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: initialCenter,
-            zoomLevel: initialZoom,
-          }}
-        />
-      </MapLibreGL.MapView>
+      <Text style={styles.text}>Map Pending...</Text>
+      <Text style={styles.subtext}>(Requires Native Build)</Text>
     </View>
   );
 }
@@ -55,8 +21,22 @@ export default function Map({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    margin: 10,
+    borderRadius: 8,
   },
-  map: {
-    flex: 1,
+  text: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#555',
+  },
+  subtext: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 5,
   },
 });

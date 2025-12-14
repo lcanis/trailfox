@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   listContainerSmall: {
     width: '100%',
-    height: '40%', // Take 40% of screen
+    height: '60%', // Take 60% of screen for list
   },
   mapContainer: {
     flex: 1,
