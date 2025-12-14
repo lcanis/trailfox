@@ -14,10 +14,10 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "expo": "~54.0.27",
+    "@react-native-community/slider": "5.0.1",
+    "expo": "~54.0.29",
     "expo-constants": "~18.0.12",
     "expo-status-bar": "~3.0.9",
-    "@react-native-community/slider": "^4.5.7",
     "lodash.debounce": "^4.0.8",
     "maplibre-gl": "^5.14.0",
     "react": "19.1.0",
@@ -28,8 +28,7 @@
   "private": true,
   "devDependencies": {
     "@types/lodash.debounce": "^4.0.9",
-    "@types/react": "^19.2.7",
-    "@types/react-native": "^0.72.8",
+    "@types/react": "~19.1.10",
     "eslint": "^9.39.2",
     "eslint-config-expo": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",

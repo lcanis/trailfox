@@ -4,7 +4,7 @@ import { useRoutes } from '../hooks/useRoutes';
 import { useRouteFilter } from '../hooks/useRouteFilter';
 import { RouteList } from '../components/RouteList';
 import { RouteDetails } from '../components/RouteDetails';
-import Map from '../components/Map.web';
+import Map from '../components/Map';
 import { Route, RouteFilter as RouteFilterType } from '../types';
 import { ItineraryScreen } from './ItineraryScreen';
 

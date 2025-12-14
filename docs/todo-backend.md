@@ -3,8 +3,11 @@
 ## first priority - smaller tasks
 
 - see review.md
-- prepare schema for incremental update of OSM data
+- add start and end in the db, not in frontend (doesn't know the full route - revert 00e344a1cc184bb81bae948b5af18195a26dd979)
+- review and optimize the route_amenities view - can be simplifies since corner cases need a routebuilder
+- prepare schema for incremental update of OSM data - https://docs.osmcode.org/pyosmium/latest/user_manual/10-Replication-Tools/
 - Ensure route relations expose both `ref` and `name` consistently in API/tiles.
+- add elevation gain support
 
 ## keep for later, do not work on this for now
 
@@ -31,7 +34,7 @@ Routes:
 Discovered corner cases:
 
 - route `1952362` (Sentier du Sud 1) geometry is a highly fragmented `MULTILINESTRING` (many segments/branches). Our current linear-referencing/segment ordering can pick a “start” that is effectively mid-trail (e.g. timeline starts near Noertzange) instead of the intended `from=Pulvermühle → to=Dudelange`.
-  - Hypothesis: route relation is composed of many member ways/relations that are not strictly sequential (possibly dozens), with gaps/branches; simple heuristics (bbox projection ordering, longest-segment, etc.) are not sufficient.
+  - route relation is composed of many member ways/relations that are not strictly sequential (possibly dozens), with gaps/branches; simple heuristics (bbox projection ordering, longest-segment, etc.) are not sufficient.
   - Needs: robust path ordering (topology walk) and/or explicit start anchoring using route tags (`from`/`to`) or user-selected start.
   - see https://hiking.waymarkedtrails.org/#route?id=1952362&type=relation&map=14.0/49.527/6.086
   - https://github.com/waymarkedtrails/waymarked-trails-site/issues/2
