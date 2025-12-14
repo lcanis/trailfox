@@ -54,11 +54,20 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const normalizeLabel = (label: string) => {
   // Compact labels for phone-sized chips.
   const map: Record<string, string> = {
-    'Food/Drink': 'Food',
-    'Resupply (Shops)': 'Shops',
-    'Street Furniture / Small Amenities': 'Street',
-    'Tourist / Cultural Points': 'Tourism',
-    'Other Hiker-Relevant': 'Other',
+    accom: 'Accommodation',
+    tourism: 'Tourism',
+    other: 'Other',
+    shelter: 'Shelter',
+    food: 'Food',
+    water: 'Water',
+    hygiene: 'Hygiene',
+    resupply: 'Shops',
+    bike: 'Bike',
+    cash: 'Cash',
+    transport: 'Transport',
+    street: 'Street',
+    medical: 'Medical',
+    place: 'Place',
   };
   return map[label] || label;
 };

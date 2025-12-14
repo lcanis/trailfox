@@ -3,10 +3,17 @@
 -- ============================================================================
 
 local module = {}
+local profiler = require("profiler")
+local function maybe_wrap(fn, name)
+	if profiler.enabled() then return profiler.wrap(fn, name) end
+	return fn
+end
 
 -- ----------------------------------------------------------------------------
 -- Table Definition
 -- ----------------------------------------------------------------------------
+local constants = require("constants")
+
 local routes = osm2pgsql.define_table({
 	schema = "itinerarius",
 	name = "routes",
@@ -26,50 +33,25 @@ local routes = osm2pgsql.define_table({
 		{ column = "descent", type = "real" },
 		{ column = "roundtrip", type = "boolean" },
 		{ column = "tags", type = "jsonb" },
-		{ column = "geom", type = "multilinestring", projection = 4326 },
+		{ column = "raw_geom", type = "multilinestring", projection = constants.GEOMETRY_PROJECTION },
 	},
 })
 
--- ----------------------------------------------------------------------------
--- Helper Functions
--- ----------------------------------------------------------------------------
-
-local function contains_value(str, value)
-	if not str then
-		return false
-	end
-
-	str = str:lower()
-	value = value:lower()
-
-	if str == value then
-		return true
-	end
-
-	for part in str:gmatch("[^;]+") do
-		if part:match("^%s*(.-)%s*$") == value then
-			return true
-		end
-	end
-
-	return false
-end
-
+-- this is more lenient than OSM Wiki definitions, accepting
+-- any route tag that includes hiking, walking, or foot
 local function get_route_type(route_tag)
 	if not route_tag then
 		return nil
 	end
 
-	if contains_value(route_tag, "hiking") then
+	local s = route_tag:lower()
+	if s:find("hiking") or s:find("walking") or s:find("foot") then
 		return "hiking"
-	elseif contains_value(route_tag, "walking") then
-		return "walking"
-	elseif contains_value(route_tag, "foot") then
-		return "foot"
 	end
 
 	return nil
 end
+get_route_type = maybe_wrap(get_route_type, "get_route_type")
 
 local function is_valid_route(tags)
 	if tags.type ~= "route" and tags.type ~= "superroute" then
@@ -83,23 +65,7 @@ local function is_valid_route(tags)
 
 	return true, route_type
 end
-
-local function get_intnames(tags)
-	local intnames = {}
-
-	for key, value in pairs(tags) do
-		local lang = key:match("^name:(.+)$")
-		if lang then
-			intnames[lang] = value
-		end
-	end
-
-	if next(intnames) == nil then
-		return nil
-	end
-
-	return intnames
-end
+is_valid_route = maybe_wrap(is_valid_route, "is_valid_route")
 
 local function parse_boolean(value)
 	if not value then
@@ -126,42 +92,59 @@ end
 -- You can re-add a `members` JSONB field if you later want to import and
 -- index the relation graph for superroute resolution.
 
-local function parse_numeric(value)
+local function in_meters(value)
 	if not value then
 		return nil
 	end
 
-	value = tostring(value)
+	local s = tostring(value):lower()
+	s = s:gsub("%s+", "")
 
-	value = value:gsub("%s+", "")
-	value = value:gsub("km", "")
-	value = value:gsub("m", "")
-	value = value:gsub("mi", "")
-	value = value:gsub(",", ".")
-
-	local num = value:match("^([%d%.]+)")
-	if num then
-		return tonumber(num)
+	local unit
+	if s:match("km$") then
+		unit = "km"
+		s = s:gsub("km$", "")
+	elseif s:match("mi$") then
+		unit = "mi"
+		s = s:gsub("mi$", "")
+	elseif s:match("m$") then
+		unit = "m"
+		s = s:gsub("m$", "")
 	end
 
-	return nil
-end
+	s = s:gsub(",", ".")
+	local num = s:match("^([%d%.]+)")
+	if not num then return nil end
+	local n = tonumber(num)
+	if not n then return nil end
 
-local function process_route(object)
-	local is_valid, route_type = is_valid_route(object.tags)
-	if not is_valid then
+	if unit == "km" then
+		return n * 1000
+	elseif unit == "mi" then
+		return n * 1609.344
+	else
+		return n
+	end
+end
+in_meters = maybe_wrap(in_meters, "in_meters")
+
+local function process_relation(object)
+	local tags = object.tags
+	local is_route, route_type = is_valid_route(tags)
+	if not is_route then
 		return
 	end
-
-	local geom = object:as_multilinestring()
 
 	-- Skip routes with invalid or empty geometry
 	-- This filters out:
 	-- - Superroutes that contain only relation members (no direct ways)
 	-- - Broken relations with only node members or no members
 	-- See: https://wiki.openstreetmap.org/wiki/Relation:route#Hierarchies
+	-- NOTE: In osm2pgsql flex, `as_linestring()` is only valid in process_way.
+	-- For relations we import as MultiLineString and line-merge later in SQL.
+	local geom = object:as_multilinestring()
 	if not geom or geom:is_null() then
-		return
+		return nil
 	end
 
 	local route_data = {
@@ -169,27 +152,24 @@ local function process_route(object)
 		network = object.tags.network,
 		route_type = route_type,
 		type = object.tags.type,
+		-- parse frequently used route attributes, keep all in `tags`
 		symbol = object.tags["osmc:symbol"],
-		distance = parse_numeric(object.tags["route:distance"] or object.tags.distance),
-		ascent = parse_numeric(object.tags["route:ascent"] or object.tags.ascent),
-		descent = parse_numeric(object.tags["route:descent"] or object.tags.descent),
+		distance = in_meters(object.tags["route:distance"] or object.tags.distance),
+		ascent = in_meters(object.tags["route:ascent"] or object.tags.ascent),
+		descent = in_meters(object.tags["route:descent"] or object.tags.descent),
 		roundtrip = parse_boolean(object.tags.roundtrip),
-		-- operator, website, wikidata, wikipedia, names and localized names
-		-- are available under the `tags` JSONB column; avoid duplicating them
-		-- as separate DB columns and extract them from `tags` when needed.
 		tags = object.tags,
-		geom = geom,
+		raw_geom = geom,
 	}
 
 	routes:insert(route_data)
 end
+process_relation = maybe_wrap(process_relation, "process_relation")
 
--- ----------------------------------------------------------------------------
--- Public API
--- ----------------------------------------------------------------------------
+module.process_relation = process_relation
 
-function module.process_relation(object)
-	process_route(object)
-end
-
+-- Expose internal helpers for unit testing
+module._get_route_type = get_route_type
+module._is_valid_route = is_valid_route
+module._in_meters = in_meters
 return module

@@ -15,6 +15,3 @@ ALTER ROLE :"app_user" SET jit = off;
 
 -- Safety valve: prevent runaway API queries from hanging forever.
 ALTER ROLE :"app_user" SET statement_timeout = '2min';
-
--- NOTE: This file has been moved to `sql/setup_itinerarius.sql`. The copy in the root remains as a placeholder; run the SQL in `sql/` instead.
-RAISE NOTICE 'setup_itinerarius moved to sql/setup_itinerarius.sql';

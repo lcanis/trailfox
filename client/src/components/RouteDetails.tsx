@@ -14,6 +14,7 @@ import { NETWORK_MAP, IGNORED_TAGS, COLLAPSE_OSM_TAGS_BY_DEFAULT } from '../cons
 import { RouteService } from '../services/routeService';
 import { createGpx } from '../utils/gpx';
 import { OsmSymbol } from './OsmSymbol';
+import { allowMultistring } from '../config/settings';
 
 interface RouteDetailsProps {
   route: Route;
@@ -26,9 +27,18 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
   const { width, height } = useWindowDimensions();
   const isSmallScreen = width < 768;
 
+  const geojsonRef = React.useRef<any | null>(null);
+
+  const fetchGeoJSONOnce = React.useCallback(async () => {
+    if (geojsonRef.current) return geojsonRef.current;
+    const geojson = await RouteService.fetchGeoJSON(route.osm_id);
+    geojsonRef.current = geojson;
+    return geojson;
+  }, [route.osm_id]);
+
   const handleDownloadGpx = async () => {
     try {
-      const geojson = await RouteService.fetchGeoJSON(route.osm_id);
+      const geojson = await fetchGeoJSONOnce();
       // geojson is a FeatureCollection
       if (geojson.features && geojson.features.length > 0) {
         const gpxContent = createGpx(geojson.features[0]);
@@ -101,6 +111,9 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
   const networkInfo = route.network ? NETWORK_MAP[route.network] : null;
   const fromLoc = route.tags?.from;
   const toLoc = route.tags?.to;
+
+  const isMultiLineString = route.merged_geom_type === 'MULTILINESTRING';
+  const itineraryDisabled = !allowMultistring && isMultiLineString;
 
   return (
     <View
@@ -194,9 +207,19 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
             <InfoRow label="Type" value={route.route_type} />
           )}
 
-          <TouchableOpacity style={styles.itineraryBtn} onPress={() => onOpenItinerary(route)}>
-            <Text style={styles.itineraryBtnText}>Itinerary</Text>
+          <TouchableOpacity
+            style={[styles.itineraryBtn, itineraryDisabled && styles.itineraryBtnDisabled]}
+            disabled={itineraryDisabled}
+            onPress={() => onOpenItinerary(route)}
+          >
+            <Text style={styles.itineraryBtnText}>Get Itinerary</Text>
           </TouchableOpacity>
+
+          {!allowMultistring && isMultiLineString && (
+            <Text style={styles.itineraryHint}>
+              Itinerary disabled for MultiLineString routes (enable allowMultistring to override).
+            </Text>
+          )}
 
           <TouchableOpacity style={styles.downloadBtn} onPress={handleDownloadGpx}>
             <Text style={styles.downloadBtnText}>Download GPX</Text>
@@ -277,9 +300,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
   },
+  itineraryBtnDisabled: {
+    opacity: 0.45,
+  },
   itineraryBtnText: {
     color: 'white',
     fontWeight: '600',
+  },
+  itineraryHint: {
+    marginTop: 8,
+    fontSize: 12,
+    opacity: 0.8,
   },
   sidebarHeader: {
     flexDirection: 'row',

@@ -2,7 +2,7 @@ import { Route } from '../types';
 import { API_URL } from '../config/settings';
 import { fetchJsonWithTimeout } from './http';
 
-const SELECT_FIELDS = 'osm_id,name,network,length_m,route_type,symbol,tags';
+const SELECT_FIELDS = 'osm_id,name,network,length_m,route_type,symbol,merged_geom_type,tags';
 
 export const RouteService = {
   async fetchAll(timeoutMs: number = 8000): Promise<Route[]> {

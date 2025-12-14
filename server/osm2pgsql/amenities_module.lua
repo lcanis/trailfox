@@ -3,10 +3,17 @@
 -- ============================================================================
 
 local module = {}
+local profiler = require("profiler")
+local function maybe_wrap(fn, name)
+	if profiler.enabled() then return profiler.wrap(fn, name) end
+	return fn
+end
 
 -- ----------------------------------------------------------------------------
 -- Table Definition
 -- ----------------------------------------------------------------------------
+local constants = require("constants")
+
 local pois = osm2pgsql.define_table({
 	schema = "itinerarius",
 	name = "amenities",
@@ -15,11 +22,7 @@ local pois = osm2pgsql.define_table({
 		{ column = "name" },
 		{ column = "class", not_null = true },
 		{ column = "subclass" },
-		-- Store amenities as WGS84 (EPSG:4326) to match `routes` and to make
-		-- GeoJSON/GPX exports straightforward and consistent. This prevents
-		-- accidental reprojection differences when exporting or comparing
-		-- geometry between tables.
-		{ column = "geom", type = "point", projection = 4326, not_null = true },
+		{ column = "geom", type = "point", projection = constants.GEOMETRY_PROJECTION, not_null = true },
 		{ column = "tags", type = "jsonb" },
 	},
 })
@@ -28,96 +31,129 @@ local pois = osm2pgsql.define_table({
 -- Helper Functions
 -- ----------------------------------------------------------------------------
 
--- Mapping of OSM tags to amenities.md categories
-local tag_mapping = {
+
+local CATEGORY_CODE = {
+	ACCOMMODATION = "accom",
+	TOURIST_CULTURAL = "tourism",
+	OTHER_HIKER_RELEVANT = "other",
+	SHELTER = "shelter",
+	FOOD_DRINK = "food",
+	WATER = "water",
+	HYGIENE = "hygiene",
+	RESUPPLY_SHOPS = "resupply",
+	BIKE_SPORTS = "bike",
+	BANKING_CASH = "cash",
+	TRANSPORTATION = "transport",
+	STREET_FURNITURE = "street",
+	MEDICAL = "medical",
+	PLACE = "place",
+}
+
+-- Mapping of OSM tags to categories.
+local CATEGORY_BY_TAG = {
 	tourism = {
-		hotel = "Accommodation",
-		hostel = "Accommodation",
-		guest_house = "Accommodation",
-		alpine_hut = "Accommodation",
-		camp_site = "Accommodation",
-		caravan_site = "Accommodation",
-		chalet = "Accommodation",
-		wilderness_hut = "Accommodation",
-		viewpoint = "Tourist / Cultural Points",
-		attraction = "Tourist / Cultural Points",
-		artwork = "Tourist / Cultural Points",
-		information = "Other Hiker-Relevant",
+		hotel = CATEGORY_CODE.ACCOMMODATION,
+		hostel = CATEGORY_CODE.ACCOMMODATION,
+		guest_house = CATEGORY_CODE.ACCOMMODATION,
+		alpine_hut = CATEGORY_CODE.ACCOMMODATION,
+		camp_site = CATEGORY_CODE.ACCOMMODATION,
+		caravan_site = CATEGORY_CODE.ACCOMMODATION,
+		chalet = CATEGORY_CODE.ACCOMMODATION,
+		wilderness_hut = CATEGORY_CODE.ACCOMMODATION,
+		viewpoint = CATEGORY_CODE.TOURIST_CULTURAL,
+		attraction = CATEGORY_CODE.TOURIST_CULTURAL,
+		artwork = CATEGORY_CODE.TOURIST_CULTURAL,
+		information = CATEGORY_CODE.OTHER_HIKER_RELEVANT,
 	},
 	amenity = {
-		shelter = "Shelter",
-		restaurant = "Food/Drink",
-		fast_food = "Food/Drink",
-		cafe = "Food/Drink",
-		bar = "Food/Drink",
-		pub = "Food/Drink",
-		biergarten = "Food/Drink",
-		drinking_water = "Water",
-		fountain = "Water",
-		toilets = "Hygiene",
-		shower = "Hygiene",
-		public_bath = "Hygiene",
-		fuel = "Resupply (Shops)",
-		vending_machine = "Resupply (Shops)",
-		bicycle_parking = "Bike / Sports",
-		bicycle_repair_station = "Bike / Sports",
-		compressed_air = "Bike / Sports",
-		charging_station = "Bike / Sports",
-		bank = "Banking/Cash",
-		atm = "Banking/Cash",
-		bureau_de_change = "Banking/Cash",
-		bus_station = "Transportation",
-		bench = "Street Furniture / Small Amenities",
-		waste_basket = "Street Furniture / Small Amenities",
-		waste_disposal = "Street Furniture / Small Amenities",
-		lounger = "Street Furniture / Small Amenities",
-		picnic_table = "Street Furniture / Small Amenities",
-		pharmacy = "Medical",
-		hospital = "Medical",
-		clinic = "Medical",
-		doctors = "Medical",
-		dentist = "Medical",
+		shelter = CATEGORY_CODE.SHELTER,
+		restaurant = CATEGORY_CODE.FOOD_DRINK,
+		fast_food = CATEGORY_CODE.FOOD_DRINK,
+		cafe = CATEGORY_CODE.FOOD_DRINK,
+		bar = CATEGORY_CODE.FOOD_DRINK,
+		pub = CATEGORY_CODE.FOOD_DRINK,
+		biergarten = CATEGORY_CODE.FOOD_DRINK,
+		drinking_water = CATEGORY_CODE.WATER,
+		fountain = CATEGORY_CODE.WATER,
+		toilets = CATEGORY_CODE.HYGIENE,
+		shower = CATEGORY_CODE.HYGIENE,
+		public_bath = CATEGORY_CODE.HYGIENE,
+		fuel = CATEGORY_CODE.RESUPPLY_SHOPS,
+		vending_machine = CATEGORY_CODE.RESUPPLY_SHOPS,
+		bicycle_parking = CATEGORY_CODE.BIKE_SPORTS,
+		bicycle_repair_station = CATEGORY_CODE.BIKE_SPORTS,
+		compressed_air = CATEGORY_CODE.BIKE_SPORTS,
+		charging_station = CATEGORY_CODE.BIKE_SPORTS,
+		bank = CATEGORY_CODE.BANKING_CASH,
+		atm = CATEGORY_CODE.BANKING_CASH,
+		bureau_de_change = CATEGORY_CODE.BANKING_CASH,
+		bus_station = CATEGORY_CODE.TRANSPORTATION,
+		bench = CATEGORY_CODE.STREET_FURNITURE,
+		waste_basket = CATEGORY_CODE.STREET_FURNITURE,
+		waste_disposal = CATEGORY_CODE.STREET_FURNITURE,
+		lounger = CATEGORY_CODE.STREET_FURNITURE,
+		picnic_table = CATEGORY_CODE.STREET_FURNITURE,
+		pharmacy = CATEGORY_CODE.MEDICAL,
+		hospital = CATEGORY_CODE.MEDICAL,
+		clinic = CATEGORY_CODE.MEDICAL,
+		doctors = CATEGORY_CODE.MEDICAL,
+		dentist = CATEGORY_CODE.MEDICAL,
 	},
 	natural = {
-		hot_spring = "Hygiene",
+		hot_spring = CATEGORY_CODE.HYGIENE,
 	},
 	leisure = {
-		swimming_pool = "Hygiene",
-		picnic_table = "Street Furniture / Small Amenities",
+		swimming_pool = CATEGORY_CODE.HYGIENE,
+		picnic_table = CATEGORY_CODE.STREET_FURNITURE,
 	},
 	shop = {
-		supermarket = "Resupply (Shops)",
-		convenience = "Resupply (Shops)",
-		general = "Resupply (Shops)",
-		department_store = "Resupply (Shops)",
-		greengrocer = "Resupply (Shops)",
-		bakery = "Resupply (Shops)",
-		butcher = "Resupply (Shops)",
-		bicycle = "Bike / Sports",
-		sports = "Bike / Sports",
+		supermarket = CATEGORY_CODE.RESUPPLY_SHOPS,
+		convenience = CATEGORY_CODE.RESUPPLY_SHOPS,
+		general = CATEGORY_CODE.RESUPPLY_SHOPS,
+		department_store = CATEGORY_CODE.RESUPPLY_SHOPS,
+		greengrocer = CATEGORY_CODE.RESUPPLY_SHOPS,
+		bakery = CATEGORY_CODE.RESUPPLY_SHOPS,
+		butcher = CATEGORY_CODE.RESUPPLY_SHOPS,
+		bicycle = CATEGORY_CODE.BIKE_SPORTS,
+		sports = CATEGORY_CODE.BIKE_SPORTS,
 	},
 	aeroway = {
-		aerodrome = "Transportation",
-		airport = "Transportation",
+		aerodrome = CATEGORY_CODE.TRANSPORTATION,
+		airport = CATEGORY_CODE.TRANSPORTATION,
 	},
 	railway = {
-		station = "Transportation",
-		halt = "Transportation",
+		station = CATEGORY_CODE.TRANSPORTATION,
+		halt = CATEGORY_CODE.TRANSPORTATION,
 	},
 	highway = {
-		bus_stop = "Transportation",
+		bus_stop = CATEGORY_CODE.TRANSPORTATION,
 	},
 	historic = {
-		monument = "Tourist / Cultural Points",
-		memorial = "Tourist / Cultural Points",
+		monument = CATEGORY_CODE.TOURIST_CULTURAL,
+		memorial = CATEGORY_CODE.TOURIST_CULTURAL,
 	},
 	emergency = {
-		phone = "Other Hiker-Relevant",
-		defibrillator = "Other Hiker-Relevant",
+		phone = CATEGORY_CODE.OTHER_HIKER_RELEVANT,
+		defibrillator = CATEGORY_CODE.OTHER_HIKER_RELEVANT,
 	},
 }
 
-local allowed_vendings = {
+-- Deterministic preference order when multiple tag families exist on a POI.
+-- NOTE: Previously this loop used `pairs(tag_mapping)`, which is not ordered.
+local TAG_FAMILY_PRIORITY = {
+	"tourism",
+	"amenity",
+	"shop",
+	"natural",
+	"leisure",
+	"aeroway",
+	"railway",
+	"highway",
+	"historic",
+	"emergency",
+}
+
+local VENDING_ALLOWLIST = {
 	bicycle_tube = true,
 	drinks = true,
 	food = true,
@@ -128,7 +164,7 @@ local allowed_vendings = {
 	bread = true,
 }
 
-local allowed_places = {
+local PLACE_ALLOWLIST = {
 	town = true,
 	city = true,
 	village = true,
@@ -137,9 +173,11 @@ local allowed_places = {
 	farm = true,
 }
 
+
 local function process_poi(object, geom)
+	local tags = object.tags
 	local a = {
-		name = object.tags.name,
+		name = tags.name,
 		geom = geom,
 	}
 
@@ -147,59 +185,59 @@ local function process_poi(object, geom)
 
 	-- Special case: some amenities use a `guest_house` tag with value `albergue`
 	-- (regional tagging). Prefer treating them as accommodation.
-	if object.tags.guest_house and object.tags.guest_house == "albergue" then
-		cls = "Accommodation"
+	if tags.guest_house and tags.guest_house == "albergue" then
+		cls = CATEGORY_CODE.ACCOMMODATION
 		sub = "guest_house"
 	end
 
 	-- Check all relevant tags in order of preference
-	for tag_key, tag_values in pairs(tag_mapping) do
-		if object.tags[tag_key] and tag_values[object.tags[tag_key]] then
-			-- Special handling: exclude vending_machine with excrement_bags
-			if tag_key == "amenity" and object.tags.amenity == "vending_machine" then
-				-- vending inclusion list: if `vending` tag exists, require at least
-				-- one allowed vending item; if `vending` is missing, accept the
-				-- vending_machine entry (unknown contents may still be useful).
-				local vend = object.tags.vending or ""
-				if vend ~= "" then
-					local keep = false
-					for item in vend:gmatch("[^;]+") do
-						item = item:match("^%s*(.-)%s*$")
-						if allowed_vendings[item] then
-							keep = true
-							break
+	if not cls then
+		for i = 1, #TAG_FAMILY_PRIORITY do
+			local tag_key = TAG_FAMILY_PRIORITY[i]
+			local tag_values = CATEGORY_BY_TAG[tag_key]
+			local tag_value = tags[tag_key]
+			if tag_value and tag_values[tag_value] then
+				-- Special handling: exclude vending_machine with excrement_bags
+				if tag_key == "amenity" and tag_value == "vending_machine" then
+					-- vending inclusion list: if `vending` tag exists, require at least
+					-- one allowed vending item; if `vending` is missing, accept the
+					-- vending_machine entry (unknown contents may still be useful).
+					local vend = tags.vending or ""
+					if vend ~= "" then
+						local keep = false
+						for item in vend:gmatch("[^;]+") do
+							item = item:match("^%s*(.-)%s*$")
+							if VENDING_ALLOWLIST[item] then
+								keep = true
+								break
+							end
+						end
+						if not keep then
+							return
 						end
 					end
-					if not keep then
+				end
+
+				-- Note: we keep tourism=information guideposts (useful on trail).
+
+				-- Special handling: exclude wilderness huts marked as private access
+				if tag_key == "tourism" and tag_value == "wilderness_hut" then
+					if tags.access and tags.access == "private" then
 						return
 					end
 				end
-			end
 
-			-- Special handling: exclude tourism=information guideposts
-			if tag_key == "tourism" and object.tags.tourism == "information" then
-				if object.tags.information == "guidepost" then
-					return
+				-- Special handling: include charging_station only when bicycle=yes
+				if tag_key == "amenity" and tag_value == "charging_station" then
+					if not tags.bicycle or tags.bicycle ~= "yes" then
+						return
+					end
 				end
-			end
 
-			-- Special handling: exclude wilderness huts marked as private access
-			if tag_key == "tourism" and object.tags.tourism == "wilderness_hut" then
-				if object.tags.access and object.tags.access == "private" then
-					return
-				end
+				cls = tag_values[tag_value]
+				sub = tag_value
+				break
 			end
-
-			-- Special handling: include charging_station only when bicycle=yes
-			if tag_key == "amenity" and object.tags.amenity == "charging_station" then
-				if not object.tags.bicycle or object.tags.bicycle ~= "yes" then
-					return
-				end
-			end
-
-			cls = tag_values[object.tags[tag_key]]
-			sub = object.tags[tag_key]
-			break
 		end
 	end
 
@@ -209,10 +247,11 @@ local function process_poi(object, geom)
 
 	a.class = cls
 	a.subclass = sub
-	a.tags = object.tags
+	a.tags = tags
 
 	pois:insert(a)
 end
+process_poi = maybe_wrap(process_poi, "process_poi")
 
 -- ----------------------------------------------------------------------------
 -- Public API
@@ -221,10 +260,10 @@ end
 function module.process_node(object)
 	-- Import place=* nodes as itinerary-relevant "Place" POIs.
 	-- Spec: class=Place, subclass=place value.
-	if object.tags.place and allowed_places[object.tags.place] then
+	if object.tags.place and PLACE_ALLOWLIST[object.tags.place] then
 		pois:insert({
 			name = object.tags.name,
-			class = "Place",
+			class = CATEGORY_CODE.PLACE,
 			subclass = object.tags.place,
 			geom = object:as_point(),
 			tags = object.tags,
@@ -234,11 +273,13 @@ function module.process_node(object)
 
 	process_poi(object, object:as_point())
 end
+module.process_node = maybe_wrap(module.process_node, "process_node")
 
 function module.process_way(object)
 	if object.is_closed and object.tags.building then
 		process_poi(object, object:as_polygon():centroid())
 	end
 end
+module.process_way = maybe_wrap(module.process_way, "process_way")
 
 return module

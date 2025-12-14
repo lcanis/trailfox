@@ -10,16 +10,24 @@ DB_ADMIN_USER="${DB_ADMIN_USER:-gisuser}"
 IMPORTER_USER="${IMPORTER_USER:-importer}"
 APP_USER="${APP_USER:-calixtinus}"
 DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-30}"
+DB_STATEMENT_TIMEOUT_MS="${DB_STATEMENT_TIMEOUT_MS:-120000}"
 LUA_SCRIPT="$ROOT_DIR/osm2pgsql/itinerarius.lua"
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 FORCE_RESET=false
+INCREMENTAL=false
 PBF_FILE=""
 
 usage() {
     cat <<'EOF'
-Usage: ./bootstrap.sh /path/to/file.osm.pbf [--env-file path] [--force-reset]
+Usage: ./bootstrap.sh /path/to/file.osm.pbf [--env-file path] [--force-reset] [--incremental]
 
-First argument: local .osm.pbf path. Requires an env file. Idempotent by default; use --force-reset to drop and recreate the database.
+First argument: local .osm.pbf path. Requires an env file.
+
+Modes:
+    --force-reset  Drop and recreate the database.
+    --incremental  Enable osm2pgsql slim mode and append updates when tables exist.
+                                NOTE: osm2pgsql requires --slim for --append; this stores extra data
+                                in the DB to support updates and can significantly increase size.
 EOF
 }
 
@@ -37,6 +45,8 @@ while [ "$#" -gt 0 ]; do
             ENV_FILE="$2"; shift 2;;
         --force-reset)
             FORCE_RESET=true; shift;;
+        --incremental)
+            INCREMENTAL=true; shift;;
         -h|--help)
             usage; exit 0;;
         *)
@@ -113,7 +123,7 @@ export PGPASSWORD="$DB_ADMIN_PASSWORD"
 
 echo "-- ensuring roles"
 # Using shell interpolation for role creation to avoid psql variable issues in DO blocks
-psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres <<EOF
+psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres <<EOF
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$IMPORTER_USER') THEN
@@ -131,8 +141,38 @@ END
 \$\$;
 EOF
 
+echo "-- setting safety timeouts"
+psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres \
+    -c "ALTER ROLE \"$DB_ADMIN_USER\" SET statement_timeout = '2min';"
+
 
 if $FORCE_RESET; then
+    echo "-- dropping database $DB_NAME"
+    # Terminate any active connections to the target DB so DROP DATABASE succeeds.
+    # Retry a few times in case clients (eg. PostgREST) reconnect quickly.
+    echo "-- terminating connections to $DB_NAME"
+    ATTEMPTS=0
+    while true; do
+        psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -c \
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" >/dev/null
+
+        SESSIONS=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -tAc \
+            "SELECT count(*) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();")
+
+        if [ "$SESSIONS" = "0" ]; then
+            break
+        fi
+
+        ATTEMPTS=$((ATTEMPTS + 1))
+        if [ "$ATTEMPTS" -ge 5 ]; then
+            echo "-- warning: $SESSIONS connections remain after $ATTEMPTS attempts; proceeding to DROP and hope for best"
+            break
+        fi
+
+        echo "-- $SESSIONS connections still present; retrying in 1s"
+        sleep 1
+    done
+
     echo "-- dropping database $DB_NAME"
     psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME;"
 fi
@@ -150,7 +190,7 @@ psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -c "ALTER DATAB
 
 echo "-- applying base schema setup"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
-    -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_itinerarius.sql"
+    -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_itinerarius.sql"
 
 echo "-- granting connect to app user"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d postgres -c "GRANT CONNECT ON DATABASE $DB_NAME TO $APP_USER;"
@@ -160,49 +200,68 @@ echo "-- using local PBF $PBF_FILE"
 echo "-- running osm2pgsql import"
 export PGPASSWORD="$IMPORTER_PASSWORD"
 export LUA_PATH="$ROOT_DIR/osm2pgsql/?.lua;;"
+
+OSM2PGSQL_MODE_ARGS=(--create)
+if $INCREMENTAL; then
+    # osm2pgsql requires --slim for --append updates.
+    # NOTE: Slim mode stores additional OSM data in DB to support updates.
+    OSM2PGSQL_MODE_ARGS=(--slim)
+
+    HAS_OUTPUT_TABLES=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" -tAc \
+        "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='itinerarius' AND c.relname IN ('routes','amenities') LIMIT 1;")
+
+    HAS_SLIM_TABLES=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" -tAc \
+        "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels') LIMIT 1;")
+
+    if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
+        cat >&2 <<'EOF'
+
+ERROR: Incremental mode requested but database is not initialized in osm2pgsql --slim mode.
+
+osm2pgsql requires --slim for --append updates. To initialize slim mode, run once with:
+  ./bootstrap.sh <file.osm.pbf> --env-file ./.env --force-reset --incremental
+
+EOF
+        exit 1
+    fi
+
+    if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
+        OSM2PGSQL_MODE_ARGS+=(--append)
+    else
+        OSM2PGSQL_MODE_ARGS+=(--create)
+    fi
+else
+    # Non-incremental: keep DB small by dropping middle tables after import.
+    OSM2PGSQL_MODE_ARGS+=(--create --drop)
+fi
+
 osm2pgsql -H "$DB_HOST" -P "$DB_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
-    -O flex -S "$LUA_SCRIPT" --create --drop "$PBF_FILE"
+    -O flex -S "$LUA_SCRIPT" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE"
 
 # Reset PGPASSWORD for admin tasks
 export PGPASSWORD="$DB_ADMIN_PASSWORD"
 
 echo "-- post-import maintenance"
-# Use IMPORTER_PASSWORD for maintenance as IMPORTER_USER
 export PGPASSWORD="$IMPORTER_PASSWORD"
-psql -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" <<'SQL'
-CREATE INDEX IF NOT EXISTS idx_amenities_geom ON itinerarius.amenities USING GIST (geom);
-CREATE INDEX IF NOT EXISTS idx_amenities_class ON itinerarius.amenities (class);
-CREATE INDEX IF NOT EXISTS idx_amenities_subclass ON itinerarius.amenities (subclass);
-
-CREATE INDEX IF NOT EXISTS idx_routes_geom ON itinerarius.routes USING GIST (geom);
-CREATE INDEX IF NOT EXISTS idx_routes_network ON itinerarius.routes (network);
-CREATE INDEX IF NOT EXISTS idx_routes_route_type ON itinerarius.routes (route_type);
-CREATE INDEX IF NOT EXISTS idx_routes_name ON itinerarius.routes (name);
-
-ALTER TABLE itinerarius.routes ADD COLUMN IF NOT EXISTS length_m numeric;
-UPDATE itinerarius.routes SET length_m = ST_Length(geom::geography) WHERE length_m IS NULL;
-CREATE INDEX IF NOT EXISTS idx_routes_length_m ON itinerarius.routes (length_m);
-
-ANALYZE itinerarius.amenities;
-ANALYZE itinerarius.routes;
-SQL
+PGOPTIONS="-c statement_timeout=$DB_STATEMENT_TIMEOUT_MS" \
+    psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$IMPORTER_USER" -d "$DB_NAME" -f "$SCRIPT_DIR/sql/post_import.sql"
 
 # Reset PGPASSWORD for admin tasks
 export PGPASSWORD="$DB_ADMIN_PASSWORD"
 
 if command -v docker >/dev/null 2>&1; then
   if ! docker volume inspect trailfox_pg_data >/dev/null 2>&1; then
-    docker volume create trailfox_pg_data >/dev/null
+    docker volume create trailfox_pg_data >/dev/null 2>&1
   fi
 fi
 
 echo "-- applying api schema"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
-    -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_api.sql"
+    -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
 
 echo "-- applying tiles schema"
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_ADMIN_USER" -d "$DB_NAME" \
-    -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/setup_tiles.sql"
+    -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_tiles.sql"
 
 
 echo "-- results"

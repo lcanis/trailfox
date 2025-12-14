@@ -27,6 +27,7 @@ FROM itinerarius.routes r
 LEFT JOIN itinerarius.route_info ri ON r.osm_id = ri.route_id;
 
 -- Route-centric view of nearby amenities with linear referencing (km from start).
+DROP VIEW IF EXISTS api.route_amenities;
 CREATE OR REPLACE VIEW api.route_amenities AS
 SELECT DISTINCT ON (r.osm_id, a.osm_type, a.osm_id)
     r.osm_id AS route_osm_id,
@@ -61,6 +62,3 @@ ORDER BY
 GRANT SELECT ON api.routes TO :app_user;
 GRANT SELECT ON api.route_amenities TO :app_user;
 ALTER DEFAULT PRIVILEGES FOR ROLE :import_user IN SCHEMA api GRANT SELECT ON TABLES TO :app_user;
-
--- NOTE: This file has been moved to `sql/setup_api.sql`. The copy in the root remains as a placeholder; run the SQL in `sql/` instead.
-RAISE NOTICE 'setup_api moved to sql/setup_api.sql';

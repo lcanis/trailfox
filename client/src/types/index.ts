@@ -5,6 +5,7 @@ export interface Route {
   length_m: number | null;
   route_type: string | null;
   symbol: string | null;
+  merged_geom_type: string | null;
   tags: Record<string, string> | null;
 }
 

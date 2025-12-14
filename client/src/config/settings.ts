@@ -52,6 +52,10 @@ if (Platform.OS === 'web') {
 export const API_URL = `${API_BASE_URL}/api/routes`;
 export const TILES_BASE_URL = `${API_BASE_URL}/tiles`;
 
+// Whether the app should allow itineraries for MultiLineString routes.
+// Default false until bifurcations/superroutes are handled.
+export const allowMultistring = true;
+
 // Log config values during development so the dev console helps debugging network errors
 if (DEVELOPER_MODE) {
   // eslint-disable-next-line no-console
