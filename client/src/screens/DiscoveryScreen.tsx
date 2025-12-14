@@ -4,7 +4,7 @@ import { useRoutes } from '../hooks/useRoutes';
 import { useRouteFilter } from '../hooks/useRouteFilter';
 import { RouteList } from '../components/RouteList';
 import { RouteDetails } from '../components/RouteDetails';
-import Map from '../components/Map.web';
+import Map from '../components/Map';
 import { Route, RouteFilter as RouteFilterType } from '../types';
 import { ItineraryScreen } from './ItineraryScreen';
 
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   listContainerSmall: {
     width: '100%',
-    height: '40%', // Take 40% of screen
+    height: '60%', // Take 60% of screen for list
   },
   mapContainer: {
     flex: 1,

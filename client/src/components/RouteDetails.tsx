@@ -7,6 +7,7 @@ import {
   ScrollView,
   Linking,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { Route } from '../types';
 import { NETWORK_MAP, IGNORED_TAGS, COLLAPSE_OSM_TAGS_BY_DEFAULT } from '../constants';
@@ -22,6 +23,8 @@ interface RouteDetailsProps {
 
 export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOpenItinerary }) => {
   const [osmTagsCollapsed, setOsmTagsCollapsed] = React.useState(COLLAPSE_OSM_TAGS_BY_DEFAULT);
+  const { width, height } = useWindowDimensions();
+  const isSmallScreen = width < 768;
 
   const handleDownloadGpx = async () => {
     try {
@@ -100,7 +103,13 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
   const toLoc = route.tags?.to;
 
   return (
-    <View style={styles.sidebar}>
+    <View
+      style={[
+        styles.sidebar,
+        isSmallScreen && styles.sidebarSmall,
+        { height: isSmallScreen ? height * 0.6 : '100%' },
+      ]}
+    >
       <View style={styles.sidebarHeader}>
         <View style={styles.headerContent}>
           <Text style={styles.title}>{route.name || 'Unnamed Route'}</Text>
@@ -250,6 +259,16 @@ const styles = StyleSheet.create({
     zIndex: 30,
     borderLeftWidth: 1,
     borderLeftColor: '#eee',
+  },
+  sidebarSmall: {
+    width: '100%',
+    top: 'auto',
+    bottom: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   itineraryBtn: {
     backgroundColor: '#111',
