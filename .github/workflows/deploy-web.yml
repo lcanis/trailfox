@@ -1,0 +1,62 @@
+name: Build & Deploy Web
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build web export
+        working-directory: client
+        run: npx expo export -p web --output-dir dist
+
+      - name: Copy dist to server (SCP)
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          source: "client/dist/"
+          target: "/tmp/trailfox-deploy-${{ github.sha }}"
+
+      - name: Run remote deploy script (SSH)
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          script: |
+            set -euo pipefail
+            TMP_DIR="/tmp/trailfox-deploy-${GITHUB_SHA}"
+            TARGET_PARENT="/var/www/trailfox.app/main"
+            # If deploy helper exists in the checkout on the server, prefer it
+            if [ -x "$HOME/trailfox-config/server/setup/deploy_client.sh" ]; then
+              "$HOME/trailfox-config/server/setup/deploy_client.sh" "$TMP_DIR" main
+            else
+              mkdir -p "$TMP_DIR" && mv /tmp/trailfox-deploy-${GITHUB_SHA}/* "$TMP_DIR/"
+              if [ -d "$TARGET_PARENT/html" ]; then
+                mv "$TARGET_PARENT/html" "$TARGET_PARENT/html.bak"
+              fi
+              mv "$TMP_DIR" "$TARGET_PARENT/html"
+              rm -rf "$TARGET_PARENT/html.bak"
+            fi
+
+# Secrets required: DEPLOY_HOST, DEPLOY_USER, DEPLOY_KEY (private key without passphrase).

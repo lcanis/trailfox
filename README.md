@@ -28,3 +28,15 @@ See [docs/itinerary.md](docs/itinerary.md) for more details and the original ide
 Available soon on the web and as an app with offline GeoPackage support for true offline experience.
 
 Open source, including the trail data. No paywalls. No ads.
+
+## CI: Automatic web deploy
+
+A GitHub Actions workflow builds the web client and deploys the static `dist/` export to the server (`/var/www/trailfox.app/main/html`) when `main` receives a push. Secrets required:
+
+- `DEPLOY_HOST` — host/IP of the VPS
+- `DEPLOY_USER` — SSH user
+- `DEPLOY_KEY` — private SSH key (no passphrase)
+- `DEPLOY_PORT` — optional SSH port (defaults to 22)
+
+Adjust the workflow or deployment path as needed for staging/production. The workflow uploads the `dist/` export to a temporary path on the server, then runs the helper deploy script (if present) to atomically swap the site into place.
+
