@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   client:
-    name: "Client: lint & types"
+    name: "Client: lint & types & tests"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -47,6 +47,10 @@ jobs:
       - name: Type-check (client)
         working-directory: client
         run: npm run check-types
+
+      - name: Test (client)
+        working-directory: client
+        run: npm test -- --runInBand
 
   shell-scripts:
     name: Shell script checks
