@@ -4,6 +4,7 @@ from shapely.geometry import MultiLineString, LineString
 from . import build_route
 from . import route_types as rt
 from typing import Tuple
+from shapely.ops import linemerge
 
 
 def flatten_route(segment: rt.AnySegment) -> list[LineString]:
@@ -49,13 +50,26 @@ def process_geometry(geom: shapely.geometry.base.BaseGeometry) -> Tuple[shapely.
         
         route = build_route(ways)
         if route:
-            lines = flatten_route(route)
             linear_state = route.get_linear_state()
-            result_geom = lines[0] if len(lines) == 1 else MultiLineString(lines)
-            print(f"linear_state: {linear_state}")
-            if len(lines) == 1:
-                print(f"flattened: {linear_state}")
+            lines = flatten_route(route)
+            
+            if linear_state in ('yes', 'sorted') and len(lines) > 1:
+                # Trust route_builder's ordering and stitch manually
+                coords = list(lines[0].coords)
+                for line in lines[1:]:
+                    # Append coordinates, skipping the first one which duplicates the previous last
+                    coords.extend(line.coords[1:])
+                lines = [LineString(coords)]
+            elif len(lines) > 1:
+                # Try linemerge for other cases
+                merged = linemerge(lines)
+                if isinstance(merged, LineString):
+                    lines = [merged]
+                elif isinstance(merged, MultiLineString):
+                    lines = list(merged.geoms)
 
+            result_geom = lines[0] if len(lines) == 1 else MultiLineString(lines)
+            
             return result_geom, linear_state
         else:
             # Fallback if route building failed (e.g. empty)
