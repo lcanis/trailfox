@@ -6,6 +6,8 @@ export interface Route {
   route_type: string | null;
   symbol: string | null;
   merged_geom_type: string | null;
+  geom_quality?: string | null;
+  geom_parts?: number | null;
   tags: Record<string, string> | null;
 }
 

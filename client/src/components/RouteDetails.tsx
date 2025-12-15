@@ -203,6 +203,29 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
             value={route.length_m ? `${(route.length_m / 1000).toFixed(2)} km` : 'N/A'}
           />
 
+          {/* Route builder status */}
+          {(() => {
+            const q = route.geom_quality || '';
+            const ok = q.includes('ok_');
+            return (
+              <View
+                style={styles.geomStatusRow}
+                accessibilityLabel={
+                  ok
+                    ? 'Route builder OK'
+                    : `Route builder warning: ${q || 'unknown'}. Itinerary may not be correct.`
+                }
+              >
+                <Text style={styles.geomStatusIcon}>{ok ? '✅' : '⚠️'}</Text>
+                <Text style={styles.geomStatusText}>
+                  {ok
+                    ? 'Route builder OK'
+                    : `Route builder reports ${q || 'unknown'}. Itinerary may not be correct.`}
+                </Text>
+              </View>
+            );
+          })()}
+
           {route.route_type !== 'hiking' && route.route_type !== 'foot' && (
             <InfoRow label="Type" value={route.route_type} />
           )}
@@ -248,6 +271,16 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
                 }
               >
                 <Text style={styles.link}>View Relation {route.osm_id} on OSM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.linkRow}
+                onPress={() =>
+                  Linking.openURL(
+                    `https://hiking.waymarkedtrails.org/#route?id=${route.osm_id}&type=relation`
+                  )
+                }
+              >
+                <Text style={styles.link}>View on Waymarked Trails</Text>
               </TouchableOpacity>
               {renderTags(route.tags, false)}
             </>
@@ -306,6 +339,21 @@ const styles = StyleSheet.create({
   itineraryBtnText: {
     color: 'white',
     fontWeight: '600',
+  },
+  geomStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  geomStatusIcon: {
+    marginRight: 8,
+    fontSize: 16,
+  },
+  geomStatusText: {
+    fontSize: 12,
+    color: '#666',
+    flex: 1,
   },
   itineraryHint: {
     marginTop: 8,
