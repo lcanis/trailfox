@@ -16,7 +16,7 @@ CREATE INDEX idx_amenities_osm_type_id ON itinerarius.amenities (osm_type, osm_i
 ALTER TABLE itinerarius.routes ADD COLUMN geom geometry(Geometry, 4326);
 UPDATE itinerarius.routes SET geom = ST_LineMerge(raw_geom);
 
--- Create separate table for route metadata (quality is computed on-demand in route_quality.sql)
+-- Create/overwrite table for route metadata (we recreate it on post-import)
 CREATE TABLE IF NOT EXISTS itinerarius.route_info (
     route_id bigint PRIMARY KEY,
     merged_geom_type text,
@@ -25,31 +25,21 @@ CREATE TABLE IF NOT EXISTS itinerarius.route_info (
     geom_parts integer
 );
 
-INSERT INTO itinerarius.route_info (route_id, merged_geom_type, geom_build_case, geom_parts)
+-- Overwrite contents for a fresh import: truncate then repopulate
+TRUNCATE TABLE itinerarius.route_info;
+INSERT INTO itinerarius.route_info (route_id, merged_geom_type, geom_build_case, geom_quality, geom_parts)
 SELECT
     osm_id,
     GeometryType(geom),
     'simple_merge',
-    ST_NumGeometries(geom)
+    CASE
+        WHEN GeometryType(geom) = 'LINESTRING' THEN 'ok_singleline'
+        WHEN GeometryType(geom) = 'MULTILINESTRING' THEN concat(ST_NumGeometries(geom)::text, ' parts')
+        ELSE 'other'
+    END AS geom_quality,
+    ST_NumGeometries(geom) AS geom_parts
 FROM itinerarius.routes
 WHERE geom IS NOT NULL;
-
--- Populate initial geom_quality values based on geometry type
--- LINESTRING => 'ok_singleline'
--- MULTILINESTRING => '<N> parts'
-UPDATE itinerarius.route_info ri
-SET geom_parts = r.geom_parts,
-    geom_quality = CASE
-        WHEN r.geom_type = 'LINESTRING' THEN 'ok_singleline'
-        WHEN r.geom_type = 'MULTILINESTRING' THEN concat(r.geom_parts::text, ' parts')
-        ELSE 'other'
-    END
-FROM (
-    SELECT osm_id, GeometryType(geom) AS geom_type, ST_NumGeometries(geom) AS geom_parts
-    FROM itinerarius.routes
-    WHERE geom IS NOT NULL
-) r
-WHERE ri.route_id = r.osm_id;
 
 -- Length in meters (geodesic). Keeping this materialized avoids repeated ST_Length calls.
 ALTER TABLE itinerarius.routes ADD COLUMN length_m numeric;

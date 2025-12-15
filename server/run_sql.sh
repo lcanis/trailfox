@@ -15,9 +15,14 @@ if [ ! -f "$SQLFILE" ]; then
   exit 2
 fi
 
-ENV_FILE="$(dirname "$0")/../.env"
-if [ ! -f "$ENV_FILE" ]; then
-  echo "Missing env file: $ENV_FILE. Please create it and set required DB variables." >&2
+ENV_FILE_CANDIDATE="$(dirname "$0")/.env"
+ENV_FILE_PARENT="$(dirname "$0")/../.env"
+if [ -f "$ENV_FILE_CANDIDATE" ]; then
+  ENV_FILE="$ENV_FILE_CANDIDATE"
+elif [ -f "$ENV_FILE_PARENT" ]; then
+  ENV_FILE="$ENV_FILE_PARENT"
+else
+  echo "Missing env file: looked for $ENV_FILE_CANDIDATE and $ENV_FILE_PARENT. Please create it and set required DB variables." >&2
   exit 1
 fi
 
