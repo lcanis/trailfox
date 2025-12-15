@@ -22,7 +22,8 @@ SELECT
     r.geom,
     ri.merged_geom_type,
     ri.geom_build_case,
-    ri.geom_quality
+    ri.geom_quality,
+    ri.geom_parts
 FROM itinerarius.routes r
 LEFT JOIN itinerarius.route_info ri ON r.osm_id = ri.route_id;
 

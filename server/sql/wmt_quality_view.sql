@@ -43,11 +43,8 @@ SELECT
     wmt_geom_type,
     wmt_num_geometries,
     CASE
-        WHEN raw_len_m > 0 AND (wmt_len_m / raw_len_m) < 0.80 THEN 'broken_short'
-        WHEN raw_len_m > 0 AND (wmt_len_m / raw_len_m) > 1.20 THEN 'broken_long'
-        WHEN wmt_geom_type = 'LINESTRING' THEN 'ok_linestring'
-        WHEN wmt_geom_type = 'MULTILINESTRING' AND wmt_num_geometries >= 25 THEN 'fragmented_multiline'
-        WHEN wmt_geom_type = 'MULTILINESTRING' THEN 'ok_multiline'
+        WHEN wmt_geom_type = 'LINESTRING' THEN 'ok_singleline'
+        WHEN wmt_geom_type = 'MULTILINESTRING' THEN concat(wmt_num_geometries::text, ' parts')
         ELSE 'other'
     END AS quality_check
 FROM quality_calc;

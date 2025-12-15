@@ -21,16 +21,35 @@ CREATE TABLE IF NOT EXISTS itinerarius.route_info (
     route_id bigint PRIMARY KEY,
     merged_geom_type text,
     geom_build_case text,
-    geom_quality text
+    geom_quality text,
+    geom_parts integer
 );
 
-INSERT INTO itinerarius.route_info (route_id, merged_geom_type, geom_build_case)
+INSERT INTO itinerarius.route_info (route_id, merged_geom_type, geom_build_case, geom_parts)
 SELECT
     osm_id,
     GeometryType(geom),
-    'simple_merge'
+    'simple_merge',
+    ST_NumGeometries(geom)
 FROM itinerarius.routes
 WHERE geom IS NOT NULL;
+
+-- Populate initial geom_quality values based on geometry type
+-- LINESTRING => 'ok_singleline'
+-- MULTILINESTRING => '<N> parts'
+UPDATE itinerarius.route_info ri
+SET geom_parts = r.geom_parts,
+    geom_quality = CASE
+        WHEN r.geom_type = 'LINESTRING' THEN 'ok_singleline'
+        WHEN r.geom_type = 'MULTILINESTRING' THEN concat(r.geom_parts::text, ' parts')
+        ELSE 'other'
+    END
+FROM (
+    SELECT osm_id, GeometryType(geom) AS geom_type, ST_NumGeometries(geom) AS geom_parts
+    FROM itinerarius.routes
+    WHERE geom IS NOT NULL
+) r
+WHERE ri.route_id = r.osm_id;
 
 -- Length in meters (geodesic). Keeping this materialized avoids repeated ST_Length calls.
 ALTER TABLE itinerarius.routes ADD COLUMN length_m numeric;
