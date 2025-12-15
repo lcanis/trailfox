@@ -21,7 +21,7 @@ services:
       - postgis
     ports:
       - "${MARTIN_PORT}:3000"
-    command: postgresql://calixtinus:${CALIXTINUS_PASSWORD}@postgis/itinerarius
+    command: postgresql://calixtinus:${APP_PASSWORD}@postgis/itinerarius
 
   postgrest:
     image: postgrest/postgrest:latest
@@ -32,7 +32,7 @@ services:
     ports:
       - "${POSTGREST_PORT}:3000"
     environment:
-      PGRST_DB_URI: postgres://calixtinus:${CALIXTINUS_PASSWORD}@postgis:5432/itinerarius
+      PGRST_DB_URI: postgres://calixtinus:${APP_PASSWORD}@postgis:5432/itinerarius
       PGRST_DB_SCHEMA: api
       PGRST_DB_ANON_ROLE: calixtinus
 

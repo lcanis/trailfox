@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run a .sql file against the DB using credentials from ../.env
+# Run a .sql file against the DB using credentials from ../.env via trailfox-psql
 # Usage: ./run_sql.sh path/to/file.sql
 
 if [ "$#" -ne 1 ]; then
@@ -15,18 +15,17 @@ if [ ! -f "$SQLFILE" ]; then
   exit 2
 fi
 
-# load .env and fail if missing (script requires configuration in this file)
-ENV_FILE="$(dirname "$0")/.env"
+ENV_FILE="$(dirname "$0")/../.env"
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing env file: $ENV_FILE. Please create it and set required DB variables." >&2
   exit 1
 fi
+
 set -o allexport
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +o allexport
 
-# Require essential vars in .env — no implicit defaults
 MISSING=()
 for v in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER DB_ADMIN_PASSWORD; do
   if [ -z "${!v:-}" ]; then
@@ -40,5 +39,4 @@ if [ ${#MISSING[@]} -ne 0 ]; then
 fi
 
 export PGPASSWORD="$DB_ADMIN_PASSWORD"
-# Set ON_ERROR_STOP so psql stops on the first error
-psql -v ON_ERROR_STOP=1 -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$SQLFILE"
+"$(dirname "$0")/trailfox-psql" -d "$POSTGRES_DB" -f "$SQLFILE"

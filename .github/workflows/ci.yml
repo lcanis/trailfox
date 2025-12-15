@@ -60,6 +60,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review
-          path: server/setup
-          pattern: "*.sh"
+          path: server
+          pattern: "**/*.sh"
           exclude: "./.git/*"

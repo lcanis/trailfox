@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Create DB and roles. Usage: ./init-db [--force-reset]
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/bootstrap-common.sh"
+
+FORCE_RESET=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --force-reset)
+      FORCE_RESET=true; shift;;
+    -h|--help)
+      echo "Usage: $0 [--force-reset]"; exit 0;;
+    *) echo "Unknown arg: $1" >&2; exit 2;;
+  esac
+done
+
+ensure_command psql
+
+# Require essential passwords
+if [ -z "${DB_ADMIN_PASSWORD:-}" ]; then
+  echo "Missing DB_ADMIN_PASSWORD in env" >&2
+  exit 1
+fi
+if [ -z "${APP_PASSWORD:-}" ]; then
+  echo "Missing APP_PASSWORD in env" >&2
+  exit 1
+fi
+
+if ! wait_for_postgres; then
+  echo "Postgres unreachable" >&2
+  exit 1
+fi
+
+export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
+
+echo "-- ensuring roles"
+"${PSQL_POSTGRES[@]}" <<'EOF'
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$IMPORTER_USER') THEN
+        CREATE ROLE "$IMPORTER_USER" WITH LOGIN PASSWORD '$DB_ADMIN_PASSWORD' NOCREATEDB NOCREATEROLE NOINHERIT;
+    ELSE
+        ALTER ROLE "$IMPORTER_USER" WITH PASSWORD '$DB_ADMIN_PASSWORD' NOCREATEDB NOCREATEROLE NOINHERIT;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$APP_USER') THEN
+        CREATE ROLE "$APP_USER" WITH LOGIN PASSWORD '$APP_PASSWORD' NOINHERIT NOCREATEDB NOCREATEROLE;
+    ELSE
+        ALTER ROLE "$APP_USER" WITH PASSWORD '$APP_PASSWORD' NOINHERIT NOCREATEDB NOCREATEROLE;
+    END IF;
+END
+$$;
+EOF
+
+echo "-- setting safety timeouts"
+"${PSQL_POSTGRES[@]}" -c "ALTER ROLE \"$DB_ADMIN_USER\" SET statement_timeout = '2min';"
+
+if $FORCE_RESET; then
+  echo "-- terminating connections to $DB_NAME"
+  ATTEMPTS=0
+  while true; do
+    "${PSQL_POSTGRES[@]}" -c \
+      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" >/dev/null || true
+
+    SESSIONS=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+      "SELECT count(*) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();")
+
+    if [ "$SESSIONS" = "0" ]; then
+      break
+    fi
+    ATTEMPTS=$((ATTEMPTS + 1))
+    if [ "$ATTEMPTS" -ge 5 ]; then
+      echo "-- warning: $SESSIONS connections remain after $ATTEMPTS attempts; proceeding to DROP and hope for best"
+      break
+    fi
+    echo "-- $SESSIONS connections still present; retrying in 1s"
+    sleep 1
+  done
+
+  echo "-- dropping database $DB_NAME"
+  "${PSQL_POSTGRES[@]}" -c "DROP DATABASE IF EXISTS $DB_NAME;"
+fi
+
+EXISTS_DB=$("${PSQL_POSTGRES[@]}" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';")
+if [ "$EXISTS_DB" != "1" ]; then
+  echo "-- creating database $DB_NAME owned by $IMPORTER_USER"
+  "${PSQL_POSTGRES[@]}" -c "CREATE DATABASE $DB_NAME OWNER $IMPORTER_USER;"
+else
+  echo "-- database $DB_NAME exists (leave as-is)"
+fi
+
+echo "-- ensuring database owner is $IMPORTER_USER"
+"${PSQL_POSTGRES[@]}" -c "ALTER DATABASE $DB_NAME OWNER TO $IMPORTER_USER;"
+
+echo "-- applying base schema setup"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_itinerarius.sql"
+
+echo "-- granting connect to app user"
+"${PSQL_POSTGRES[@]}" -c "GRANT CONNECT ON DATABASE $DB_NAME TO $APP_USER;"
+

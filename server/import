@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Import OSM PBF and prepare DB (osm2pgsql + post-import maintenance).
+# Usage: ./import /path/to/file.osm.pbf [--incremental]
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/bootstrap-common.sh"
+
+if [ "$#" -lt 1 ]; then
+  echo "Usage: $0 /path/to/file.osm.pbf [--incremental]" >&2
+  exit 2
+fi
+
+PBF_FILE="$1"; shift
+INCREMENTAL=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --incremental)
+      INCREMENTAL=true; shift;;
+    -h|--help)
+      echo "Usage: $0 /path/to/file.osm.pbf [--incremental]"; exit 0;;
+    *) echo "Unknown arg: $1" >&2; exit 2;;
+  esac
+done
+
+ensure_command osm2pgsql
+ensure_command psql
+
+if [ ! -f "$PBF_FILE" ]; then
+  echo "Missing PBF file: $PBF_FILE" >&2
+  exit 1
+fi
+
+if ! wait_for_postgres; then
+  echo "Postgres unreachable" >&2
+  exit 1
+fi
+
+echo "-- running osm2pgsql import"
+export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
+export LUA_PATH="$SCRIPT_DIR/osm2pgsql/?.lua;;"
+
+OSM2PGSQL_MODE_ARGS=(--create)
+if $INCREMENTAL; then
+  OSM2PGSQL_MODE_ARGS=(--slim)
+  HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$IMPORTER_USER" -tAc \
+      "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='itinerarius' AND c.relname IN ('routes','amenities') LIMIT 1;")
+
+  HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$IMPORTER_USER" -tAc \
+      "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels') LIMIT 1;")
+
+  if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
+    echo "ERROR: Incremental mode requested but database is not initialized in osm2pgsql --slim mode." >&2
+    exit 1
+  fi
+
+  if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
+    OSM2PGSQL_MODE_ARGS+=(--append)
+  else
+    OSM2PGSQL_MODE_ARGS+=(--create)
+  fi
+else
+  OSM2PGSQL_MODE_ARGS+=(--create --drop)
+fi
+
+osm2pgsql -H "$DB_HOST" -P "$POSTGRES_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
+  -O flex -S "$SCRIPT_DIR/osm2pgsql/itinerarius.lua" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE"
+
+echo "-- post-import maintenance (indices, analysis)"
+export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
+PGOPTIONS="-c statement_timeout=$DB_STATEMENT_TIMEOUT_MS" \
+  "${PSQL_DB[@]}" -U "$IMPORTER_USER" -f "$SCRIPT_DIR/sql/post_import.sql"

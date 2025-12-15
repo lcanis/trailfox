@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Apply schema SQL scripts for API and tiles and count results.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/bootstrap-common.sh"
+
+ensure_command psql
+
+if ! wait_for_postgres; then
+  echo "Postgres unreachable" >&2
+  exit 1
+fi
+
+export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
+
+echo "-- applying api schema"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
+
+echo "-- applying tiles schema"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_tiles.sql"
+
+echo "-- results"
+AMENITIES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")
+ROUTES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.routes")
+echo "amenities: $AMENITIES"
+echo "routes: $ROUTES"
