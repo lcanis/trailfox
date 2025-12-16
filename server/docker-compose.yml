@@ -11,7 +11,13 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - trailfox_pg_data:/var/lib/postgresql/data
-    shm_size: 1g
+    shm_size: 2g
+    command: >
+      -c shared_buffers=2GB 
+      -c maintenance_work_mem=2GB 
+      -c random_page_cost=1.1
+      -c max_wal_size=4GB
+      -c checkpoint_timeout=15min
 
   martin:
     image: maplibre/martin:latest
@@ -37,7 +43,10 @@ services:
       PGRST_DB_ANON_ROLE: calixtinus
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    image: trailfox-caddy:dev
     container_name: caddy
     restart: unless-stopped
     depends_on:

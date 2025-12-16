@@ -1,4 +1,18 @@
 :8090 {
+	# Rate-limit API calls at the gateway layer (Caddy), before they hit PostgREST.
+	# Requires Caddy built with github.com/mholt/caddy-ratelimit.
+	rate_limit {
+		zone api {
+			match {
+				path /api/*
+				method GET POST PATCH PUT DELETE
+			}
+			key {remote_host}
+			window 10s
+			events 100
+		}
+	}
+
 	handle_path /tiles/* {
 		reverse_proxy martin:3000
 	}
