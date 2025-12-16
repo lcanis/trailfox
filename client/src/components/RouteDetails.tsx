@@ -206,7 +206,8 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
           {/* Route builder status */}
           {(() => {
             const q = route.geom_quality || '';
-            const ok = q.includes('ok_');
+            // Consider a route "OK" only when the quality *starts with* the conventional ok_ prefix.
+            const ok = q.startsWith('ok_');
             return (
               <View
                 style={styles.geomStatusRow}
@@ -216,7 +217,14 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
                     : `Route builder warning: ${q || 'unknown'}. Itinerary may not be correct.`
                 }
               >
-                <Text style={styles.geomStatusIcon}>{ok ? '✅' : '⚠️'}</Text>
+                <Text
+                  style={[
+                    styles.geomStatusIcon,
+                    ok ? styles.geomStatusIconOk : styles.geomStatusIconWarn,
+                  ]}
+                >
+                  {ok ? '✅' : '⚠️'}
+                </Text>
                 <Text style={styles.geomStatusText}>
                   {ok
                     ? 'Route builder OK'
@@ -349,6 +357,14 @@ const styles = StyleSheet.create({
   geomStatusIcon: {
     marginRight: 8,
     fontSize: 16,
+  },
+  geomStatusIconOk: {
+    color: '#16a34a',
+    fontSize: 18,
+  },
+  geomStatusIconWarn: {
+    color: '#d97706',
+    fontSize: 18,
   },
   geomStatusText: {
     fontSize: 12,

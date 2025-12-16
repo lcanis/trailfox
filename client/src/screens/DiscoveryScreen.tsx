@@ -103,7 +103,8 @@ export const DiscoveryScreen = () => {
         />
       </View>
 
-      <View style={styles.mapContainer}>
+      {/* On small screens keep the map very small on start so the list is prominent */}
+      <View style={[styles.mapContainer, isSmallScreen && styles.mapContainerSmall]}>
         <Map
           onHover={handleMapHover}
           onSelect={handleMapSelect}
@@ -156,6 +157,12 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     height: '100%',
+  },
+  mapContainerSmall: {
+    // Very small map on mobile (20 pts) so the list dominates on start.
+    height: 20,
+    // Add a faint tint to make the tiny map area obvious while testing.
+    backgroundColor: 'rgba(0,0,0,0.03)',
   },
   center: {
     flex: 1,

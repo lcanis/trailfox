@@ -17,13 +17,24 @@ const baseRoute: Route = {
 };
 
 describe('RouteDetails route builder status', () => {
-  it('shows OK when geom_quality contains ok_', () => {
+  it('shows OK when geom_quality starts with ok_', () => {
     const { getByText } = render(
       <RouteDetails route={baseRoute} onClose={() => {}} onOpenItinerary={() => {}} />
     );
 
     getByText('Route builder OK');
     getByText('✅');
+  });
+
+  it('treats ok_ only when it is a prefix (not just contained)', () => {
+    const route: Route = { ...baseRoute, geom_quality: 'some_ok_singleline' };
+    const { getByText } = render(
+      <RouteDetails route={route} onClose={() => {}} onOpenItinerary={() => {}} />
+    );
+
+    // Should be treated as warning now because it doesn't start with ok_
+    getByText('⚠️');
+    getByText('Route builder reports some_ok_singleline. Itinerary may not be correct.');
   });
 
   it('shows warning when geom_quality does not contain ok_', () => {

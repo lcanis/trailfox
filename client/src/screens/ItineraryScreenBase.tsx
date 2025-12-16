@@ -672,7 +672,8 @@ const styles = StyleSheet.create({
   },
   mapPane: {
     width: Platform.OS === 'web' ? '45%' : '100%',
-    height: Platform.OS === 'web' ? '100%' : 200,
+    // Make the mobile map view very small (20) for now so the timeline/list is more prominent on start.
+    height: Platform.OS === 'web' ? '100%' : 20,
     borderLeftWidth: Platform.OS === 'web' ? 2 : 0,
     borderBottomWidth: Platform.OS === 'web' ? 0 : 2,
     borderLeftColor: THEME.border,
