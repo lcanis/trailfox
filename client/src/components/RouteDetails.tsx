@@ -27,6 +27,10 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
   const { width, height } = useWindowDimensions();
   const isSmallScreen = width < 768;
 
+  const q = route.geom_quality || '';
+  const ok = q.startsWith('ok_');
+  const showGeomPartsWarning = !ok;
+
   const geojsonRef = React.useRef<any | null>(null);
 
   const fetchGeoJSONOnce = React.useCallback(async () => {
@@ -203,6 +207,22 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
             value={route.length_m ? `${(route.length_m / 1000).toFixed(2)} km` : 'N/A'}
           />
 
+          <View style={styles.geomStatusRow}>
+            <Text
+              style={[
+                styles.geomStatusIcon,
+                ok ? styles.geomStatusIconOk : styles.geomStatusIconWarn,
+              ]}
+            >
+              {ok ? '✅' : '⚠️'}
+            </Text>
+            <Text style={styles.geomStatusText}>
+              {ok
+                ? 'Route builder OK'
+                : `Route builder reports ${q || 'unknown'}. Itinerary may not be correct.`}
+            </Text>
+          </View>
+
           {route.route_type !== 'hiking' && route.route_type !== 'foot' && (
             <InfoRow label="Type" value={route.route_type} />
           )}
@@ -321,6 +341,26 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     opacity: 0.8,
+  },
+  geomStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  geomStatusIcon: {
+    marginRight: 8,
+    fontSize: 14,
+  },
+  geomStatusIconOk: {
+    color: '#16a34a',
+  },
+  geomStatusIconWarn: {
+    color: '#f59e0b',
+  },
+  geomStatusText: {
+    flex: 1,
+    color: '#444',
+    fontSize: 12,
   },
   sidebarHeader: {
     flexDirection: 'row',
