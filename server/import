@@ -2,24 +2,23 @@
 set -euo pipefail
 
 # Import OSM PBF and prepare DB (osm2pgsql + post-import maintenance).
-# Usage: ./import /path/to/file.osm.pbf [--incremental]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/bootstrap-common.sh"
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 /path/to/file.osm.pbf [--incremental]" >&2
+  echo "Usage: $0 /path/to/file.osm.pbf [--full]" >&2
   exit 2
 fi
 
 PBF_FILE="$1"; shift
-INCREMENTAL=false
+INCREMENTAL=true
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --incremental)
-      INCREMENTAL=true; shift;;
+    --full|--non-incremental)
+      INCREMENTAL=false; shift;;
     -h|--help)
-      echo "Usage: $0 /path/to/file.osm.pbf [--incremental]"; exit 0;;
+      echo "Usage: $0 /path/to/file.osm.pbf [--full]"; exit 0;;
     *) echo "Unknown arg: $1" >&2; exit 2;;
   esac
 done
@@ -41,7 +40,6 @@ echo "-- running osm2pgsql import"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 export LUA_PATH="$SCRIPT_DIR/osm2pgsql/?.lua;;"
 
-OSM2PGSQL_MODE_ARGS=(--create)
 if $INCREMENTAL; then
   OSM2PGSQL_MODE_ARGS=(--slim)
   HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$IMPORTER_USER" -tAc \
@@ -56,15 +54,16 @@ if $INCREMENTAL; then
   fi
 
   if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
-    OSM2PGSQL_MODE_ARGS+=(--append)
+    OSM2PGSQL_MODE_ARGS+=( --append)
   else
-    OSM2PGSQL_MODE_ARGS+=(--create)
+    OSM2PGSQL_MODE_ARGS+=( --create)
   fi
 else
-  OSM2PGSQL_MODE_ARGS+=(--create --drop)
+  OSM2PGSQL_MODE_ARGS=( --create --drop)
 fi
 
 osm2pgsql -H "$DB_HOST" -P "$POSTGRES_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
+  --cache 6000 --number-processes 5 --multi-geometry \
   -O flex -S "$SCRIPT_DIR/osm2pgsql/itinerarius.lua" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE"
 
 echo "-- post-import maintenance (indices, analysis)"

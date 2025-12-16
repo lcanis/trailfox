@@ -18,6 +18,7 @@ fi
 
 FORCE_RESET=false
 INCREMENTAL=false
+FULL_IMPORT=false
 PBF_FILE=""
 MODE="all"
 
@@ -27,7 +28,7 @@ Usage: ./bootstrap /path/to/file.osm.pbf [--env-file path] [--force-reset] [--in
 
 Modes:
     --force-reset   Drop and recreate the database.
-    --incremental   Enable osm2pgsql slim mode and append updates when tables exist.
+    --full-import   Force a full import (non-slim): osm2pgsql --create --drop.
     --mode MODE     Run a subset: one of "all" (default), "prepare", "import", "apply-schemas".
 EOF
 }
@@ -43,8 +44,8 @@ while [ "$#" -gt 0 ]; do
             ENV_FILE="$2"; shift 2;;
         --force-reset)
             FORCE_RESET=true; shift;;
-        --incremental)
-            INCREMENTAL=true; shift;;
+        --full-import)
+            FULL_IMPORT=true; shift;;
         --mode)
             MODE="$2"; shift 2;;
         -h|--help)
@@ -68,7 +69,8 @@ if [ "$MODE" = "all" ] || [ "$MODE" = "import" ]; then
         exit 2
     fi
     echo "-- import OSM data and run post-import maintenance"
-    "$SCRIPT_DIR/import" "$PBF_FILE" $( [ "$INCREMENTAL" = true ] && echo "--incremental" )
+        "$SCRIPT_DIR/import" "$PBF_FILE" \
+            $( [ "$FULL_IMPORT" = true ] && echo "--full" ) 
 fi
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "apply-schemas" ]; then
