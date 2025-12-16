@@ -14,6 +14,19 @@
 	}
 
 	handle_path /tiles/* {
+		# Allow cross-origin tile fetches from dev servers (e.g., Expo web on :8081).
+		# Martin does not handle OPTIONS, so respond to preflights here.
+
+		@options {
+			method OPTIONS
+		}
+		handle @options {
+			header Access-Control-Allow-Origin "*"
+			header Access-Control-Allow-Methods "GET, OPTIONS"
+			header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
+			respond "" 204
+		}
+
 		reverse_proxy martin:3000
 	}
 	handle_path /api/* {

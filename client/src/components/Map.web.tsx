@@ -286,7 +286,7 @@ export default function Map({
 
   return (
     <View style={styles.container}>
-      <div ref={mapContainer} style={styles.map} />
+      <div ref={mapContainer} style={{ height: '100%', width: '100%' }} />
       {DEVELOPER_MODE && (
         <View style={styles.debugOverlay}>
           <Text style={styles.debugText}>Zoom: {zoom.toFixed(2)}</Text>

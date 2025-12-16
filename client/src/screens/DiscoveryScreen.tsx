@@ -57,8 +57,12 @@ export const DiscoveryScreen = () => {
     }
   }, [routes]);
 
-  // Fetch current device location so we can sort by distance from “here”.
+  // Fetch current device location only when the user selects distance sorting.
+  // This avoids triggering a geolocation permission prompt on page load.
   useEffect(() => {
+    if (filter.sortBy !== 'distance') return;
+    if (deviceLocation) return;
+
     let cancelled = false;
 
     const run = async () => {
@@ -97,7 +101,7 @@ export const DiscoveryScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [filter.sortBy, deviceLocation]);
 
   // When sorting by distance and we have a device location, fetch a server-side
   // distance-ordered list (distance is computed against the route geometry).
@@ -196,7 +200,7 @@ export const DiscoveryScreen = () => {
       </View>
 
       {/* Always keep the map very small (20 px) so the list is prominent */}
-      <View style={[styles.mapContainer, styles.mapContainerSmall]}>
+      <View style={[styles.mapContainer, isSmallScreen && styles.mapContainerSmall]}>
         <Map
           onHover={handleMapHover}
           onSelect={handleMapSelect}

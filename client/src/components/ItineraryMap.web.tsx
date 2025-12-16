@@ -232,7 +232,7 @@ export default function ItineraryMap({
 
   return (
     <View style={styles.container}>
-      <div ref={mapContainer} style={styles.map} />
+      <div ref={mapContainer} style={{ height: '100%', width: '100%' }} />
       {DEVELOPER_MODE && devTagsOverlay ? (
         <View style={styles.devOverlayBackdrop}>
           <View style={styles.devOverlayCard}>
