@@ -66,3 +66,12 @@ DROP INDEX IF EXISTS itinerarius.routes_raw_geom_idx;
 
 ANALYZE itinerarius.amenities;
 ANALYZE itinerarius.routes;
+
+-- Fail-fast: ensure every route has a geometry. This raises an exception so imports fail loudly
+-- when routes are missing a `geom` and forces a data cleanup / re-import.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM itinerarius.routes WHERE geom IS NULL) THEN
+    RAISE EXCEPTION 'itinerarius.routes contains % routes with NULL geom; fix the import before proceeding', (SELECT count(*) FROM itinerarius.routes WHERE geom IS NULL);
+  END IF;
+END $$;

@@ -26,10 +26,10 @@ APP_PASSWORD="${APP_PASSWORD:-}"
 DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-30}"
 DB_STATEMENT_TIMEOUT_MS="${DB_STATEMENT_TIMEOUT_MS:-120000}"
 
-# trailfox psql wrapper and helper arrays
-PSQL_SCRIPT="$SCRIPT_DIR/trailfox-psql"
-PSQL_DB=("$PSQL_SCRIPT" -d "${POSTGRES_DB:-$DB_NAME}")
-PSQL_POSTGRES=("$PSQL_SCRIPT" -d postgres)
+# psql helper arrays (use system psql directly)
+command -v psql >/dev/null 2>&1 || { echo "psql is required but not found in PATH" >&2; exit 1; }
+PSQL_DB=( psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${POSTGRES_PORT:-5432}" -U "${DB_ADMIN_USER}" -d "${POSTGRES_DB:-$DB_NAME}" )
+PSQL_POSTGRES=( psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${POSTGRES_PORT:-5432}" -U "${DB_ADMIN_USER}" -d postgres )
 
 ensure_command() {
   command -v "$1" >/dev/null 2>&1 || { echo "$1 is required" >&2; exit 1; }

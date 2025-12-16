@@ -6,6 +6,17 @@ ALTER SCHEMA api OWNER TO :import_user;
 
 GRANT USAGE ON SCHEMA api TO :app_user;
 
+-- Safe wrapper for ST_LineLocatePoint that returns NULL if the provided line isn't a LINESTRING.
+CREATE OR REPLACE FUNCTION api.safe_line_locate_point(line geometry, pt geometry)
+RETURNS double precision AS $$
+BEGIN
+    IF line IS NULL OR GeometryType(line) <> 'LINESTRING' THEN
+        RETURN NULL;
+    END IF;
+    RETURN ST_LineLocatePoint(line, pt);
+END;
+$$ LANGUAGE plpgsql STABLE;
+
 CREATE OR REPLACE VIEW api.routes AS
 SELECT
     r.osm_id,
@@ -41,13 +52,13 @@ SELECT DISTINCT ON (r.osm_id, a.osm_type, a.osm_id)
     ST_X(a.geom) AS lon,
     ST_Y(a.geom) AS lat,
     d.dist_m AS distance_from_trail_m,
-    (ST_LineLocatePoint(rl.line, a.geom) * rl.seg_length_km) AS trail_km
+    (api.safe_line_locate_point(rl.line, a.geom) * rl.seg_length_km) AS trail_km
 FROM itinerarius.routes r
 CROSS JOIN LATERAL (
     SELECT
-        r.geom AS line,
-        (r.geom::geography) AS line_geog,
-        (ST_Length(r.geom::geography) / 1000.0) AS seg_length_km
+        ST_LineMerge(r.geom) AS line,
+        (ST_LineMerge(r.geom)::geography) AS line_geog,
+        (ST_Length(ST_LineMerge(r.geom)::geography) / 1000.0) AS seg_length_km
 ) AS rl
 JOIN itinerarius.amenities a
     ON ST_DWithin(a.geom::geography, rl.line_geog, 1000)
