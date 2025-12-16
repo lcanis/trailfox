@@ -29,7 +29,6 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
 
   const q = route.geom_quality || '';
   const ok = q.startsWith('ok_');
-  const showGeomPartsWarning = !ok;
 
   const geojsonRef = React.useRef<any | null>(null);
 
@@ -173,6 +172,8 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
               <Text style={styles.link}>URL</Text>
             </TouchableOpacity>
           )}
+
+          {!ok && route.geom_parts != null && <InfoRow label="Segments" value={route.geom_parts} />}
 
           {route.tags?.wikipedia && (
             <TouchableOpacity

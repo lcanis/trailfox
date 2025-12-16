@@ -50,5 +50,5 @@ export const filterAndSortRoutes = (
 export const useRouteFilter = (routes: Route[], filter: RouteFilter, visibleIds: Set<number>) => {
   return useMemo(() => {
     return filterAndSortRoutes(routes, filter, visibleIds);
-  }, [routes, filter.searchQuery, filter.viewboxOnly, filter.sortBy, visibleIds]);
+  }, [routes, filter, visibleIds]);
 };

@@ -21,7 +21,7 @@ const emptyFilter: RouteFilter = { searchQuery: '', viewboxOnly: false, sortBy: 
 describe('RouteList quality indicator', () => {
   it('shows a green check for routes with geom_quality starting with ok_', () => {
     const routes = [{ ...baseRoute, osm_id: 2, name: 'OK Route', geom_quality: 'ok_singleline' }];
-    const { getByText, getByA11yLabel } = render(
+    const { getByText } = render(
       <RouteList
         routes={routes}
         filter={emptyFilter}
@@ -36,7 +36,7 @@ describe('RouteList quality indicator', () => {
 
   it('shows a yellow cross for routes without ok_ prefix', () => {
     const routes = [{ ...baseRoute, osm_id: 3, name: 'Bad Route', geom_quality: '4 parts' }];
-    const { getByText, getByA11yLabel } = render(
+    const { getByText } = render(
       <RouteList
         routes={routes}
         filter={emptyFilter}

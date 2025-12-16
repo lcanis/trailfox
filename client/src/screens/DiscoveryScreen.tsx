@@ -18,7 +18,10 @@ import { RouteService } from '../services/routeService';
 
 let Location: typeof import('expo-location') | null = null;
 if (Platform.OS !== 'web') {
-  Location = require('expo-location');
+  // Dynamic import avoids bundling native-only modules into the web build
+  import('expo-location').then((mod) => {
+    Location = mod;
+  });
 }
 
 // Fisher-Yates shuffle
