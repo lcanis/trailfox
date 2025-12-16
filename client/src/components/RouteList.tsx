@@ -25,8 +25,9 @@ export const RouteList: React.FC<RouteListProps> = ({
   onFilterChange,
   onSelect,
 }) => {
-  const { width } = useWindowDimensions();
-  const isSmallScreen = width < 768;
+  const { width, height } = useWindowDimensions();
+  // Use the short side so large phones in portrait are treated as small screens.
+  const isSmallScreen = Math.min(width, height) < 768;
 
   const updateFilter = (updates: Partial<RouteFilter>) => {
     onFilterChange({ ...filter, ...updates });
@@ -105,6 +106,19 @@ export const RouteList: React.FC<RouteListProps> = ({
                   ) : (
                     <Text style={styles.listItemBadge}>{item.network || '?'}</Text>
                   )}
+                  {/* Route quality indicator: green check when geom_quality starts with ok_, otherwise yellow cross */}
+                  {(() => {
+                    const q = item.geom_quality || '';
+                    const ok = q.startsWith('ok_');
+                    return (
+                      <Text
+                        accessibilityLabel={ok ? 'Route quality OK' : 'Route quality warning'}
+                        style={[styles.qualityIcon, ok ? styles.qualityOk : styles.qualityWarn]}
+                      >
+                        {ok ? '✅' : '✖️'}
+                      </Text>
+                    );
+                  })()}
                   <Text style={styles.listItemSub}>
                     {item.length_m ? `${(item.length_m / 1000).toFixed(1)} km` : ''}
                   </Text>
@@ -245,6 +259,17 @@ const styles = StyleSheet.create({
   listItemSub: {
     fontSize: 14,
     color: '#666',
+  },
+  qualityIcon: {
+    marginLeft: 8,
+    marginRight: 8,
+    fontSize: 14,
+  },
+  qualityOk: {
+    color: '#16a34a',
+  },
+  qualityWarn: {
+    color: '#f59e0b',
   },
   // Small screen variants
   panelTitleSmall: {

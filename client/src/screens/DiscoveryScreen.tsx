@@ -1,5 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, useWindowDimensions } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Text,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { useRoutes } from '../hooks/useRoutes';
 import { useRouteFilter } from '../hooks/useRouteFilter';
 import { RouteList } from '../components/RouteList';
@@ -20,8 +27,10 @@ const shuffleArray = (array: Route[]) => {
 
 export const DiscoveryScreen = () => {
   const { routes, loading, error } = useRoutes();
-  const { width } = useWindowDimensions();
-  const isSmallScreen = width < 768;
+  const { width, height } = useWindowDimensions();
+  // Always treat native (iOS/Android) as "small". Simulators can report large pixel widths
+  // which would otherwise prevent mobile layout rules from applying.
+  const isSmallScreen = Platform.OS !== 'web' || Math.min(width, height) < 768;
 
   // UI State
   const [filter, setFilter] = useState<RouteFilterType>({
@@ -103,14 +112,15 @@ export const DiscoveryScreen = () => {
         />
       </View>
 
-      {/* On small screens keep the map very small on start so the list is prominent */}
-      <View style={[styles.mapContainer, isSmallScreen && styles.mapContainerSmall]}>
+      {/* Always keep the map very small (20 px) so the list is prominent */}
+      <View style={[styles.mapContainer, styles.mapContainerSmall]}>
         <Map
           onHover={handleMapHover}
           onSelect={handleMapSelect}
           onViewChange={handleViewChange}
           selectedId={selectedId}
           highlightedId={activeId}
+          compact={true}
         />
       </View>
 
@@ -152,7 +162,7 @@ const styles = StyleSheet.create({
   },
   listContainerSmall: {
     width: '100%',
-    height: '60%', // Take 60% of screen for list
+    flex: 1,
   },
   mapContainer: {
     flex: 1,
@@ -161,8 +171,7 @@ const styles = StyleSheet.create({
   mapContainerSmall: {
     // Very small map on mobile (20 pts) so the list dominates on start.
     height: 20,
-    // Add a faint tint to make the tiny map area obvious while testing.
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    flex: 0,
   },
   center: {
     flex: 1,

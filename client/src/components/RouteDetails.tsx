@@ -203,37 +203,6 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
             value={route.length_m ? `${(route.length_m / 1000).toFixed(2)} km` : 'N/A'}
           />
 
-          {/* Route builder status */}
-          {(() => {
-            const q = route.geom_quality || '';
-            // Consider a route "OK" only when the quality *starts with* the conventional ok_ prefix.
-            const ok = q.startsWith('ok_');
-            return (
-              <View
-                style={styles.geomStatusRow}
-                accessibilityLabel={
-                  ok
-                    ? 'Route builder OK'
-                    : `Route builder warning: ${q || 'unknown'}. Itinerary may not be correct.`
-                }
-              >
-                <Text
-                  style={[
-                    styles.geomStatusIcon,
-                    ok ? styles.geomStatusIconOk : styles.geomStatusIconWarn,
-                  ]}
-                >
-                  {ok ? '✅' : '⚠️'}
-                </Text>
-                <Text style={styles.geomStatusText}>
-                  {ok
-                    ? 'Route builder OK'
-                    : `Route builder reports ${q || 'unknown'}. Itinerary may not be correct.`}
-                </Text>
-              </View>
-            );
-          })()}
-
           {route.route_type !== 'hiking' && route.route_type !== 'foot' && (
             <InfoRow label="Type" value={route.route_type} />
           )}
@@ -347,29 +316,6 @@ const styles = StyleSheet.create({
   itineraryBtnText: {
     color: 'white',
     fontWeight: '600',
-  },
-  geomStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 6,
-  },
-  geomStatusIcon: {
-    marginRight: 8,
-    fontSize: 16,
-  },
-  geomStatusIconOk: {
-    color: '#16a34a',
-    fontSize: 18,
-  },
-  geomStatusIconWarn: {
-    color: '#d97706',
-    fontSize: 18,
-  },
-  geomStatusText: {
-    fontSize: 12,
-    color: '#666',
-    flex: 1,
   },
   itineraryHint: {
     marginTop: 8,

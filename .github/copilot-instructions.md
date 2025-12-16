@@ -1,6 +1,9 @@
-# Copilot instructions — server/
+# Copilot instructions — general
 
-Applies to: server/ directory (PostGIS + import + PostgREST + helpers)
+- IMPORTANT: Do NOT commit or push changes automatically. Make edits in a branch and open a pull request for review; ask a human before committing significant changes.
+- DRY principle: don't repeat yourself, don't repeat code, extract common patterns.
+
+## applies to: server/ directory (PostGIS + import + PostgREST + helpers)
 
 - Purpose: help AI agents be immediately productive with database and import-related work. Be concise, *fail-fast*, and prefer simple, fast code over defensive complexity.
 
