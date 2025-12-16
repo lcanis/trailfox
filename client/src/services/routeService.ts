@@ -1,9 +1,11 @@
 import { Route } from '../types';
-import { API_URL } from '../config/settings';
+import { API_BASE_URL, API_URL } from '../config/settings';
 import { fetchJsonWithTimeout } from './http';
 
 const SELECT_FIELDS =
   'osm_id,name,network,length_m,route_type,symbol,merged_geom_type,tags,geom_quality,geom_parts';
+
+const ROUTES_BY_DISTANCE_URL = `${API_BASE_URL}/api/rpc/routes_by_distance`;
 
 export const RouteService = {
   async fetchAll(timeoutMs: number = 8000): Promise<Route[]> {
@@ -15,6 +17,26 @@ export const RouteService = {
       );
     } catch (error) {
       console.error('Failed to fetch routes:', error);
+      throw error;
+    }
+  },
+
+  async fetchAllByDistance(
+    params: { lon: number; lat: number },
+    timeoutMs: number = 8000
+  ): Promise<Route[]> {
+    try {
+      return await fetchJsonWithTimeout<Route[]>(
+        ROUTES_BY_DISTANCE_URL,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        },
+        timeoutMs
+      );
+    } catch (error) {
+      console.error('Failed to fetch routes by distance:', error);
       throw error;
     }
   },

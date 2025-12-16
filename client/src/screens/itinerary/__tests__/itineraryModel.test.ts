@@ -2,6 +2,7 @@ import {
   addItineraryEndpointClusters,
   buildAmenityClusters,
   getAvailableClasses,
+  getClusterDisplayTitle,
   getClusterPlaceTitle,
   sanitizeSelectedClusterKey,
 } from '../itineraryModel';
@@ -144,6 +145,23 @@ describe('itineraryModel', () => {
     };
 
     expect(getClusterPlaceTitle(cluster, 1000)).toBe('Village');
+  });
+
+  test('getClusterDisplayTitle formats single item as "subclass: name" when available', () => {
+    const cluster: AmenityCluster = {
+      key: 'x',
+      trail_km: 1,
+      amenities: [makeAmenity({ class: 'food', name: 'Cafe Central', subclass: 'cafe' })],
+      countsByClass: { food: 1 },
+      size: 1,
+      lon: 0,
+      lat: 0,
+    };
+
+    expect(getClusterDisplayTitle(cluster)).toEqual({
+      title: 'Cafe: Cafe Central',
+      isPlaceHeader: false,
+    });
   });
 
   test('getAvailableClasses returns classes sorted by descending frequency', () => {

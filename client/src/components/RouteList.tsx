@@ -71,6 +71,13 @@ export const RouteList: React.FC<RouteListProps> = ({
               active={filter.sortBy === 'length'}
               onPress={() => updateFilter({ sortBy: filter.sortBy === 'length' ? null : 'length' })}
             />
+            <SortButton
+              label="Distance"
+              active={filter.sortBy === 'distance'}
+              onPress={() =>
+                updateFilter({ sortBy: filter.sortBy === 'distance' ? null : 'distance' })
+              }
+            />
           </View>
         </View>
       </View>

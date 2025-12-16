@@ -158,7 +158,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     <View style={styles.controlsBar}>
       <View style={styles.controlsLeft}>
         <View style={styles.radiusRow}>
-          <Text style={styles.controlLabel}>Radius</Text>
+          <Text style={styles.controlLabel}>📏 Radius</Text>
           <Text style={styles.radiusValue}>{tempRadiusKm.toFixed(1)} km</Text>
         </View>
         <RadiusSlider
@@ -177,7 +177,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
         />
 
         <View style={styles.filterRow}>
-          <Text style={styles.controlLabel}>Filter</Text>
+          <Text style={styles.controlLabel}>🏷️ Filter</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -222,7 +222,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
       </View>
 
       <View style={styles.controlsRight}>
-        <Text style={styles.controlLabel}>Invert</Text>
+        <Text style={styles.controlLabel}>🔁 Invert</Text>
         <Switch
           value={invert}
           onValueChange={setInvert}
@@ -286,13 +286,13 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
           </View>
           <View style={styles.headerStatsRow}>
             <View style={styles.stat}>
-              <Text style={styles.statLabel}>Length</Text>
+              <Text style={styles.statLabel}>📏</Text>
               <Text style={styles.statValue}>
                 {route.length_m ? `${(route.length_m / 1000).toFixed(1)} km` : 'N/A'}
               </Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statLabel}>Amenities</Text>
+              <Text style={styles.statLabel}>🧃</Text>
               <Text style={styles.statValue}>{totalAmenities}</Text>
             </View>
           </View>
@@ -330,7 +330,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
               <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
                 <View style={styles.currentMarker}>
                   <Text style={styles.currentMarkerText}>
-                    Timeline view · within {radiusKm.toFixed(1)} km of trail
+                    🗺️ Timeline · within {radiusKm.toFixed(1)} km
                   </Text>
                 </View>
 
@@ -384,13 +384,11 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
                             {title}
                           </Text>
                           <View style={styles.stopLocationRow}>
-                            <Text style={styles.stopMeta}>
-                              {formatKm(cluster.trail_km)} from start
-                            </Text>
+                            <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
                             <Text style={styles.stopMeta}>·</Text>
-                            <Text style={styles.stopMeta}>{formatMeters(minDist)} from trail</Text>
+                            <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
                             <Text style={styles.stopMeta}>·</Text>
-                            <Text style={styles.stopMeta}>{cluster.size} items</Text>
+                            <Text style={styles.stopMeta}>📍 {cluster.size}</Text>
                           </View>
 
                           <View style={styles.amenityTagsRow}>
@@ -406,7 +404,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
                               ))}
                           </View>
 
-                          {isSelected && (
+                          {isSelected && cluster.size > 1 && (
                             <View style={styles.detailsBox}>
                               {cluster.amenities
                                 .slice()

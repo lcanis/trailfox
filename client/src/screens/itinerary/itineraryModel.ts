@@ -108,6 +108,21 @@ export const getClusterPlaceTitle = (
 };
 
 export const getClusterDisplayTitle = (cluster: AmenityCluster) => {
+  // Special case: for single-item clusters show subclass: name (when available)
+  // as a concise header. This prevents duplicating the same label in the details list.
+  if (cluster.amenities.length === 1) {
+    const a = cluster.amenities[0];
+    if (a.name && a.subclass) {
+      return { title: `${titleize(a.subclass)}: ${a.name}`, isPlaceHeader: false };
+    }
+    if (a.name) {
+      return { title: a.name, isPlaceHeader: false };
+    }
+    if (a.subclass) {
+      return { title: titleize(a.subclass), isPlaceHeader: false };
+    }
+  }
+
   const placeTitle = getClusterPlaceTitle(cluster);
   const firstNamed = cluster.amenities.find((a) => a.name)?.name;
   const title = placeTitle || firstNamed || pickClusterTitle(cluster.countsByClass);

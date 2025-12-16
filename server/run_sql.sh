@@ -73,6 +73,7 @@ if [ "$ADMIN_MODE" = true ]; then
     exit 3
   fi
   PGPASSWORD="$DB_ADMIN_PASSWORD"
+  export PGPASSWORD
   PSQL_USER="$DB_ADMIN_USER"
 else
   # Non-admin: prefer an explicit POSTGRES_PASSWORD if available, otherwise ensure

@@ -38,6 +38,54 @@ SELECT
 FROM itinerarius.routes r
 LEFT JOIN itinerarius.route_info ri ON r.osm_id = ri.route_id;
 
+-- Return routes ordered by distance to a given lon/lat.
+-- This avoids client-side "centers" (which can be misleading for long routes)
+-- and lets PostGIS use spatial indexes for ordering.
+CREATE OR REPLACE FUNCTION api.routes_by_distance(lon double precision, lat double precision)
+RETURNS TABLE (
+    osm_id bigint,
+    name text,
+    network text,
+    route_type text,
+    symbol text,
+    distance numeric,
+    ascent numeric,
+    descent numeric,
+    roundtrip boolean,
+    length_m numeric,
+    tags jsonb,
+    geom geometry,
+    merged_geom_type text,
+    geom_build_case text,
+    geom_quality text,
+    geom_parts integer,
+    distance_m double precision
+) AS $$
+  SELECT
+      r.osm_id,
+      r.name,
+      r.network,
+      r.route_type,
+      r.symbol,
+      r.distance,
+      r.ascent,
+      r.descent,
+      r.roundtrip,
+      r.length_m,
+      r.tags,
+      r.geom,
+      ri.merged_geom_type,
+      ri.geom_build_case,
+      ri.geom_quality,
+      ri.geom_parts,
+      ST_Distance(r.geom::geography, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography) AS distance_m
+  FROM itinerarius.routes r
+  LEFT JOIN itinerarius.route_info ri ON r.osm_id = ri.route_id
+  ORDER BY
+      -- Fast index-assisted ordering (approximate meters in WebMercator)
+      r.geom_3857 <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857);
+$$ LANGUAGE sql STABLE;
+
 -- Route-centric view of nearby amenities with linear referencing (km from start).
 DROP VIEW IF EXISTS api.route_amenities;
 CREATE OR REPLACE VIEW api.route_amenities AS
@@ -52,18 +100,12 @@ SELECT DISTINCT ON (r.osm_id, a.osm_type, a.osm_id)
     ST_X(a.geom) AS lon,
     ST_Y(a.geom) AS lat,
     d.dist_m AS distance_from_trail_m,
-    (api.safe_line_locate_point(rl.line, a.geom) * rl.seg_length_km) AS trail_km
+    (api.safe_line_locate_point(r.geom, a.geom) * (r.length_m / 1000.0)) AS trail_km
 FROM itinerarius.routes r
-CROSS JOIN LATERAL (
-    SELECT
-        ST_LineMerge(r.geom) AS line,
-        (ST_LineMerge(r.geom)::geography) AS line_geog,
-        (ST_Length(ST_LineMerge(r.geom)::geography) / 1000.0) AS seg_length_km
-) AS rl
 JOIN itinerarius.amenities a
-    ON ST_DWithin(a.geom::geography, rl.line_geog, 1000)
+    ON ST_DWithin(a.geom::geography, r.geom::geography, 1000)
 CROSS JOIN LATERAL (
-    SELECT ST_Distance(a.geom::geography, rl.line_geog) AS dist_m
+    SELECT ST_Distance(a.geom::geography, r.geom::geography) AS dist_m
 ) AS d
 ORDER BY
     r.osm_id,
@@ -72,5 +114,6 @@ ORDER BY
     d.dist_m ASC;
 
 GRANT SELECT ON api.routes TO :app_user;
+GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO :app_user;
 GRANT SELECT ON api.route_amenities TO :app_user;
 ALTER DEFAULT PRIVILEGES FOR ROLE :import_user IN SCHEMA api GRANT SELECT ON TABLES TO :app_user;

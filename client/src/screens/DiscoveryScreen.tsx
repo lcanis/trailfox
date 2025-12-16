@@ -14,6 +14,12 @@ import { RouteDetails } from '../components/RouteDetails';
 import Map from '../components/Map';
 import { Route, RouteFilter as RouteFilterType } from '../types';
 import { ItineraryScreen } from './ItineraryScreen';
+import { RouteService } from '../services/routeService';
+
+let Location: typeof import('expo-location') | null = null;
+if (Platform.OS !== 'web') {
+  Location = require('expo-location');
+}
 
 // Fisher-Yates shuffle
 const shuffleArray = (array: Route[]) => {
@@ -32,6 +38,9 @@ export const DiscoveryScreen = () => {
   // which would otherwise prevent mobile layout rules from applying.
   const isSmallScreen = Platform.OS !== 'web' || Math.min(width, height) < 768;
 
+  const [deviceLocation, setDeviceLocation] = useState<{ lon: number; lat: number } | null>(null);
+  const [distanceSortedRoutes, setDistanceSortedRoutes] = useState<Route[] | null>(null);
+
   // UI State
   const [filter, setFilter] = useState<RouteFilterType>({
     searchQuery: '',
@@ -48,6 +57,79 @@ export const DiscoveryScreen = () => {
     }
   }, [routes]);
 
+  // Fetch current device location so we can sort by distance from “here”.
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        if (Platform.OS === 'web') {
+          if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (cancelled) return;
+              setDeviceLocation({ lon: pos.coords.longitude, lat: pos.coords.latitude });
+            },
+            () => {
+              // Ignore permission errors; distance sort will be unavailable.
+            },
+            { enableHighAccuracy: false, timeout: 7000 }
+          );
+          return;
+        }
+
+        if (!Location) return;
+
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        setDeviceLocation({ lon: pos.coords.longitude, lat: pos.coords.latitude });
+      } catch {
+        // Ignore; distance sort will just not work.
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // When sorting by distance and we have a device location, fetch a server-side
+  // distance-ordered list (distance is computed against the route geometry).
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (filter.sortBy !== 'distance') {
+        setDistanceSortedRoutes(null);
+        return;
+      }
+      if (!deviceLocation) {
+        setDistanceSortedRoutes(null);
+        return;
+      }
+
+      try {
+        const data = await RouteService.fetchAllByDistance(deviceLocation);
+        if (cancelled) return;
+        setDistanceSortedRoutes(data);
+      } catch {
+        if (cancelled) return;
+        setDistanceSortedRoutes(null);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [filter.sortBy, deviceLocation]);
+
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
@@ -55,12 +137,13 @@ export const DiscoveryScreen = () => {
 
   // Derived Data
   // Use shuffledRoutes as base if no sort is active, otherwise use original routes (or shuffled, doesn't matter if sorted)
-  const displayedRoutes = useRouteFilter(shuffledRoutes, filter, visibleIds);
+  const baseRoutes = distanceSortedRoutes ?? shuffledRoutes;
+  const displayedRoutes = useRouteFilter(baseRoutes, filter, visibleIds);
 
   const activeId = selectedId || hoveredId;
-  const activeRoute = activeId ? routes.find((r) => r.osm_id === activeId) : null;
+  const activeRoute = activeId ? baseRoutes.find((r) => r.osm_id === activeId) : null;
   const itineraryRoute = itineraryRouteId
-    ? routes.find((r) => r.osm_id === itineraryRouteId)
+    ? baseRoutes.find((r) => r.osm_id === itineraryRouteId)
     : null;
 
   // Handlers

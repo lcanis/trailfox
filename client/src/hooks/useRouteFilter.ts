@@ -1,40 +1,54 @@
 import { useMemo } from 'react';
 import { Route, RouteFilter } from '../types';
 
+export const filterAndSortRoutes = (
+  routes: Route[],
+  filter: RouteFilter,
+  visibleIds: Set<number>
+) => {
+  let result = routes;
+
+  // 1. Viewbox Filter
+  if (filter.viewboxOnly) {
+    result = result.filter((r) => visibleIds.has(r.osm_id));
+  }
+
+  // 2. Search Filter
+  if (filter.searchQuery) {
+    const q = filter.searchQuery.toLowerCase();
+    result = result.filter(
+      (r) =>
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.network && r.network.toLowerCase().includes(q))
+    );
+  }
+
+  // 3. Sort
+  if (!filter.sortBy) {
+    return result;
+  }
+
+  return [...result].sort((a, b) => {
+    if (filter.sortBy === 'name') {
+      const nameA = a.name || 'zzzz';
+      const nameB = b.name || 'zzzz';
+      return nameA.localeCompare(nameB);
+    }
+    if (filter.sortBy === 'length') {
+      return (b.length_m || 0) - (a.length_m || 0);
+    }
+    if (filter.sortBy === 'distance') {
+      const da = a.distance_m ?? Number.POSITIVE_INFINITY;
+      const db = b.distance_m ?? Number.POSITIVE_INFINITY;
+      if (da === db) return 0;
+      return da - db;
+    }
+    return 0;
+  });
+};
+
 export const useRouteFilter = (routes: Route[], filter: RouteFilter, visibleIds: Set<number>) => {
   return useMemo(() => {
-    let result = routes;
-
-    // 1. Viewbox Filter
-    if (filter.viewboxOnly) {
-      result = result.filter((r) => visibleIds.has(r.osm_id));
-    }
-
-    // 2. Search Filter
-    if (filter.searchQuery) {
-      const q = filter.searchQuery.toLowerCase();
-      result = result.filter(
-        (r) =>
-          (r.name && r.name.toLowerCase().includes(q)) ||
-          (r.network && r.network.toLowerCase().includes(q))
-      );
-    }
-
-    // 3. Sort
-    if (!filter.sortBy) {
-      return result;
-    }
-
-    return [...result].sort((a, b) => {
-      if (filter.sortBy === 'name') {
-        const nameA = a.name || 'zzzz';
-        const nameB = b.name || 'zzzz';
-        return nameA.localeCompare(nameB);
-      }
-      if (filter.sortBy === 'length') {
-        return (b.length_m || 0) - (a.length_m || 0);
-      }
-      return 0;
-    });
+    return filterAndSortRoutes(routes, filter, visibleIds);
   }, [routes, filter.searchQuery, filter.viewboxOnly, filter.sortBy, visibleIds]);
 };
