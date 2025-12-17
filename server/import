@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/bootstrap-common.sh"
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 /path/to/file.osm.pbf [--full]" >&2
+  echo "Usage: $0 /path/to/file.osm.pbf [--non-incremental]" >&2
   exit 2
 fi
 
@@ -15,10 +15,10 @@ PBF_FILE="$1"; shift
 INCREMENTAL=true
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --full|--non-incremental)
+    --non-incremental)
       INCREMENTAL=false; shift;;
     -h|--help)
-      echo "Usage: $0 /path/to/file.osm.pbf [--full]"; exit 0;;
+      echo "Usage: $0 /path/to/file.osm.pbf [--non-incremental]"; exit 0;;
     *) echo "Unknown arg: $1" >&2; exit 2;;
   esac
 done
@@ -62,8 +62,8 @@ else
   OSM2PGSQL_MODE_ARGS=( --create --drop)
 fi
 
-osm2pgsql -H "$DB_HOST" -P "$POSTGRES_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
-  --cache 6000 --number-processes 5 --multi-geometry \
+PGOPTIONS="-c statement_timeout=0" osm2pgsql -H "$DB_HOST" -P "$POSTGRES_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
+  --cache 6000 --number-processes 5 \
   -O flex -S "$SCRIPT_DIR/osm2pgsql/itinerarius.lua" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE"
 
 echo "-- post-import maintenance (indices, analysis)"
