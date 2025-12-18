@@ -13,8 +13,8 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 # Defaults
-DB_HOST="${DB_HOST:-127.0.0.1}"
-DB_NAME="${DB_NAME:-itinerarius}"
+POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
+DB_NAME="${TRAILFOX_DB:-itinerarius}"
 APP_USER="${APP_USER:-calixtinus}"
 APP_PASSWORD="${APP_PASSWORD:-}"
 DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-30}"
@@ -27,12 +27,12 @@ ensure_command() {
 # psql helper arrays (use system psql directly)
 ensure_command psql
 
-PSQL_BASE=( psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${POSTGRES_PORT:-5432}" )
+PSQL_BASE=( psql -v ON_ERROR_STOP=1 -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT:-5432}" )
 
 # connect as DB admin to itinerarius DB
-PSQL_DB=( "${PSQL_BASE[@]}" -U "${DB_ADMIN_USER}" -d "${POSTGRES_DB:-$DB_NAME}" )
+PSQL_DB=( "${PSQL_BASE[@]}" -U "${DB_ADMIN_USER}" -d "${TRAILFOX_DB}" )
 # connect as DB admin to postgres DB (admin operations)
-PSQL_POSTGRES=( "${PSQL_BASE[@]}" -U "${DB_ADMIN_USER}" -d postgres )
+PSQL_POSTGRES=( "${PSQL_BASE[@]}" -U "${POSTGRES_USER}" -d postgres )
 
 # Ensure an environment variable is set (used by init/alter scripts). Do not
 # perform checks here automatically; scripts should call this helper when
@@ -46,10 +46,12 @@ ensure_env_set() {
 }
 
 wait_for_postgres() {
-  echo "Waiting for Postgres at $DB_HOST:${POSTGRES_PORT:-5432}..."
+  #echo "Waiting for Postgres at $POSTGRES_HOST:${POSTGRES_PORT:-5432} using ${POSTGRES_USER:-} and password ${POSTGRES_PASSWORD:-}..."
+  #echo "${PSQL_POSTGRES[@]}"
+  local
   READY=false
   for ((i=1; i<=DB_WAIT_TIMEOUT; i++)); do
-    if PGPASSWORD="${DB_ADMIN_PASSWORD:-}" "${PSQL_POSTGRES[@]}" -c "SELECT 1" >/dev/null 2>&1; then
+    if PGPASSWORD="${POSTGRES_PASSWORD:-}" "${PSQL_POSTGRES[@]}" -c "SELECT 1" >/dev/null 2>&1; then
       READY=true
       break
     fi

@@ -1,52 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# High-level bootstrap orchestrator. Modes: all (default), prepare, import, apply-schemas
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/bootstrap-common.sh"
-
-# Sanity checks for required passwords
-if [ -z "${DB_ADMIN_PASSWORD:-}" ]; then
-  echo "Missing DB_ADMIN_PASSWORD in env" >&2
-  exit 1
-fi
-if [ -z "${APP_PASSWORD:-}" ]; then
-  echo "Missing APP_PASSWORD in env" >&2
-  exit 1
-fi
 
 FORCE_RESET=false
-INCREMENTAL=false
+IMPORT_VERB=""
 PBF_FILE=""
-MODE="all"
 
 usage() {
   cat <<'EOF'
-Usage: ./bootstrap /path/to/file.osm.pbf [--env-file path] [--force-reset] [--non-incremental] [--mode MODE]
-
-Modes:
-    --force-reset   Drop and recreate the database.
-    --incremental   Force an incremental import (slim): osm2pgsql --append. (SLOWER!)
-    --mode MODE     Run a subset: one of "all" (default), "prepare", "import", "apply-schemas".
+Usage:
+    ./bootstrap create|append|incremental /path/to/file.osm.pbf [--env-file path]
 EOF
 }
 
-if [ "$#" -ge 1 ] && [[ ! "$1" =~ ^- ]]; then
-    PBF_FILE="$1"
-    shift
+if [ "$#" -ge 1 ] && ( [ "$1" = "-h" ] || [ "$1" = "--help" ] ); then
+    usage
+    exit 0
 fi
+
+IMPORT_VERB="${1:-}"
+PBF_FILE="${2:-}"
+
+if [ -z "$IMPORT_VERB" ] || [ -z "$PBF_FILE" ]; then
+    usage
+    exit 2
+fi
+
+case "$IMPORT_VERB" in
+    create|append|incremental) ;;
+    *)
+        echo "Invalid verb: $IMPORT_VERB" >&2
+        usage
+        exit 2
+        ;;
+esac
+
+shift 2
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --env-file)
             ENV_FILE="$2"; shift 2;;
-        --force-reset)
-            FORCE_RESET=true; shift;;
-        --incremental)
-            INCREMENTAL=true; shift;;
-        --mode)
-            MODE="$2"; shift 2;;
         -h|--help)
             usage; exit 0;;
         *)
@@ -57,25 +52,16 @@ done
 # Ensure we have an env file to load unless provided by --env-file
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 
-if [ "$MODE" = "all" ] || [ "$MODE" = "prepare" ]; then
-    echo "-- create DB"
-    "$SCRIPT_DIR/init-user-db"
-    "$SCRIPT_DIR/alter-db" $( [ "$FORCE_RESET" = true ] && echo "--force-reset" )
-fi
+source "$SCRIPT_DIR/bootstrap-common.sh"
 
-if [ "$MODE" = "all" ] || [ "$MODE" = "import" ]; then
-    if [ -z "$PBF_FILE" ]; then
-        echo "Import mode requires a PBF file argument" >&2
-        exit 2
-    fi
-    echo "-- import OSM data and run post-import maintenance"
-    "$SCRIPT_DIR/import" "$PBF_FILE" \
-        $( [ "$INCREMENTAL" = true ] && echo "--incremental" ) 
-fi
+echo "-- create DB"
+"$SCRIPT_DIR/init-user"
+"$SCRIPT_DIR/init-db" $([ "$IMPORT_VERB" = "create" ] && echo "--force-reset")
 
-if [ "$MODE" = "all" ] || [ "$MODE" = "apply-schemas" ]; then
-    echo "-- apply API/tiles schemas"
-    "$SCRIPT_DIR/apply-schemas"
-fi
+echo "-- import OSM data and run post-import maintenance"
+"$SCRIPT_DIR/import" "$IMPORT_VERB" "$PBF_FILE"
+
+echo "-- apply API/tiles schemas"
+"$SCRIPT_DIR/apply-schemas"
 
 echo "done"

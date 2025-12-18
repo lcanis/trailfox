@@ -1,17 +1,11 @@
 services:
   postgis:
     image: postgis/postgis:18-3.6
-    platform: linux/amd64 # force rosetta on M-Macs
+    platform: linux/amd64
     container_name: postgis
     restart: unless-stopped
-    environment:
-      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD}
-      POSTGRES_DB: itinerarius
-      POSTGRES_USER: gisuser
     env_file:
       - ./.env
-    ports:
-      - "${POSTGRES_PORT}:5432"
     volumes:
       - trailfox_pg_data:/var/lib/postgresql
     shm_size: 2g
@@ -23,7 +17,7 @@ services:
       -c checkpoint_timeout=15min
 
   osm2pgsql:
-    image: iboates/osm2pgsql:latest # we require osm2pgsql v2+, ubuntu 22.04 only has v1.x
+    image: iboates/osm2pgsql:latest
     profiles:
       - import
     depends_on:
@@ -32,7 +26,7 @@ services:
       PGPASSWORD: ${DB_ADMIN_PASSWORD}
       PBF_DOWNLOAD_DIR: /tmp
     volumes:
-      - ./:/data:delegated
+      - ./:/data
 
   martin:
     image: maplibre/martin:latest
@@ -40,8 +34,6 @@ services:
     restart: unless-stopped
     depends_on:
       - postgis
-    ports:
-      - "${MARTIN_PORT}:3000"
     command: postgresql://calixtinus:${APP_PASSWORD}@postgis/itinerarius
 
   postgrest:
@@ -50,8 +42,6 @@ services:
     restart: unless-stopped
     depends_on:
       - postgis
-    ports:
-      - "${POSTGREST_PORT}:3000"
     environment:
       PGRST_DB_URI: postgres://calixtinus:${APP_PASSWORD}@postgis:5432/itinerarius
       PGRST_DB_SCHEMA: api
@@ -67,8 +57,6 @@ services:
     depends_on:
       - martin
       - postgrest
-    ports:
-      - "${CADDY_PORT:-8090}:8090"
     volumes:
       - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
 
@@ -80,8 +68,6 @@ services:
       - tools
     env_file:
       - ./.env
-    ports:
-      - "${PGADMIN_PORT}:80"
     depends_on:
       - postgis
     environment:

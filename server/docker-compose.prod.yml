@@ -1,0 +1,40 @@
+services:
+  postgis:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${TRAILFOX_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+
+  martin:
+    ports:
+      - "127.0.0.1:${MARTIN_PORT:-3000}:3000"
+    command: postgresql://calixtinus:${APP_PASSWORD}@postgis/itinerarius
+
+  postgrest:
+    ports:
+      - "127.0.0.1:${POSTGREST_PORT:-3001}:3000"
+    environment:
+      PGRST_DB_URI: postgres://calixtinus:${APP_PASSWORD}@postgis:5432/itinerarius
+
+  caddy:
+    image: trailfox-caddy:staging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - /var/www/trailfox.app:/var/www/trailfox.app:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  pgadmin4:
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local

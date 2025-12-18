@@ -4,7 +4,7 @@
 --  2) build case distribution split by geometry type (LINESTRING vs MULTILINESTRING)
 --  3) histogram of number of segments for MULTILINESTRING routes
 
-\set ON_ERROR_STOP on
+--\set ON_ERROR_STOP on
 
 -- 1) Total routes
 SELECT 'total_routes' AS metric, count(*)::bigint AS count

@@ -38,10 +38,9 @@ export const filterAndSortRoutes = (
       return (b.length_m || 0) - (a.length_m || 0);
     }
     if (filter.sortBy === 'distance') {
-      const da = a.distance_m ?? Number.POSITIVE_INFINITY;
-      const db = b.distance_m ?? Number.POSITIVE_INFINITY;
-      if (da === db) return 0;
-      return da - db;
+      const distA = a.distance_m ?? Infinity;
+      const distB = b.distance_m ?? Infinity;
+      return distA - distB;
     }
     return 0;
   });

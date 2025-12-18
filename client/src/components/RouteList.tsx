@@ -8,6 +8,7 @@ import {
   TextInput,
   Switch,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { Route, RouteFilter } from '../types';
 import { NETWORK_MAP } from '../constants';
@@ -17,6 +18,9 @@ interface RouteListProps {
   filter: RouteFilter;
   onFilterChange: (newFilter: RouteFilter) => void;
   onSelect: (route: Route) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loading?: boolean;
 }
 
 export const RouteList: React.FC<RouteListProps> = ({
@@ -24,6 +28,9 @@ export const RouteList: React.FC<RouteListProps> = ({
   filter,
   onFilterChange,
   onSelect,
+  onLoadMore,
+  hasMore,
+  loading,
 }) => {
   const { width, height } = useWindowDimensions();
   // Use the short side so large phones in portrait are treated as small screens.
@@ -71,13 +78,6 @@ export const RouteList: React.FC<RouteListProps> = ({
               active={filter.sortBy === 'length'}
               onPress={() => updateFilter({ sortBy: filter.sortBy === 'length' ? null : 'length' })}
             />
-            <SortButton
-              label="Distance"
-              active={filter.sortBy === 'distance'}
-              onPress={() =>
-                updateFilter({ sortBy: filter.sortBy === 'distance' ? null : 'distance' })
-              }
-            />
           </View>
         </View>
       </View>
@@ -86,6 +86,13 @@ export const RouteList: React.FC<RouteListProps> = ({
         data={routes}
         keyExtractor={(item) => String(item.osm_id)}
         style={styles.list}
+        onEndReached={() => {
+          if (hasMore && onLoadMore) {
+            onLoadMore();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 10 }} /> : null}
         renderItem={({ item }) => {
           const networkInfo = item.network ? NETWORK_MAP[item.network] : null;
           return (

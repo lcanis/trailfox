@@ -20,14 +20,9 @@ local routes = osm2pgsql.define_table({
 	ids = { type = "relation", id_column = "osm_id" },
 	columns = {
 		-- Minimal set of columns: keep only fields that we want as first-class DB columns
-		-- All other attributes (ref, operator, website, wikidata, wikipedia, from/to names,
-		-- and localized names) are available in the `tags` JSONB column and thus do not
-		-- need to be materialized as separate columns.
 		{ column = "name" },
-		{ column = "network" },
 		{ column = "route_type" },
-		{ column = "type" },
-		{ column = "symbol" },
+		{ column = "network" },
 		{ column = "distance", type = "real" },
 		{ column = "ascent", type = "real" },
 		{ column = "descent", type = "real" },
@@ -148,12 +143,9 @@ local function process_relation(object)
 	end
 
 	local route_data = {
-		name = object.tags.name,
-		network = object.tags.network,
+		name = object:grab_tag('name'),
 		route_type = route_type,
-		type = object.tags.type,
-		-- parse frequently used route attributes, keep all in `tags`
-		symbol = object.tags["osmc:symbol"],
+		network = object.tags.network,
 		distance = in_meters(object.tags["route:distance"] or object.tags.distance),
 		ascent = in_meters(object.tags["route:ascent"] or object.tags.ascent),
 		descent = in_meters(object.tags["route:descent"] or object.tags.descent),

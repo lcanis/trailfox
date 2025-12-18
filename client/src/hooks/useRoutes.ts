@@ -1,40 +1,56 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Route } from '../types';
 import { RouteService } from '../services/routeService';
 
+const PAGE_SIZE = 50;
+
 export const useRoutes = () => {
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(true);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadRoutes = useCallback(async (currentOffset: number, isRefresh: boolean = false) => {
+    try {
+      setLoading(true);
+      const newRoutes = await RouteService.fetchRoutes(currentOffset, PAGE_SIZE);
 
-    const load = async () => {
-      try {
-        setLoading(true);
-        const data = await RouteService.fetchAll();
-        if (mounted) {
-          setRoutes(data);
-          setError(null);
-        }
-      } catch (err) {
-        if (mounted) {
-          setError(err instanceof Error ? err : new Error('Unknown error'));
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+      if (isRefresh) {
+        setRoutes(newRoutes);
+      } else {
+        setRoutes((prev) => [...prev, ...newRoutes]);
       }
-    };
 
-    load();
+      if (newRoutes.length < PAGE_SIZE) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
 
-    return () => {
-      mounted = false;
-    };
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { routes, loading, error };
+  // Initial load
+  useEffect(() => {
+    loadRoutes(0, true);
+  }, [loadRoutes]);
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      const nextOffset = routes.length;
+      loadRoutes(nextOffset, false);
+    }
+  }, [loading, hasMore, routes.length, loadRoutes]);
+
+  const refresh = useCallback(() => {
+    setHasMore(true);
+    loadRoutes(0, true);
+  }, [loadRoutes]);
+
+  return { routes, loading, error, loadMore, hasMore, refresh };
 };

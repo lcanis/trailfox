@@ -22,7 +22,8 @@ local pois = osm2pgsql.define_table({
 		{ column = "name" },
 		{ column = "class", not_null = true },
 		{ column = "subclass" },
-		{ column = "geom", type = "point", projection = constants.GEOMETRY_PROJECTION, not_null = true },
+		-- Store amenities in Web Mercator (3857) for faster spatial joins with routes
+		{ column = "geom", type = "point", projection = 3857, not_null = true },
 		{ column = "tags", type = "jsonb" },
 	},
 })
@@ -139,7 +140,6 @@ local CATEGORY_BY_TAG = {
 }
 
 -- Deterministic preference order when multiple tag families exist on a POI.
--- NOTE: Previously this loop used `pairs(tag_mapping)`, which is not ordered.
 local TAG_FAMILY_PRIORITY = {
 	"tourism",
 	"amenity",
@@ -174,84 +174,63 @@ local PLACE_ALLOWLIST = {
 }
 
 
-local function process_poi(object, geom)
-	local tags = object.tags
-	local a = {
-		name = tags.name,
-		geom = geom,
-	}
-
+local function get_poi_classification(tags)
 	local cls, sub
 
 	-- Special case: some amenities use a `guest_house` tag with value `albergue`
 	-- (regional tagging). Prefer treating them as accommodation.
 	if tags.guest_house and tags.guest_house == "albergue" then
-		cls = CATEGORY_CODE.ACCOMMODATION
-		sub = "guest_house"
+		return CATEGORY_CODE.ACCOMMODATION, "guest_house"
 	end
 
 	-- Check all relevant tags in order of preference
-	if not cls then
-		for i = 1, #TAG_FAMILY_PRIORITY do
-			local tag_key = TAG_FAMILY_PRIORITY[i]
-			local tag_values = CATEGORY_BY_TAG[tag_key]
-			local tag_value = tags[tag_key]
-			if tag_value and tag_values[tag_value] then
-				-- Special handling: exclude vending_machine with excrement_bags
-				if tag_key == "amenity" and tag_value == "vending_machine" then
-					-- vending inclusion list: if `vending` tag exists, require at least
-					-- one allowed vending item; if `vending` is missing, accept the
-					-- vending_machine entry (unknown contents may still be useful).
-					local vend = tags.vending or ""
-					if vend ~= "" then
-						local keep = false
-						for item in vend:gmatch("[^;]+") do
-							item = item:match("^%s*(.-)%s*$")
-							if VENDING_ALLOWLIST[item] then
-								keep = true
-								break
-							end
-						end
-						if not keep then
-							return
+	for i = 1, #TAG_FAMILY_PRIORITY do
+		local tag_key = TAG_FAMILY_PRIORITY[i]
+		local tag_values = CATEGORY_BY_TAG[tag_key]
+		local tag_value = tags[tag_key]
+		if tag_value and tag_values[tag_value] then
+			-- Special handling: exclude vending_machine with excrement_bags
+			if tag_key == "amenity" and tag_value == "vending_machine" then
+				-- vending inclusion list: if `vending` tag exists, require at least
+				-- one allowed vending item; if `vending` is missing, accept the
+				-- vending_machine entry (unknown contents may still be useful).
+				local vend = tags.vending or ""
+				if vend ~= "" then
+					local keep = false
+					for item in vend:gmatch("[^;]+") do
+						item = item:match("^%s*(.-)%s*$")
+						if VENDING_ALLOWLIST[item] then
+							keep = true
+							break
 						end
 					end
-				end
-
-				-- Note: we keep tourism=information guideposts (useful on trail).
-
-				-- Special handling: exclude wilderness huts marked as private access
-				if tag_key == "tourism" and tag_value == "wilderness_hut" then
-					if tags.access and tags.access == "private" then
-						return
+					if not keep then
+						return nil
 					end
 				end
-
-				-- Special handling: include charging_station only when bicycle=yes
-				if tag_key == "amenity" and tag_value == "charging_station" then
-					if not tags.bicycle or tags.bicycle ~= "yes" then
-						return
-					end
-				end
-
-				cls = tag_values[tag_value]
-				sub = tag_value
-				break
 			end
+
+			-- Special handling: exclude wilderness huts marked as private access
+			if tag_key == "tourism" and tag_value == "wilderness_hut" then
+				if tags.access and tags.access == "private" then
+					return nil
+				end
+			end
+
+			-- Special handling: include charging_station only when bicycle=yes
+			if tag_key == "amenity" and tag_value == "charging_station" then
+				if not tags.bicycle or tags.bicycle ~= "yes" then
+					return nil
+				end
+			end
+
+			return tag_values[tag_value], tag_value
 		end
 	end
 
-	if not cls then
-		return
-	end
-
-	a.class = cls
-	a.subclass = sub
-	a.tags = tags
-
-	pois:insert(a)
+	return nil
 end
-process_poi = maybe_wrap(process_poi, "process_poi")
+get_poi_classification = maybe_wrap(get_poi_classification, "get_poi_classification")
 
 -- ----------------------------------------------------------------------------
 -- Public API
@@ -271,15 +250,51 @@ function module.process_node(object)
 		return
 	end
 
-	process_poi(object, object:as_point())
+	local cls, sub = get_poi_classification(object.tags)
+	if cls then
+		pois:insert({
+			name = object.tags.name,
+			class = cls,
+			subclass = sub,
+			geom = object:as_point(),
+			tags = object.tags,
+		})
+	end
 end
 module.process_node = maybe_wrap(module.process_node, "process_node")
 
 function module.process_way(object)
-	if object.is_closed and object.tags.building then
-		process_poi(object, object:as_polygon():centroid())
+	if not object.is_closed then
+		return
+	end
+
+	local cls, sub = get_poi_classification(object.tags)
+	if cls then
+		pois:insert({
+			name = object.tags.name,
+			class = cls,
+			subclass = sub,
+			geom = object:as_polygon():centroid(),
+			tags = object.tags,
+		})
 	end
 end
 module.process_way = maybe_wrap(module.process_way, "process_way")
+
+function module.process_relation(object)
+	if object.tags.type == "multipolygon" or object.tags.type == "boundary" then
+		local cls, sub = get_poi_classification(object.tags)
+		if cls then
+			pois:insert({
+				name = object.tags.name,
+				class = cls,
+				subclass = sub,
+				geom = object:as_multipolygon():centroid(),
+				tags = object.tags,
+			})
+		end
+	end
+end
+module.process_relation = maybe_wrap(module.process_relation, "process_relation")
 
 return module

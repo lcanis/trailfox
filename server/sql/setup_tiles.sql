@@ -21,7 +21,7 @@ BEGIN
                 256,
                 true
             ) AS geom
-        FROM itinerarius.routes
+        FROM itinerarius.routes_info
         WHERE
             -- Spatial Index Filter: Check if route intersects the tile
             geom_3857 && ST_TileEnvelope(z, x, y)

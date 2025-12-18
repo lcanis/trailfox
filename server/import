@@ -4,29 +4,70 @@ set -euo pipefail
 # Import OSM PBF and prepare DB (osm2pgsql + post-import maintenance).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+OSM2PGSQL_CACHE_MB="${OSM2PGSQL_CACHE_MB:-6000}"
+OSM2PGSQL_PROCESSES="${OSM2PGSQL_PROCESSES:-5}"
+# When running inside the osm2pgsql container we mount the project at /data,
+# set LUA_PATH to the container path so `require()` resolves modules like
+# `/data/osm2pgsql/amenities_module.lua` correctly.
+OSM2PGSQL_LUA_PATH="/data/osm2pgsql/?.lua;;"
+
+
 source "$SCRIPT_DIR/bootstrap-common.sh"
 
-if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 /path/to/file.osm.pbf [--incremental]" >&2
+usage() {
+  cat <<'EOF' >&2
+Usage:
+  import create|append|incremental /path/to/file.osm.pbf
+
+Modes:
+  create        Drop and recreate OSM-derived tables (osm2pgsql --create --drop).
+  append        Append to existing tables. Not recommended for adjacent/overlapping regions.
+  incremental   Slim mode import using osm2pgsql --slim and --append/--create.
+EOF
+}
+
+if [ "$#" -eq 0 ]; then
+  usage
   exit 2
 fi
 
-PBF_FILE="$1"; shift
-INCREMENTAL=false
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --incremental)
-      INCREMENTAL=true; shift;;
-    -h|--help)
-      echo "Usage: $0 /path/to/file.osm.pbf [--incremental]"; exit 0;;
-    *) echo "Unknown arg: $1" >&2; exit 2;;
-  esac
-done
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+MODE="${1:-}"
+PBF_FILE="${2:-}"
+
+if [ -z "$MODE" ] || [ -z "$PBF_FILE" ]; then
+  usage
+  exit 2
+fi
+
+case "$MODE" in
+  create|append|incremental) ;;
+  *)
+    echo "Invalid verb: $MODE" >&2
+    usage
+    exit 2
+    ;;
+esac
+
+if [ "$#" -ne 2 ]; then
+  echo "Unexpected arguments" >&2
+  usage
+  exit 2
+fi
 
 ensure_command psql
-# Require DB admin user explicitly (no defaults)
 ensure_env_set DB_ADMIN_USER
 ensure_env_set DB_ADMIN_PASSWORD
+ensure_env_set POSTGRES_USER
+ensure_env_set POSTGRES_PASSWORD
+ensure_env_set POSTGRES_HOST
+ensure_env_set POSTGRES_PORT
+ensure_env_set TRAILFOX_DB
 
 ensure_command docker
 
@@ -42,13 +83,6 @@ fi
 
 echo "-- running osm2pgsql import"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
-export LUA_PATH="$SCRIPT_DIR/osm2pgsql/?.lua;;"
-
-OSM2PGSQL_CACHE_MB="${OSM2PGSQL_CACHE_MB:-6000}"
-OSM2PGSQL_PROCESSES="${OSM2PGSQL_PROCESSES:-5}"
-OSM2PGSQL_DB_HOST="${OSM2PGSQL_DB_HOST:-$DB_HOST}"
-OSM2PGSQL_DB_PORT="${OSM2PGSQL_DB_PORT:-${POSTGRES_PORT:-5432}}"
-OSM2PGSQL_LUA_PATH="${OSM2PGSQL_LUA_PATH:-/data/osm2pgsql/?.lua;;}"
 
 # When running osm2pgsql inside Docker, the PBF path must be inside the container.
 if [[ "$PBF_FILE" = /* ]]; then
@@ -67,61 +101,87 @@ fi
 STYLE_IN_CONTAINER="/data/osm2pgsql/itinerarius.lua"
 
 OSM2PGSQL_PERF_ARGS=(--number-processes "$OSM2PGSQL_PROCESSES")
-if $INCREMENTAL; then
+if [ "$MODE" = "incremental" ]; then
   # NOTE: In osm2pgsql 2.x, --cache only applies in --slim mode.
   OSM2PGSQL_PERF_ARGS+=(--cache "$OSM2PGSQL_CACHE_MB")
 fi
 
-if $INCREMENTAL; then
-  OSM2PGSQL_MODE_ARGS=(--slim)
-  HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
-      "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='itinerarius' AND c.relname IN ('routes','amenities') LIMIT 1;")
+case "$MODE" in
+  create)
+    OSM2PGSQL_MODE_ARGS=( --create --drop )
+    ;;
+  append)
+    HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+      "SELECT CASE WHEN COUNT(*) = 2 THEN 1 ELSE 0 END\
+       FROM pg_class c\
+       JOIN pg_namespace n ON n.oid = c.relnamespace\
+       WHERE n.nspname = 'itinerarius'\
+         AND c.relname IN ('routes','amenities');")
+    if [ "$HAS_OUTPUT_TABLES" != "1" ]; then
+      echo "ERROR: append requires existing output tables (itinerarius.routes and itinerarius.amenities)." >&2
+      echo "Run: import create <pbf>" >&2
+      exit 1
+    fi
+    OSM2PGSQL_MODE_ARGS=( --append )
+    ;;
+  incremental)
+    OSM2PGSQL_MODE_ARGS=( --slim )
+    HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+      "SELECT CASE WHEN COUNT(*) = 2 THEN 1 ELSE 0 END\
+       FROM pg_class c\
+       JOIN pg_namespace n ON n.oid = c.relnamespace\
+       WHERE n.nspname = 'itinerarius'\
+         AND c.relname IN ('routes','amenities');")
 
-  HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
-      "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels') LIMIT 1;")
+    HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+      "SELECT CASE WHEN COUNT(*) = 3 THEN 1 ELSE 0 END\
+       FROM pg_class c\
+       JOIN pg_namespace n ON n.oid = c.relnamespace\
+       WHERE n.nspname = 'public'\
+         AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels');")
 
-  if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
-    echo "ERROR: Incremental mode requested but database is not initialized in osm2pgsql --slim mode." >&2
-    exit 1
-  fi
+    if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
+      echo "ERROR: incremental requested but database is not initialized in osm2pgsql --slim mode." >&2
+      exit 1
+    fi
 
-  if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
-    OSM2PGSQL_MODE_ARGS+=( --append)
-  else
-    OSM2PGSQL_MODE_ARGS+=( --create)
-  fi
-else
-  OSM2PGSQL_MODE_ARGS=( --create --drop)
-fi
+    if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
+      OSM2PGSQL_MODE_ARGS+=( --append )
+    else
+      OSM2PGSQL_MODE_ARGS+=( --create )
+    fi
+    ;;
+esac
 
 IS_LOOPBACK_DB=false
-if [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "localhost" ]; then
+if [ "$POSTGRES_HOST" = "127.0.0.1" ] || [ "$POSTGRES_HOST" = "localhost" ]; then
   IS_LOOPBACK_DB=true
 fi
 
-# If Postgres is exposed only on host loopback (common when another stack binds
-# 127.0.0.1:5432), containers on a bridge network cannot reach it. On Linux we
-# can use host networking for the osm2pgsql container so 127.0.0.1 resolves to
-# the host.
+if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Darwin" ]; then
+  POSTGRES_HOST="host.docker.internal"  # macOS Docker host access
+fi
+
 if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Linux" ]; then
+  # Linux: use host network (127.0.0.1 works directly)
   docker run --rm --network host \
     -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
     -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
     -v "$SCRIPT_DIR:/data:delegated" \
     -w /data \
     iboates/osm2pgsql:latest \
-    -H 127.0.0.1 -P "${POSTGRES_PORT:-5432}" -d "$DB_NAME" -U "$DB_ADMIN_USER" \
+    -H 127.0.0.1 -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
     "${OSM2PGSQL_PERF_ARGS[@]}" \
     -O flex -S "$STYLE_IN_CONTAINER" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
 else
-  # Default path: use docker compose service (expects DB reachable from the compose network)
+  # macOS loopback OR normal compose network
   docker compose -f "$SCRIPT_DIR/docker-compose.yml" --project-directory "$SCRIPT_DIR" \
     --profile import run --rm --no-deps \
     -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
     -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
     -w /data \
     osm2pgsql \
-    -H "$OSM2PGSQL_DB_HOST" -P "$OSM2PGSQL_DB_PORT" -d "$DB_NAME" -U "$DB_ADMIN_USER" \
+    -H "$POSTGRES_HOST" -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
     "${OSM2PGSQL_PERF_ARGS[@]}" \
     -O flex -S "$STYLE_IN_CONTAINER" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
 fi

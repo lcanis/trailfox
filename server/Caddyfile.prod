@@ -1,0 +1,123 @@
+trailfox.app {
+	# Rate-limit API calls at the gateway layer (Caddy), before they hit PostgREST.
+	# Requires Caddy built with github.com/mholt/caddy-ratelimit.
+	rate_limit {
+		zone api {
+			match {
+				path /api/*
+				method GET POST PATCH PUT DELETE
+			}
+			key {remote_host}
+			window 10s
+			events 100
+		}
+	}
+
+	@tiles_preflight {
+		path /tiles/*
+		method OPTIONS
+	}
+	handle @tiles_preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
+		respond "" 204
+	}
+
+	@api_preflight {
+		path /api/*
+		method OPTIONS
+	}
+	handle @api_preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Prefer"
+		respond "" 204
+	}
+
+	root * /var/www/trailfox.app/main/html
+	file_server
+	handle_path /tiles/* {
+		# Allow cross-origin tile fetches from dev servers.
+		# Martin does not handle OPTIONS, so respond to preflights here.
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
+
+		reverse_proxy martin:3000
+	}
+	handle_path /api/* {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Prefer"
+
+		reverse_proxy postgrest:3000
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	header X-Frame-Options "DENY"
+}
+
+www.trailfox.app {
+	redir https://trailfox.app{uri} 308
+}
+
+poc.trailfox.app {
+	# Rate-limit API calls at the gateway layer (Caddy), before they hit PostgREST.
+	# Requires Caddy built with github.com/mholt/caddy-ratelimit.
+	rate_limit {
+		zone api {
+			match {
+				path /api/*
+				method GET POST PATCH PUT DELETE
+			}
+			key {remote_host}
+			window 10s
+			events 100
+		}
+	}
+
+	root * /var/www/trailfox.app/poc/html
+	file_server
+	encode gzip zstd
+
+	@tiles_preflight {
+		path /tiles/*
+		method OPTIONS
+	}
+	handle @tiles_preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
+		respond "" 204
+	}
+
+	@api_preflight {
+		path /api/*
+		method OPTIONS
+	}
+	handle @api_preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Prefer"
+		respond "" 204
+	}
+
+	handle_path /tiles/* {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
+
+		reverse_proxy martin:3000
+	}
+	handle_path /api/* {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Prefer"
+
+		reverse_proxy postgrest:3000
+	}
+}
+
+api.trailfox.app {
+	redir https://trailfox.app 308
+}
