@@ -7,6 +7,7 @@ import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { DEVELOPER_MODE } from '../constants';
+import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
 
 const THEME = ITINERARY_THEME;
 
@@ -61,7 +62,7 @@ export default function ItineraryMap({
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: 'https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06',
+      style: WEB_BASEMAP_STYLE_URL,
       center: [6.1, 49.7],
       zoom: 10,
     });

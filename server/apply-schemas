@@ -16,10 +16,13 @@ fi
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 
 echo "-- applying api schema"
-"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v DB_ADMIN_USER="$DB_ADMIN_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
 
 echo "-- applying tiles schema"
-"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v IMPORTER_USER="$IMPORTER_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_tiles.sql"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v DB_ADMIN_USER="$DB_ADMIN_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_tiles.sql"
+
+echo "-- ensuring app user can read itinerarius tables"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -c "GRANT USAGE ON SCHEMA itinerarius TO \"$APP_USER\"; GRANT SELECT ON ALL TABLES IN SCHEMA itinerarius TO \"$APP_USER\"; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA itinerarius TO \"$APP_USER\";"
 
 echo "-- results"
 AMENITIES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")

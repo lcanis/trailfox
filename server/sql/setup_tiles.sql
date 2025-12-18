@@ -39,4 +39,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
 
-GRANT EXECUTE ON FUNCTION api.mvt_routes TO calixtinus;
+GRANT EXECUTE ON FUNCTION api.mvt_routes(integer, integer, integer) TO :APP_USER;

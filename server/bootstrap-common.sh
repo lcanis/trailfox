@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Common bootstrap utilities: load .env (if present), set defaults, and define psql helpers.
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -17,22 +15,34 @@ fi
 # Defaults
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_NAME="${DB_NAME:-itinerarius}"
-DB_ADMIN_USER="${DB_ADMIN_USER:-${POSTGRES_USER:-gisuser}}"
-# Import runs as the DB admin/owner (rw)
-IMPORTER_USER="${IMPORTER_USER:-$DB_ADMIN_USER}"
 APP_USER="${APP_USER:-calixtinus}"
-# APP_PASSWORD must be provided explicitly (no legacy fallback)
 APP_PASSWORD="${APP_PASSWORD:-}"
 DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-30}"
 DB_STATEMENT_TIMEOUT_MS="${DB_STATEMENT_TIMEOUT_MS:-120000}"
 
-# psql helper arrays (use system psql directly)
-command -v psql >/dev/null 2>&1 || { echo "psql is required but not found in PATH" >&2; exit 1; }
-PSQL_DB=( psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${POSTGRES_PORT:-5432}" -U "${DB_ADMIN_USER}" -d "${POSTGRES_DB:-$DB_NAME}" )
-PSQL_POSTGRES=( psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${POSTGRES_PORT:-5432}" -U "${DB_ADMIN_USER}" -d postgres )
-
 ensure_command() {
   command -v "$1" >/dev/null 2>&1 || { echo "$1 is required" >&2; exit 1; }
+}
+
+# psql helper arrays (use system psql directly)
+ensure_command psql
+
+PSQL_BASE=( psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${POSTGRES_PORT:-5432}" )
+
+# connect as DB admin to itinerarius DB
+PSQL_DB=( "${PSQL_BASE[@]}" -U "${DB_ADMIN_USER}" -d "${POSTGRES_DB:-$DB_NAME}" )
+# connect as DB admin to postgres DB (admin operations)
+PSQL_POSTGRES=( "${PSQL_BASE[@]}" -U "${DB_ADMIN_USER}" -d postgres )
+
+# Ensure an environment variable is set (used by init/alter scripts). Do not
+# perform checks here automatically; scripts should call this helper when
+# they require specific variables.
+ensure_env_set() {
+  local varname="$1"
+  if [ -z "${!varname:-}" ]; then
+    echo "Missing required env: $varname" >&2
+    exit 1
+  fi
 }
 
 wait_for_postgres() {

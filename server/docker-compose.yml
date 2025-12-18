@@ -1,16 +1,19 @@
 services:
   postgis:
-    image: postgis/postgis:16-3.4
+    image: postgis/postgis:18-3.6
+    platform: linux/amd64 # force rosetta on M-Macs
     container_name: postgis
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD}
       POSTGRES_DB: itinerarius
       POSTGRES_USER: gisuser
+    env_file:
+      - ./.env
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - trailfox_pg_data:/var/lib/postgresql/data
+      - trailfox_pg_data:/var/lib/postgresql
     shm_size: 2g
     command: >
       -c shared_buffers=2GB 
@@ -18,6 +21,18 @@ services:
       -c random_page_cost=1.1
       -c max_wal_size=4GB
       -c checkpoint_timeout=15min
+
+  osm2pgsql:
+    image: iboates/osm2pgsql:latest # we require osm2pgsql v2+, ubuntu 22.04 only has v1.x
+    profiles:
+      - import
+    depends_on:
+      - postgis
+    environment:
+      PGPASSWORD: ${DB_ADMIN_PASSWORD}
+      PBF_DOWNLOAD_DIR: /tmp
+    volumes:
+      - ./:/data:delegated
 
   martin:
     image: maplibre/martin:latest
@@ -61,6 +76,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: pgadmin4
     restart: unless-stopped
+    profiles:
+      - tools
     env_file:
       - ./.env
     ports:
@@ -75,6 +92,8 @@ services:
 
 volumes:
   trailfox_pg_data:
+    name: trailfox_pg_data
     driver: local
   trailfox_pgadmin_data:
+    name: trailfox_pgadmin_data
     driver: local

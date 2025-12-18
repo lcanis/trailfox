@@ -17,7 +17,7 @@ if [ -z "${APP_PASSWORD:-}" ]; then
 fi
 
 FORCE_RESET=false
-INCREMENTAL=true
+INCREMENTAL=false
 PBF_FILE=""
 MODE="all"
 
@@ -27,7 +27,7 @@ Usage: ./bootstrap /path/to/file.osm.pbf [--env-file path] [--force-reset] [--no
 
 Modes:
     --force-reset   Drop and recreate the database.
-    --non-incremental   Force a non-incremental import (non-slim): osm2pgsql --create --drop.
+    --incremental   Force an incremental import (slim): osm2pgsql --append. (SLOWER!)
     --mode MODE     Run a subset: one of "all" (default), "prepare", "import", "apply-schemas".
 EOF
 }
@@ -43,8 +43,8 @@ while [ "$#" -gt 0 ]; do
             ENV_FILE="$2"; shift 2;;
         --force-reset)
             FORCE_RESET=true; shift;;
-        --non-incremental)
-            INCREMENTAL=false; shift;;
+        --incremental)
+            INCREMENTAL=true; shift;;
         --mode)
             MODE="$2"; shift 2;;
         -h|--help)
@@ -58,8 +58,9 @@ done
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "prepare" ]; then
-    echo "-- create DB and roles"
-    "$SCRIPT_DIR/init-db" $( [ "$FORCE_RESET" = true ] && echo "--force-reset" )
+    echo "-- create DB"
+    "$SCRIPT_DIR/init-user-db"
+    "$SCRIPT_DIR/alter-db" $( [ "$FORCE_RESET" = true ] && echo "--force-reset" )
 fi
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "import" ]; then
@@ -69,7 +70,7 @@ if [ "$MODE" = "all" ] || [ "$MODE" = "import" ]; then
     fi
     echo "-- import OSM data and run post-import maintenance"
     "$SCRIPT_DIR/import" "$PBF_FILE" \
-        $( [ "$INCREMENTAL" = false ] && echo "--non-incremental" ) 
+        $( [ "$INCREMENTAL" = true ] && echo "--incremental" ) 
 fi
 
 if [ "$MODE" = "all" ] || [ "$MODE" = "apply-schemas" ]; then

@@ -1,10 +1,7 @@
-\set import_user :IMPORTER_USER
-\set app_user :APP_USER
-
 CREATE SCHEMA IF NOT EXISTS api;
-ALTER SCHEMA api OWNER TO :import_user;
-
-GRANT USAGE ON SCHEMA api TO :app_user;
+ALTER SCHEMA api OWNER TO CURRENT_USER;
+GRANT USAGE ON SCHEMA api TO :APP_USER;
+ALTER ROLE :"APP_USER" SET statement_timeout = '8s';
 
 -- Safe wrapper for ST_LineLocatePoint that returns NULL if the provided line isn't a LINESTRING.
 CREATE OR REPLACE FUNCTION api.safe_line_locate_point(line geometry, pt geometry)
@@ -113,7 +110,6 @@ ORDER BY
     a.osm_id,
     d.dist_m ASC;
 
-GRANT SELECT ON api.routes TO :app_user;
-GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO :app_user;
-GRANT SELECT ON api.route_amenities TO :app_user;
-ALTER DEFAULT PRIVILEGES FOR ROLE :import_user IN SCHEMA api GRANT SELECT ON TABLES TO :app_user;
+GRANT SELECT ON api.routes TO :APP_USER;
+GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO :APP_USER;
+GRANT SELECT ON api.route_amenities TO :APP_USER;

@@ -23,7 +23,7 @@ def build_routes() -> None:
     db_port: str = os.getenv("POSTGRES_PORT", "5432")
     db_name: str = os.getenv("POSTGRES_DB", "itinerarius")
     db_user: str = os.getenv("POSTGRES_USER", "postgres")
-    db_password: str | None = os.getenv("DB_ADMIN_PASSWORD") # Or IMPORTER_PASSWORD? Using DB_ADMIN_PASSWORD as it likely has rights.
+    db_password: str | None = os.getenv("DB_ADMIN_PASSWORD") # Use DB_ADMIN_PASSWORD (DB admin/importer role) for imports.
 
     conn_string: str = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_password}"
 

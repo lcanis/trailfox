@@ -10,6 +10,7 @@ import {
   PREDEFINED_LOCATIONS,
   DEVELOPER_MODE,
   TILES_BASE_URL,
+  WEB_BASEMAP_STYLE_URL,
 } from '../config/settings';
 
 interface MapProps {
@@ -78,7 +79,7 @@ export default function Map({
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: 'https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06',
+      style: WEB_BASEMAP_STYLE_URL,
       center: initialCenter,
       zoom: initialZoom,
     });

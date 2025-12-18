@@ -7,24 +7,28 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/bootstrap-common.sh"
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 /path/to/file.osm.pbf [--non-incremental]" >&2
+  echo "Usage: $0 /path/to/file.osm.pbf [--incremental]" >&2
   exit 2
 fi
 
 PBF_FILE="$1"; shift
-INCREMENTAL=true
+INCREMENTAL=false
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --non-incremental)
-      INCREMENTAL=false; shift;;
+    --incremental)
+      INCREMENTAL=true; shift;;
     -h|--help)
-      echo "Usage: $0 /path/to/file.osm.pbf [--non-incremental]"; exit 0;;
+      echo "Usage: $0 /path/to/file.osm.pbf [--incremental]"; exit 0;;
     *) echo "Unknown arg: $1" >&2; exit 2;;
   esac
 done
 
-ensure_command osm2pgsql
 ensure_command psql
+# Require DB admin user explicitly (no defaults)
+ensure_env_set DB_ADMIN_USER
+ensure_env_set DB_ADMIN_PASSWORD
+
+ensure_command docker
 
 if [ ! -f "$PBF_FILE" ]; then
   echo "Missing PBF file: $PBF_FILE" >&2
@@ -40,12 +44,40 @@ echo "-- running osm2pgsql import"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 export LUA_PATH="$SCRIPT_DIR/osm2pgsql/?.lua;;"
 
+OSM2PGSQL_CACHE_MB="${OSM2PGSQL_CACHE_MB:-6000}"
+OSM2PGSQL_PROCESSES="${OSM2PGSQL_PROCESSES:-5}"
+OSM2PGSQL_DB_HOST="${OSM2PGSQL_DB_HOST:-$DB_HOST}"
+OSM2PGSQL_DB_PORT="${OSM2PGSQL_DB_PORT:-${POSTGRES_PORT:-5432}}"
+OSM2PGSQL_LUA_PATH="${OSM2PGSQL_LUA_PATH:-/data/osm2pgsql/?.lua;;}"
+
+# When running osm2pgsql inside Docker, the PBF path must be inside the container.
+if [[ "$PBF_FILE" = /* ]]; then
+  case "$PBF_FILE" in
+    "$SCRIPT_DIR"/*)
+      PBF_FILE_IN_CONTAINER="/data/${PBF_FILE#"$SCRIPT_DIR"/}"
+      ;;
+    *)
+      echo "PBF file must be inside $SCRIPT_DIR when using dockerized osm2pgsql (got: $PBF_FILE)" >&2
+      exit 1
+      ;;
+  esac
+else
+  PBF_FILE_IN_CONTAINER="/data/$PBF_FILE"
+fi
+STYLE_IN_CONTAINER="/data/osm2pgsql/itinerarius.lua"
+
+OSM2PGSQL_PERF_ARGS=(--number-processes "$OSM2PGSQL_PROCESSES")
+if $INCREMENTAL; then
+  # NOTE: In osm2pgsql 2.x, --cache only applies in --slim mode.
+  OSM2PGSQL_PERF_ARGS+=(--cache "$OSM2PGSQL_CACHE_MB")
+fi
+
 if $INCREMENTAL; then
   OSM2PGSQL_MODE_ARGS=(--slim)
-  HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$IMPORTER_USER" -tAc \
+  HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
       "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='itinerarius' AND c.relname IN ('routes','amenities') LIMIT 1;")
 
-  HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$IMPORTER_USER" -tAc \
+  HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
       "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels') LIMIT 1;")
 
   if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
@@ -62,11 +94,39 @@ else
   OSM2PGSQL_MODE_ARGS=( --create --drop)
 fi
 
-PGOPTIONS="-c statement_timeout=0" osm2pgsql -H "$DB_HOST" -P "$POSTGRES_PORT" -d "$DB_NAME" -U "$IMPORTER_USER" \
-  --cache 6000 --number-processes 5 \
-  -O flex -S "$SCRIPT_DIR/osm2pgsql/itinerarius.lua" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE"
+IS_LOOPBACK_DB=false
+if [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "localhost" ]; then
+  IS_LOOPBACK_DB=true
+fi
+
+# If Postgres is exposed only on host loopback (common when another stack binds
+# 127.0.0.1:5432), containers on a bridge network cannot reach it. On Linux we
+# can use host networking for the osm2pgsql container so 127.0.0.1 resolves to
+# the host.
+if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Linux" ]; then
+  docker run --rm --network host \
+    -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
+    -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
+    -v "$SCRIPT_DIR:/data:delegated" \
+    -w /data \
+    iboates/osm2pgsql:latest \
+    -H 127.0.0.1 -P "${POSTGRES_PORT:-5432}" -d "$DB_NAME" -U "$DB_ADMIN_USER" \
+    "${OSM2PGSQL_PERF_ARGS[@]}" \
+    -O flex -S "$STYLE_IN_CONTAINER" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
+else
+  # Default path: use docker compose service (expects DB reachable from the compose network)
+  docker compose -f "$SCRIPT_DIR/docker-compose.yml" --project-directory "$SCRIPT_DIR" \
+    --profile import run --rm --no-deps \
+    -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
+    -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
+    -w /data \
+    osm2pgsql \
+    -H "$OSM2PGSQL_DB_HOST" -P "$OSM2PGSQL_DB_PORT" -d "$DB_NAME" -U "$DB_ADMIN_USER" \
+    "${OSM2PGSQL_PERF_ARGS[@]}" \
+    -O flex -S "$STYLE_IN_CONTAINER" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
+fi
 
 echo "-- post-import maintenance (indices, analysis)"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 PGOPTIONS="-c statement_timeout=$DB_STATEMENT_TIMEOUT_MS" \
-  "${PSQL_DB[@]}" -U "$IMPORTER_USER" -f "$SCRIPT_DIR/sql/post_import.sql"
+  "${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -f "$SCRIPT_DIR/sql/post_import.sql"

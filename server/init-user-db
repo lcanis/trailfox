@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# script run on startup from docker compose if database does not exist
+# Create application and DB admin roles and apply API setup SQL files.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/bootstrap-common.sh"
+
+ensure_command psql
+
+# Require essential passwords/vars and DB admin user
+ensure_env_set DB_ADMIN_USER
+ensure_env_set DB_ADMIN_PASSWORD
+ensure_env_set APP_USER
+ensure_env_set APP_PASSWORD
+
+export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
+
+if ! wait_for_postgres; then
+  echo "Postgres unreachable" >&2
+  exit 1
+fi
+
+echo "-- creating DB admin and app roles"
+"${PSQL_POSTGRES[@]}" <<EOSQL
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$DB_ADMIN_USER') THEN
+        EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L CREATEDB NOCREATEROLE NOINHERIT', '$DB_ADMIN_USER', '$DB_ADMIN_PASSWORD');
+    ELSE
+        EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', '$DB_ADMIN_USER', '$DB_ADMIN_PASSWORD');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$APP_USER') THEN
+        EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L NOINHERIT NOCREATEDB NOCREATEROLE', '$APP_USER', '$APP_PASSWORD');
+    ELSE
+        EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', '$APP_USER', '$APP_PASSWORD');
+    END IF;
+END
+\$\$;
+EOSQL

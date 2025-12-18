@@ -15,6 +15,12 @@ export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number]; zo
 // Developer mode toggles debug overlays and other conveniences
 export const DEVELOPER_MODE = true;
 
+// Basemap style used by MapLibre on web.
+// Note: Protomaps styles require an API key and may fail (403) if the key is invalid.
+//export const WEB_BASEMAP_STYLE_URL = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+export const WEB_BASEMAP_STYLE_URL =
+  'https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06';
+
 // API configuration used by the client during development and production.
 // Local dev: use Caddy reverse proxy running on localhost:8090 (see server setup)
 // Production: blank base URL means same-origin (served via reverse proxy)
@@ -31,6 +37,10 @@ if (Platform.OS === 'web') {
     // Default to local Caddy proxy when running Expo locally (localhost, LAN IP, or dev ports)
     if (isLocalHost || isLocalLan || isExpoWebPort) {
       API_BASE_URL = 'http://localhost:8090';
+    } else {
+      // Production/staging web: use absolute origin to avoid environments where
+      // `Request('/relative')` is rejected (some fetch polyfills require absolute URLs).
+      API_BASE_URL = window.location.origin;
     }
   }
 } else {

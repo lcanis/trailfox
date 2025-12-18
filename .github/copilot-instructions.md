@@ -17,7 +17,7 @@ How to run SQL (canonical)
   - Run a file: `./server/run_sql.sh server/sql/my_script.sql`
   - Admin mode (explicit): `./server/run_sql.sh --admin -c "ALTER ROLE ..."`
 - The runtime reads `server/.env`; do **not** overwrite it with `.env.example`. Use `server/.env` for local credentials and keep secrets out of commits.
-- For interactive checks, `-c` runs with `SET statement_timeout = '30s'` to avoid hanging the terminal; the app role has `statement_timeout = '2min'` applied in `server/sql/setup_itinerarius.sql`.
+- For interactive checks, `-c` runs with `SET statement_timeout = '30s'` to avoid hanging the terminal.
 
 Why the fail-fast philosophy
 - Imports and post-import checks should fail loudly: e.g., a DO block in `server/sql/post_import.sql` raises if any `itinerarius.routes` rows lack `geom`.

@@ -1,4 +1,5 @@
 -- Post-import maintenance for Itinerarius (run after osm2pgsql)
+-- TODO: make idempotent, move gemoetries into route_info for clarity?
 
 CREATE INDEX idx_amenities_geom ON itinerarius.amenities USING GIST (geom);
 CREATE INDEX idx_amenities_geom_geog ON itinerarius.amenities USING GIST ((geom::geography));
