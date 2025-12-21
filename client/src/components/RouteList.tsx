@@ -55,6 +55,12 @@ export const RouteList: React.FC<RouteListProps> = ({
         onChangeText={(text) => updateFilter({ searchQuery: text })}
       />
 
+      {routes.length === 0 && !loading && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>No routes found.</Text>
+        </View>
+      )}
+
       <View style={[styles.controls, isSmallScreen && styles.controlsSmall]}>
         <View style={styles.controlRow}>
           <Text style={[styles.controlLabel, isSmallScreen && styles.controlLabelSmall]}>
@@ -308,6 +314,15 @@ const styles = StyleSheet.create({
   },
   listItemTitleSmall: {
     fontSize: 16,
+  },
+  emptyState: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#666',
   },
   badge: {
     paddingHorizontal: 8,

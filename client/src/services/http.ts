@@ -42,6 +42,10 @@ export const fetchJsonWithTimeout = async <T>(
     const response = await fetch(url, { ...init, signal });
 
     if (!response.ok) {
+      // Handle 416 Range Not Satisfiable as empty list (end of pagination)
+      if (response.status === 416) {
+        return { data: [] as unknown as T, count: null };
+      }
       throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
 

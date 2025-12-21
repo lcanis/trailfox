@@ -18,6 +18,16 @@ export const useRoutes = (filter?: {
   const bbox = filter?.bbox;
   const searchQuery = filter?.searchQuery;
   const sortBy = filter?.sortBy || null;
+
+  // Debounce search query
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   // Create a stable key for bbox to use in dependency array
   const bboxKey = bbox ? bbox.join(',') : '';
 
@@ -38,7 +48,7 @@ export const useRoutes = (filter?: {
             PAGE_SIZE,
             currentOffset,
             sortBy,
-            searchQuery
+            debouncedSearchQuery
           );
           newRoutes = result.routes;
           count = result.totalCount;
@@ -47,7 +57,7 @@ export const useRoutes = (filter?: {
             currentOffset,
             PAGE_SIZE,
             sortBy,
-            searchQuery
+            debouncedSearchQuery
           );
           newRoutes = result.routes;
           count = result.totalCount;
@@ -75,7 +85,7 @@ export const useRoutes = (filter?: {
         setLoading(false);
       }
     },
-    [bboxKey, searchQuery, sortBy]
+    [bboxKey, debouncedSearchQuery, sortBy]
   );
 
   // Initial load and reload when filter changes

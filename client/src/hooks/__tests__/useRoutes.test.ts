@@ -162,4 +162,42 @@ describe('useRoutes', () => {
       undefined // searchQuery
     );
   });
+
+  it('should debounce search query', async () => {
+    jest.useFakeTimers();
+    (RouteService.fetchRoutes as jest.Mock).mockResolvedValue({
+      routes: mockRoutes,
+      totalCount: 100,
+    });
+
+    const { rerender } = renderHook(
+      ({ searchQuery }: { searchQuery: string }) => useRoutes({ searchQuery }),
+      {
+        initialProps: { searchQuery: 'a' },
+      }
+    );
+
+    // Initial fetch with 'a' happens immediately because useState initializes with prop
+    await waitFor(() =>
+      expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), null, 'a')
+    );
+
+    // Update search query rapidly
+    rerender({ searchQuery: 'ab' });
+    rerender({ searchQuery: 'abc' });
+
+    // Fast forward time to trigger debounce
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+
+    await waitFor(() =>
+      expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), null, 'abc')
+    );
+
+    // Verify it wasn't called with 'ab'
+    expect(RouteService.fetchRoutes).not.toHaveBeenCalledWith(0, expect.any(Number), null, 'ab');
+
+    jest.useRealTimers();
+  });
 });

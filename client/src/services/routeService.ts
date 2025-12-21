@@ -62,9 +62,8 @@ export const RouteService = {
       url += `&order=${order}`;
 
       if (searchQuery) {
-        // Simple case-insensitive search on name or network
-        // PostgREST syntax for OR: ?or=(name.ilike.*q*,network.ilike.*q*)
-        url += `&or=(name.ilike.*${encodeURIComponent(searchQuery)}*,network.ilike.*${encodeURIComponent(searchQuery)}*)`;
+        // Pass search query to the RPC function
+        url += `&search_query=${encodeURIComponent(searchQuery)}`;
       }
 
       const urlWithSelect = `${url}&select=${SELECT_FIELDS}`;

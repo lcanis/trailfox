@@ -67,11 +67,23 @@ RETURNS TABLE (
 $$ LANGUAGE sql STABLE;
 
 -- Return routes within a bounding box
-CREATE OR REPLACE FUNCTION api.routes_in_bbox(min_lon double precision, min_lat double precision, max_lon double precision, max_lat double precision)
+CREATE OR REPLACE FUNCTION api.routes_in_bbox(
+    min_lon double precision, 
+    min_lat double precision, 
+    max_lon double precision, 
+    max_lat double precision,
+    search_query text DEFAULT NULL
+)
 RETURNS SETOF api.routes AS $$
   SELECT *
   FROM api.routes
-  WHERE ST_Intersects(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326));
+  WHERE ST_Intersects(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326))
+  AND (
+      search_query IS NULL 
+      OR search_query = '' 
+      OR name ILIKE '%' || search_query || '%' 
+      OR network ILIKE '%' || search_query || '%'
+  );
 $$ LANGUAGE sql STABLE;
 
 -- Safe wrapper for ST_LineLocatePoint that returns NULL if the provided line isn't a LINESTRING.
@@ -157,5 +169,8 @@ ORDER BY c.route_id, trail_km;
 
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
-GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision) TO calixtinus;
+GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text) TO calixtinus;
 GRANT SELECT ON api.route_amenities TO calixtinus;
+
+-- Reload PostgREST schema cache to pick up changes immediately
+NOTIFY pgrst, 'reload config';

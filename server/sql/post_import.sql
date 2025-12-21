@@ -1,6 +1,8 @@
 -- Post-import maintenance for Itinerarius (run after osm2pgsql)
 \timing
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- (not heavily used) Create a helper to execute SQL and RAISE NOTICE the elapsed time.
 CREATE OR REPLACE FUNCTION public.log_timing(sql_text text, extra text DEFAULT '')
 RETURNS interval AS $$
@@ -120,6 +122,8 @@ DO $$ BEGIN RAISE NOTICE 'Creating indexes...'; END $$;
 CREATE INDEX IF NOT EXISTS idx_routes_network ON itinerarius.routes_info (network);
 CREATE INDEX IF NOT EXISTS idx_routes_route_type ON itinerarius.routes_info (route_type);
 CREATE INDEX IF NOT EXISTS idx_routes_name ON itinerarius.routes_info (name);
+CREATE INDEX IF NOT EXISTS idx_routes_name_trgm ON itinerarius.routes_info USING GIN (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_routes_network_trgm ON itinerarius.routes_info USING GIN (network gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_route_info_length_m ON itinerarius.routes_info (length_m);
 CREATE INDEX IF NOT EXISTS idx_route_info_geom ON itinerarius.routes_info USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_route_info_geom_3857 ON itinerarius.routes_info USING GIST (geom_3857);
