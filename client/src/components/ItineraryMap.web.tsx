@@ -67,9 +67,14 @@ export default function ItineraryMap({
       zoom: 10,
     });
 
+    // Resize map when container size changes (crucial for flex layouts)
+    const resizeObserver = new ResizeObserver(() => {
+      map.current?.resize();
+    });
+    resizeObserver.observe(mapContainer.current);
+
     map.current.on('load', () => {
       if (!map.current) return;
-      setIsMapLoaded(true);
 
       let hoverKey: string | null = null;
 
@@ -92,6 +97,9 @@ export default function ItineraryMap({
           'line-opacity': 0.8,
         },
       });
+      
+      // Ensure the route line is below the amenities
+      // (amenities layers are added after this, so they will be on top by default)
 
       map.current.addSource('itinerary-amenities', {
         type: 'geojson',
@@ -175,9 +183,12 @@ export default function ItineraryMap({
           setDevTagsOverlay(null);
         }
       });
+
+      setIsMapLoaded(true);
     });
 
     return () => {
+      resizeObserver.disconnect();
       map.current?.remove();
       map.current = null;
     };
@@ -199,15 +210,16 @@ export default function ItineraryMap({
       .then((geojson) => {
         if (!map.current) return;
         const src = map.current.getSource('selected-route') as maplibregl.GeoJSONSource | undefined;
-        src?.setData(geojson as any);
-
-        const bounds = getBounds(geojson);
-        if (bounds) {
-          map.current.fitBounds(bounds, { padding: 40 });
+        if (src) {
+          src.setData(geojson as any);
+          const bounds = getBounds(geojson);
+          if (bounds) {
+            map.current.fitBounds(bounds, { padding: 20 });
+          }
         }
       })
-      .catch(() => {
-        // Ignore map-only failures; itinerary UI still works.
+      .catch((err) => {
+        console.error('Failed to load route geojson for itinerary', err);
       });
   }, [routeOsmId, isMapLoaded]);
 

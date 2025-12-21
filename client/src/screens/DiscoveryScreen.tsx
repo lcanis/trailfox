@@ -45,8 +45,9 @@ export const DiscoveryScreen = () => {
   const displayedRoutes = routes;
 
   const activeId = selectedId || hoveredId;
-  // Only show details panel for selected route, not hovered, to avoid flickering/blocking map.
-  const detailsRoute = selectedId ? routes.find((r) => r.osm_id === selectedId) : null;
+  // Show details for selected route, or hovered if none selected.
+  const targetId = selectedId || hoveredId;
+  const detailsRoute = targetId ? routes.find((r) => r.osm_id === targetId) : null;
   const itineraryRoute = itineraryRouteId
     ? routes.find((r) => r.osm_id === itineraryRouteId)
     : null;

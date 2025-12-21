@@ -82,7 +82,6 @@ RETURNS SETOF api.routes AS $$
       search_query IS NULL 
       OR search_query = '' 
       OR name ILIKE '%' || search_query || '%' 
-      OR network ILIKE '%' || search_query || '%'
   );
 $$ LANGUAGE sql STABLE;
 

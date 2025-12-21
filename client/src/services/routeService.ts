@@ -82,11 +82,12 @@ export const RouteService = {
 
   async fetchGeoJSON(id: number, timeoutMs: number = 15000): Promise<any> {
     try {
-      return await fetchJsonWithTimeout<any>(
+      const { data } = await fetchJsonWithTimeout<any>(
         `${API_URL}?osm_id=eq.${id}`,
         { headers: { Accept: 'application/geo+json' } },
         timeoutMs
       );
+      return data;
     } catch (error) {
       console.error('GeoJSON fetch error:', error);
       throw error;

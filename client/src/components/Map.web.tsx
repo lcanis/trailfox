@@ -65,7 +65,7 @@ export default function Map({
   const handleHoverRef = useRef(
     debounce((id: number | null) => {
       onHoverRef.current(id);
-    }, 50)
+    }, 500)
   );
 
   useEffect(() => {
@@ -93,6 +93,12 @@ export default function Map({
       center: initialCenter,
       zoom: initialZoom,
     });
+
+    // Resize map when container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      map.current?.resize();
+    });
+    resizeObserver.observe(mapContainer.current);
 
     setZoom(initialZoom);
     map.current.on('zoom', () => setZoom(map.current!.getZoom()));
@@ -283,6 +289,12 @@ export default function Map({
       // Initial check
       updateVisible();
     });
+
+    return () => {
+      resizeObserver.disconnect();
+      map.current?.remove();
+      map.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -303,7 +315,7 @@ export default function Map({
       .then((geojson) => {
         const bounds = getBounds(geojson);
         if (bounds) {
-          map.current?.fitBounds(bounds, { padding: 50 });
+          map.current?.fitBounds(bounds, { padding: 50, maxZoom: 14 });
         }
       })
       .catch((err) => console.error('Failed to fit bounds', err));
