@@ -21,8 +21,7 @@ ensure_env_set APP_PASSWORD
 export PGPASSWORD="${POSTGRES_PASSWORD:-}"
 
 if ! wait_for_postgres; then
-  echo "Postgres unreachable" >&2
-  exit 1
+  echo "Postgres unreachable or user not set" >&2
 fi
 
 echo "-- creating admin and app roles"

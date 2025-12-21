@@ -1,8 +1,6 @@
 -- Post-import maintenance for Itinerarius (run after osm2pgsql)
 \timing
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 -- (not heavily used) Create a helper to execute SQL and RAISE NOTICE the elapsed time.
 CREATE OR REPLACE FUNCTION public.log_timing(sql_text text, extra text DEFAULT '')
 RETURNS interval AS $$

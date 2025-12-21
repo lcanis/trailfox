@@ -1,0 +1,1 @@
+select geom_parts, count(*) from  itinerarius.routes_info group by geom_parts order by geom_parts desc limit 50; 

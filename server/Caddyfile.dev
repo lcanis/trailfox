@@ -30,7 +30,28 @@
 		reverse_proxy martin:3000
 	}
 	handle_path /api/* {
-		reverse_proxy postgrest:3000
+		@options {
+			method OPTIONS
+		}
+		handle @options {
+			header Access-Control-Allow-Origin "*"
+			header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+			header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Authorization, Prefer"
+			respond "" 204
+		}
+
+		reverse_proxy postgrest:3000 {
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Methods
+			header_down -Access-Control-Allow-Headers
+			header_down -Access-Control-Expose-Headers
+		}
+
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Authorization, Prefer"
+		header Access-Control-Expose-Headers "Content-Encoding, Content-Location, Content-Range, Content-Type, Date, Location, Server, Transfer-Encoding, Range-Unit, Preference-Applied"
 	}
+
 	respond / "Trailfox API Gateway" 200
 }

@@ -16,15 +16,17 @@ WITH totals AS (
 ), by_type AS (
     SELECT
         coalesce(geom_build_case, 'NULL') AS geom_build_case,
+        geom_quality,
         GeometryType(geom) AS geom_type,
         count(*)::numeric AS cnt
     FROM itinerarius.api.routes
-    GROUP BY coalesce(geom_build_case, 'NULL'), GeometryType(geom)
+    GROUP BY coalesce(geom_build_case, 'NULL'), geom_quality, GeometryType(geom)
 )
 SELECT
     'build_case_by_geom_type' AS metric,
     geom_build_case,
     geom_type,
+    geom_quality,
     cnt::bigint AS count,
     round(100.0 * cnt / (SELECT total FROM totals), 2) || '%' AS pct_of_total
 FROM by_type

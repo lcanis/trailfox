@@ -6,6 +6,12 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${TRAILFOX_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - trailfox_pg_data:/var/lib/postgresql
     shm_size: 2g
@@ -35,6 +41,8 @@ services:
     depends_on:
       - postgis
     command: postgresql://calixtinus:${APP_PASSWORD}@postgis/itinerarius
+    ports:
+      - "127.0.0.1:${MARTIN_PORT:-3000}:3000"
 
   postgrest:
     image: postgrest/postgrest:latest
@@ -42,6 +50,8 @@ services:
     restart: unless-stopped
     depends_on:
       - postgis
+    ports:
+      - "127.0.0.1:${POSTGREST_PORT:-3001}:3000"
     environment:
       PGRST_DB_URI: postgres://calixtinus:${APP_PASSWORD}@postgis:5432/itinerarius
       PGRST_DB_SCHEMA: api
@@ -59,6 +69,8 @@ services:
       - postgrest
     volumes:
       - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    ports:
+      - "${CADDY_PORT:-8090}:8090"
 
   pgadmin4:
     image: dpage/pgadmin4:latest
@@ -73,6 +85,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-3653}:80"
     volumes:
       - trailfox_pgadmin_data:/var/lib/pgadmin
 
