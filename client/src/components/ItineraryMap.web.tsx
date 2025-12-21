@@ -97,7 +97,7 @@ export default function ItineraryMap({
           'line-opacity': 0.8,
         },
       });
-      
+
       // Ensure the route line is below the amenities
       // (amenities layers are added after this, so they will be on top by default)
 

@@ -26,7 +26,7 @@ export const RouteService = {
       let url = `${API_URL}?select=${SELECT_FIELDS}&order=${order}&limit=${limit}&offset=${offset}`;
 
       if (searchQuery) {
-        url += `&or=(name.ilike.*${encodeURIComponent(searchQuery)}*,network.ilike.*${encodeURIComponent(searchQuery)}*)`;
+        url += `&name=ilike.*${encodeURIComponent(searchQuery)}*`;
       }
 
       // Request exact count from PostgREST
