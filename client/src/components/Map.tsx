@@ -5,6 +5,7 @@ interface MapProps {
   onHover: (id: number | null) => void;
   onSelect: (id: number | null) => void;
   onViewChange: (visibleIds: Set<number>) => void;
+  onBboxChange?: (bbox: [number, number, number, number]) => void;
   selectedId: number | null;
   highlightedId: number | null;
   compact?: boolean; // when true render a compact (small-height) variant

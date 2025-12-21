@@ -16,12 +16,6 @@ import { Route, RouteFilter as RouteFilterType } from '../types';
 import { ItineraryScreen } from './ItineraryScreen';
 
 export const DiscoveryScreen = () => {
-  const { routes, loading, error, loadMore, hasMore } = useRoutes();
-  const { width, height } = useWindowDimensions();
-  // Always treat native (iOS/Android) as "small". Simulators can report large pixel widths
-  // which would otherwise prevent mobile layout rules from applying.
-  const isSmallScreen = Platform.OS !== 'web' || Math.min(width, height) < 768;
-
   // UI State
   const [filter, setFilter] = useState<RouteFilterType>({
     searchQuery: '',
@@ -29,12 +23,28 @@ export const DiscoveryScreen = () => {
     sortBy: null, // No sort initially
   });
 
+  const [bbox, setBbox] = useState<[number, number, number, number] | undefined>(undefined);
+
+  const { routes, loading, error, loadMore, hasMore } = useRoutes({
+    bbox: filter.viewboxOnly ? bbox : undefined,
+    searchQuery: filter.searchQuery,
+  });
+
+  const { width, height } = useWindowDimensions();
+  // Always treat native (iOS/Android) as "small". Simulators can report large pixel widths
+  // which would otherwise prevent mobile layout rules from applying.
+  const isSmallScreen = Platform.OS !== 'web' || Math.min(width, height) < 768;
+
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(null);
 
   // Derived Data
+  // We still use useRouteFilter for client-side sorting and search (if search is not fully server-side yet)
+  // Note: useRoutes now handles bbox filtering server-side if viewboxOnly is true.
+  // We can disable client-side viewbox filtering in useRouteFilter if we trust server-side,
+  // or keep it as a refinement. For now, let's keep useRouteFilter as is, but it might be redundant for viewbox.
   const displayedRoutes = useRouteFilter(routes, filter, visibleIds);
 
   const activeId = selectedId || hoveredId;
@@ -46,6 +56,10 @@ export const DiscoveryScreen = () => {
   // Handlers
   const handleViewChange = useCallback((ids: Set<number>) => {
     setVisibleIds(ids);
+  }, []);
+
+  const handleBboxChange = useCallback((newBbox: [number, number, number, number]) => {
+    setBbox(newBbox);
   }, []);
 
   const handleSelect = useCallback((route: Route) => {
@@ -101,6 +115,7 @@ export const DiscoveryScreen = () => {
           onHover={handleMapHover}
           onSelect={handleMapSelect}
           onViewChange={handleViewChange}
+          onBboxChange={handleBboxChange}
           selectedId={selectedId}
           highlightedId={activeId}
           compact={true}

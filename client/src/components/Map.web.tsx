@@ -17,16 +17,20 @@ interface MapProps {
   onHover: (id: number | null) => void;
   onSelect: (id: number | null) => void;
   onViewChange: (visibleIds: Set<number>) => void;
+  onBboxChange?: (bbox: [number, number, number, number]) => void;
   selectedId: number | null;
   highlightedId: number | null;
+  compact?: boolean;
 }
 
 export default function Map({
   onHover,
   onSelect,
   onViewChange,
+  onBboxChange,
   selectedId,
   highlightedId,
+  compact,
 }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -38,6 +42,7 @@ export default function Map({
   const onHoverRef = useRef(onHover);
   const onSelectRef = useRef(onSelect);
   const onViewChangeRef = useRef(onViewChange);
+  const onBboxChangeRef = useRef(onBboxChange);
 
   useEffect(() => {
     onHoverRef.current = onHover;
@@ -50,6 +55,10 @@ export default function Map({
   useEffect(() => {
     onViewChangeRef.current = onViewChange;
   }, [onViewChange]);
+
+  useEffect(() => {
+    onBboxChangeRef.current = onBboxChange;
+  }, [onBboxChange]);
 
   // Debounced hover handler uses the ref to always call the latest callback.
   const handleHoverRef = useRef(
@@ -246,7 +255,16 @@ export default function Map({
         const visibleFeatures = map.current.queryRenderedFeatures({ layers: ['routes-hit-area'] });
         const visibleIds = new Set(visibleFeatures.map((f) => f.properties.osm_id));
         onViewChangeRef.current(visibleIds);
-      }, 200);
+
+        const bounds = map.current.getBounds();
+        const bbox: [number, number, number, number] = [
+          bounds.getWest(),
+          bounds.getSouth(),
+          bounds.getEast(),
+          bounds.getNorth(),
+        ];
+        onBboxChangeRef.current?.(bbox);
+      }, 500);
 
       map.current.on('moveend', updateVisible);
       map.current.on('zoomend', updateVisible);

@@ -66,6 +66,14 @@ RETURNS TABLE (
       r.geom_3857 <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857);
 $$ LANGUAGE sql STABLE;
 
+-- Return routes within a bounding box
+CREATE OR REPLACE FUNCTION api.routes_in_bbox(min_lon double precision, min_lat double precision, max_lon double precision, max_lat double precision)
+RETURNS SETOF api.routes AS $$
+  SELECT *
+  FROM api.routes
+  WHERE geom && ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326);
+$$ LANGUAGE sql STABLE;
+
 -- Safe wrapper for ST_LineLocatePoint that returns NULL if the provided line isn't a LINESTRING.
 CREATE OR REPLACE FUNCTION api.safe_line_locate_point(line geometry, pt geometry)
 RETURNS double precision AS $$
@@ -149,4 +157,5 @@ ORDER BY c.route_id, trail_km;
 
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
+GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision) TO calixtinus;
 GRANT SELECT ON api.route_amenities TO calixtinus;
