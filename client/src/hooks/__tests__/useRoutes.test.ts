@@ -36,6 +36,7 @@ describe('useRoutes', () => {
       50,
       expect.any(Number), // limit
       0, // offset
+      null, // sortBy
       undefined // searchQuery
     );
     expect(result.current.routes).toEqual(mockRoutes);
@@ -52,7 +53,12 @@ describe('useRoutes', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(RouteService.fetchRoutes).toHaveBeenCalled();
+    expect(RouteService.fetchRoutes).toHaveBeenCalledWith(
+      0,
+      expect.any(Number),
+      null, // sortBy
+      undefined // searchQuery
+    );
     expect(result.current.routes).toEqual(mockRoutes);
     expect(result.current.totalCount).toBe(100);
   });
@@ -83,7 +89,25 @@ describe('useRoutes', () => {
 
     expect(RouteService.fetchRoutes).toHaveBeenCalledTimes(2);
     // The first call was with offset 0, the second with offset 20 (length of mockRoutes)
-    expect(RouteService.fetchRoutes).toHaveBeenLastCalledWith(20, 20);
+    expect(RouteService.fetchRoutes).toHaveBeenLastCalledWith(
+      20,
+      20,
+      null, // sortBy
+      undefined // searchQuery
+    );
+  });
+
+  it('should handle sorting', async () => {
+    (RouteService.fetchRoutes as jest.Mock).mockResolvedValue({
+      routes: mockRoutes,
+      totalCount: 100,
+    });
+
+    const { result } = renderHook(() => useRoutes({ sortBy: 'name' }));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), 'name', undefined);
   });
 
   it('should update routes when bbox changes', async () => {
@@ -103,9 +127,12 @@ describe('useRoutes', () => {
     const initialBbox: [number, number, number, number] = [6, 49, 7, 50];
     const newBbox: [number, number, number, number] = [6.1, 49.1, 6.9, 49.9];
 
-    const { result, rerender } = renderHook(({ bbox }) => useRoutes({ bbox }), {
-      initialProps: { bbox: initialBbox },
-    });
+    const { result, rerender } = renderHook(
+      ({ bbox }: { bbox: [number, number, number, number] }) => useRoutes({ bbox }),
+      {
+        initialProps: { bbox: initialBbox },
+      }
+    );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.routes).toEqual(initialRoutes);
@@ -116,7 +143,8 @@ describe('useRoutes', () => {
       50,
       expect.any(Number),
       0,
-      undefined
+      null, // sortBy
+      undefined // searchQuery
     );
 
     // Update bbox
@@ -130,7 +158,8 @@ describe('useRoutes', () => {
       49.9,
       expect.any(Number),
       0,
-      undefined
+      null, // sortBy
+      undefined // searchQuery
     );
   });
 });

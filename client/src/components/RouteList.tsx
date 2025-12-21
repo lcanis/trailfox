@@ -21,6 +21,7 @@ interface RouteListProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loading?: boolean;
+  totalCount?: number | null;
 }
 
 export const RouteList: React.FC<RouteListProps> = ({
@@ -31,6 +32,7 @@ export const RouteList: React.FC<RouteListProps> = ({
   onLoadMore,
   hasMore,
   loading,
+  totalCount,
 }) => {
   const { width, height } = useWindowDimensions();
   // Use the short side so large phones in portrait are treated as small screens.
@@ -43,7 +45,7 @@ export const RouteList: React.FC<RouteListProps> = ({
   return (
     <View style={styles.container}>
       <Text style={[styles.panelTitle, isSmallScreen && styles.panelTitleSmall]}>
-        Routes ({routes.length})
+        Routes ({totalCount !== undefined && totalCount !== null ? totalCount : routes.length})
       </Text>
 
       <TextInput

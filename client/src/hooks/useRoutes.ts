@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Route } from '../types';
+import { Route, SortOption } from '../types';
 import { RouteService } from '../services/routeService';
 
 const PAGE_SIZE = 20;
@@ -7,6 +7,7 @@ const PAGE_SIZE = 20;
 export const useRoutes = (filter?: {
   bbox?: [number, number, number, number];
   searchQuery?: string;
+  sortBy?: SortOption;
 }) => {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -16,6 +17,7 @@ export const useRoutes = (filter?: {
 
   const bbox = filter?.bbox;
   const searchQuery = filter?.searchQuery;
+  const sortBy = filter?.sortBy || null;
   // Create a stable key for bbox to use in dependency array
   const bboxKey = bbox ? bbox.join(',') : '';
 
@@ -35,12 +37,18 @@ export const useRoutes = (filter?: {
             maxLat,
             PAGE_SIZE,
             currentOffset,
+            sortBy,
             searchQuery
           );
           newRoutes = result.routes;
           count = result.totalCount;
         } else {
-          const result = await RouteService.fetchRoutes(currentOffset, PAGE_SIZE);
+          const result = await RouteService.fetchRoutes(
+            currentOffset,
+            PAGE_SIZE,
+            sortBy,
+            searchQuery
+          );
           newRoutes = result.routes;
           count = result.totalCount;
         }
@@ -67,7 +75,7 @@ export const useRoutes = (filter?: {
         setLoading(false);
       }
     },
-    [bboxKey, searchQuery]
+    [bboxKey, searchQuery, sortBy]
   );
 
   // Initial load and reload when filter changes

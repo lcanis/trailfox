@@ -1,4 +1,4 @@
-import { Route } from '../types';
+import { Route, SortOption } from '../types';
 import { API_URL, API_ROOT } from '../config/settings';
 import { fetchJsonWithTimeout } from './http';
 
@@ -7,14 +7,28 @@ const SELECT_FIELDS =
 
 const DEFAULT_PAGE_SIZE = 20;
 
+const getOrderParam = (sortBy: SortOption): string => {
+  if (sortBy === 'name') return 'name.asc';
+  if (sortBy === 'length') return 'length_m.desc';
+  return 'osm_id.asc';
+};
+
 export const RouteService = {
   async fetchRoutes(
     offset: number = 0,
     limit: number = DEFAULT_PAGE_SIZE,
+    sortBy: SortOption = null,
+    searchQuery?: string,
     timeoutMs: number = 15000
   ): Promise<{ routes: Route[]; totalCount: number | null }> {
     try {
-      const url = `${API_URL}?select=${SELECT_FIELDS}&order=osm_id.asc&limit=${limit}&offset=${offset}`;
+      const order = getOrderParam(sortBy);
+      let url = `${API_URL}?select=${SELECT_FIELDS}&order=${order}&limit=${limit}&offset=${offset}`;
+
+      if (searchQuery) {
+        url += `&or=(name.ilike.*${encodeURIComponent(searchQuery)}*,network.ilike.*${encodeURIComponent(searchQuery)}*)`;
+      }
+
       // Request exact count from PostgREST
       const { data, count } = await fetchJsonWithTimeout<Route[]>(
         url,
@@ -35,6 +49,7 @@ export const RouteService = {
     maxLat: number,
     limit: number = DEFAULT_PAGE_SIZE,
     offset: number = 0,
+    sortBy: SortOption = null,
     searchQuery?: string,
     timeoutMs: number = 15000
   ): Promise<{ routes: Route[]; totalCount: number | null }> {
@@ -42,17 +57,12 @@ export const RouteService = {
       // Use the RPC function
       let url = `${API_ROOT}/rpc/routes_in_bbox?min_lon=${minLon}&min_lat=${minLat}&max_lon=${maxLon}&max_lat=${maxLat}&limit=${limit}&offset=${offset}`;
 
+      const order = getOrderParam(sortBy);
+      // For RPC, we can append order param to sort the result set
+      url += `&order=${order}`;
+
       if (searchQuery) {
         // Simple case-insensitive search on name or network
-        // PostgREST doesn't support OR across columns easily on RPC results without 'or' param which is complex.
-        // But we can filter by name.
-        // Actually, for complex OR logic (name OR network), it's better to do it in the RPC or client-side if dataset is small.
-        // Since we are paginating, client-side filtering of a page is wrong (we might miss matches on next pages).
-        // So we should filter on server.
-        // Let's assume for now we just filter by name if provided, or we rely on client side if the result set is small enough (limit=50).
-        // But wait, if we limit=50 on server, and then filter client side, we might show 0 results even if there are matches in the DB.
-        // So server side search is important.
-
         // PostgREST syntax for OR: ?or=(name.ilike.*q*,network.ilike.*q*)
         url += `&or=(name.ilike.*${encodeURIComponent(searchQuery)}*,network.ilike.*${encodeURIComponent(searchQuery)}*)`;
       }

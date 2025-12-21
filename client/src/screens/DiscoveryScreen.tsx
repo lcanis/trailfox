@@ -8,7 +8,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useRoutes } from '../hooks/useRoutes';
-import { useRouteFilter } from '../hooks/useRouteFilter';
 import { RouteList } from '../components/RouteList';
 import { RouteDetails } from '../components/RouteDetails';
 import Map from '../components/Map';
@@ -25,9 +24,10 @@ export const DiscoveryScreen = () => {
 
   const [bbox, setBbox] = useState<[number, number, number, number] | undefined>(undefined);
 
-  const { routes, loading, error, loadMore, hasMore } = useRoutes({
+  const { routes, totalCount, loading, error, loadMore, hasMore } = useRoutes({
     bbox: filter.viewboxOnly ? bbox : undefined,
     searchQuery: filter.searchQuery,
+    sortBy: filter.sortBy,
   });
 
   const { width, height } = useWindowDimensions();
@@ -35,27 +35,25 @@ export const DiscoveryScreen = () => {
   // which would otherwise prevent mobile layout rules from applying.
   const isSmallScreen = Platform.OS !== 'web' || Math.min(width, height) < 768;
 
-  const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(null);
 
   // Derived Data
-  // We still use useRouteFilter for client-side sorting and search (if search is not fully server-side yet)
-  // Note: useRoutes now handles bbox filtering server-side if viewboxOnly is true.
-  // We can disable client-side viewbox filtering in useRouteFilter if we trust server-side,
-  // or keep it as a refinement. For now, let's keep useRouteFilter as is, but it might be redundant for viewbox.
-  const displayedRoutes = useRouteFilter(routes, filter, visibleIds);
+  // We rely on server-side filtering and sorting via useRoutes.
+  // Client-side filtering is removed to avoid confusion with pagination.
+  const displayedRoutes = routes;
 
   const activeId = selectedId || hoveredId;
-  const activeRoute = activeId ? routes.find((r) => r.osm_id === activeId) : null;
+  // Only show details panel for selected route, not hovered, to avoid flickering/blocking map.
+  const detailsRoute = selectedId ? routes.find((r) => r.osm_id === selectedId) : null;
   const itineraryRoute = itineraryRouteId
     ? routes.find((r) => r.osm_id === itineraryRouteId)
     : null;
 
   // Handlers
-  const handleViewChange = useCallback((ids: Set<number>) => {
-    setVisibleIds(ids);
+  const handleViewChange = useCallback((_ids: Set<number>) => {
+    // setVisibleIds(ids); // Client-side filtering disabled
   }, []);
 
   const handleBboxChange = useCallback((newBbox: [number, number, number, number]) => {
@@ -106,6 +104,7 @@ export const DiscoveryScreen = () => {
           onLoadMore={loadMore}
           hasMore={hasMore}
           loading={loading}
+          totalCount={totalCount}
         />
       </View>
 
@@ -122,9 +121,9 @@ export const DiscoveryScreen = () => {
         />
       </View>
 
-      {activeRoute && (
+      {detailsRoute && (
         <RouteDetails
-          route={activeRoute}
+          route={detailsRoute}
           onClose={() => setSelectedId(null)}
           onOpenItinerary={handleOpenItinerary}
         />

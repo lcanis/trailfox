@@ -2,15 +2,20 @@
 set -euo pipefail
 
 # deploy_client.sh: atomically deploy a built `dist/` web export to the server
-# Usage: ./deploy_client.sh /path/to/dist main|poc
+# Usage: ./deploy_client.sh [main|poc]
+# If run from the repo root or server dir, it will attempt to build the client first.
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 /path/to/dist (main|poc)" >&2
-  exit 2
+SITE="${1:-main}"
+CLIENT_DIR="$(dirname "$0")/../client"
+DIST_DIR="$CLIENT_DIR/dist"
+
+# Check if we can build the client
+if [ -d "$CLIENT_DIR" ] && [ -f "$CLIENT_DIR/package.json" ]; then
+  echo "Building client in $CLIENT_DIR..."
+  (cd "$CLIENT_DIR" && npm install && npx expo export -p web --output-dir dist)
+else
+  echo "Client source not found at $CLIENT_DIR. Expecting pre-built dist."
 fi
-
-DIST_DIR="$1"
-SITE="$2"
 
 if [ ! -d "$DIST_DIR" ]; then
   echo "Dist directory not found: $DIST_DIR" >&2

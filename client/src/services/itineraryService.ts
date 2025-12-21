@@ -34,10 +34,11 @@ export const ItineraryService = {
       distance_from_trail_m: `lte.${maxDistanceFromTrailM}`,
     });
 
-    return await fetchJsonWithTimeout<RouteAmenity[]>(
+    const { data } = await fetchJsonWithTimeout<RouteAmenity[]>(
       `${ITINERARY_URL}?${search.toString()}`,
       undefined,
       timeoutMs
     );
+    return data;
   },
 };
