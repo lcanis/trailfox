@@ -1,17 +1,17 @@
 import { Route } from '../types';
-import { API_URL } from '../config/settings';
+import { API_URL, API_ROOT } from '../config/settings';
 import { fetchJsonWithTimeout } from './http';
 
 const SELECT_FIELDS =
   'osm_id,name,network,length_m,route_type,symbol,merged_geom_type,tags,geom_quality,geom_parts';
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 20;
 
 export const RouteService = {
   async fetchRoutes(
     offset: number = 0,
     limit: number = DEFAULT_PAGE_SIZE,
-    timeoutMs: number = 8000
+    timeoutMs: number = 15000
   ): Promise<Route[]> {
     try {
       const url = `${API_URL}?select=${SELECT_FIELDS}&order=osm_id.asc&limit=${limit}&offset=${offset}`;
@@ -30,11 +30,11 @@ export const RouteService = {
     limit: number = DEFAULT_PAGE_SIZE,
     offset: number = 0,
     searchQuery?: string,
-    timeoutMs: number = 8000
+    timeoutMs: number = 15000
   ): Promise<Route[]> {
     try {
       // Use the RPC function
-      let url = `${API_URL}/rpc/routes_in_bbox?min_lon=${minLon}&min_lat=${minLat}&max_lon=${maxLon}&max_lat=${maxLat}&limit=${limit}&offset=${offset}`;
+      let url = `${API_ROOT}/rpc/routes_in_bbox?min_lon=${minLon}&min_lat=${minLat}&max_lon=${maxLon}&max_lat=${maxLat}&limit=${limit}&offset=${offset}`;
 
       if (searchQuery) {
         // Simple case-insensitive search on name or network

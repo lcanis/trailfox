@@ -43,6 +43,7 @@ export default function Map({
   const onSelectRef = useRef(onSelect);
   const onViewChangeRef = useRef(onViewChange);
   const onBboxChangeRef = useRef(onBboxChange);
+  const lastBboxRef = useRef<string | null>(null);
 
   useEffect(() => {
     onHoverRef.current = onHover;
@@ -263,7 +264,12 @@ export default function Map({
           bounds.getEast(),
           bounds.getNorth(),
         ];
-        onBboxChangeRef.current?.(bbox);
+
+        const bboxKey = bbox.map((n) => n.toFixed(4)).join(',');
+        if (bboxKey !== lastBboxRef.current) {
+          lastBboxRef.current = bboxKey;
+          onBboxChangeRef.current?.(bbox);
+        }
       }, 500);
 
       map.current.on('moveend', updateVisible);

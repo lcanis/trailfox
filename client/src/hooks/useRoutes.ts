@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Route } from '../types';
 import { RouteService } from '../services/routeService';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 export const useRoutes = (filter?: {
   bbox?: [number, number, number, number];
@@ -13,14 +13,19 @@ export const useRoutes = (filter?: {
   const [error, setError] = useState<Error | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
 
+  const bbox = filter?.bbox;
+  const searchQuery = filter?.searchQuery;
+  // Create a stable key for bbox to use in dependency array
+  const bboxKey = bbox ? bbox.join(',') : '';
+
   const loadRoutes = useCallback(
     async (currentOffset: number, isRefresh: boolean = false) => {
       try {
         setLoading(true);
         let newRoutes: Route[];
 
-        if (filter?.bbox) {
-          const [minLon, minLat, maxLon, maxLat] = filter.bbox;
+        if (bboxKey) {
+          const [minLon, minLat, maxLon, maxLat] = bboxKey.split(',').map(Number);
           newRoutes = await RouteService.fetchRoutesInBbox(
             minLon,
             minLat,
@@ -28,7 +33,7 @@ export const useRoutes = (filter?: {
             maxLat,
             PAGE_SIZE,
             currentOffset,
-            filter.searchQuery
+            searchQuery
           );
         } else {
           newRoutes = await RouteService.fetchRoutes(currentOffset, PAGE_SIZE);
@@ -53,7 +58,7 @@ export const useRoutes = (filter?: {
         setLoading(false);
       }
     },
-    [filter]
+    [bboxKey, searchQuery]
   );
 
   // Initial load and reload when filter changes

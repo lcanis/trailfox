@@ -8,8 +8,8 @@ export type StartLocation = 'luxembourg' | 'munich' | 'user';
 export const START_LOCATION_MODE: StartLocation = 'luxembourg';
 
 export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number]; zoom: number }> = {
-  luxembourg: { center: [6.13, 49.61], zoom: 9 },
-  munich: { center: [11.58, 48.13], zoom: 10 },
+  luxembourg: { center: [6.13, 49.61], zoom: 12 },
+  munich: { center: [11.58, 48.13], zoom: 12 },
 };
 
 // Developer mode toggles debug overlays and other conveniences
@@ -59,7 +59,8 @@ if (Platform.OS === 'web') {
   }
 }
 
-export const API_URL = `${API_BASE_URL}/api/routes`;
+export const API_ROOT = `${API_BASE_URL}/api`;
+export const API_URL = `${API_ROOT}/routes`;
 export const TILES_BASE_URL = `${API_BASE_URL}/tiles`;
 
 // Whether the app should allow itineraries for MultiLineString routes.

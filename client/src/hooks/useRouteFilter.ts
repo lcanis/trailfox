@@ -9,9 +9,11 @@ export const filterAndSortRoutes = (
   let result = routes;
 
   // 1. Viewbox Filter
-  if (filter.viewboxOnly) {
-    result = result.filter((r) => visibleIds.has(r.osm_id));
-  }
+  // We now handle bbox filtering server-side in useRoutes.
+  // Client-side filtering by visibleIds is too restrictive (depends on map rendering/tiles).
+  // if (filter.viewboxOnly) {
+  //   result = result.filter((r) => visibleIds.has(r.osm_id));
+  // }
 
   // 2. Search Filter
   if (filter.searchQuery) {
