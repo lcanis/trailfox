@@ -10,7 +10,7 @@ PBF_FILE=""
 usage() {
   cat <<'EOF'
 Usage:
-    ./bootstrap create|append|incremental /path/to/file.osm.pbf [--env-file path]
+    ./bootstrap create|append|incremental /path/to/file.osm.pbf [--env-file path] [--bbox minlon,minlat,maxlon,maxlat]
 EOF
 }
 
@@ -38,10 +38,14 @@ esac
 
 shift 2
 
+BBOX=""
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --env-file)
             ENV_FILE="$2"; shift 2;;
+        --bbox)
+            BBOX="$2"; shift 2;;
         -h|--help)
             usage; exit 0;;
         *)
@@ -59,7 +63,11 @@ echo "-- create DB"
 "$SCRIPT_DIR/init-db" $([ "$IMPORT_VERB" = "create" ] && echo "--force-reset")
 
 echo "-- import OSM data and run post-import maintenance"
-"$SCRIPT_DIR/import" "$IMPORT_VERB" "$PBF_FILE"
+if [ -n "$BBOX" ]; then
+  "$SCRIPT_DIR/import" --bbox "$BBOX" "$IMPORT_VERB" "$PBF_FILE"
+else
+  "$SCRIPT_DIR/import" "$IMPORT_VERB" "$PBF_FILE"
+fi
 
 echo "-- apply API/tiles schemas"
 "$SCRIPT_DIR/apply-schemas"

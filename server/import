@@ -18,23 +18,48 @@ source "$SCRIPT_DIR/bootstrap-common.sh"
 usage() {
   cat <<'EOF' >&2
 Usage:
-  import create|append|incremental /path/to/file.osm.pbf
+  import [--bbox minlon,minlat,maxlon,maxlat] create|append|incremental /path/to/file.osm.pbf
 
 Modes:
   create        Drop and recreate OSM-derived tables (osm2pgsql --create --drop).
   append        Append to existing tables. Not recommended for adjacent/overlapping regions.
   incremental   Slim mode import using osm2pgsql --slim and --append/--create.
+
+Options:
+  --bbox        Import only data within the bounding box (minlon,minlat,maxlon,maxlat).
 EOF
 }
 
-if [ "$#" -eq 0 ]; then
-  usage
-  exit 2
-fi
+BBOX=""
+POSITIONAL_ARGS=()
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-  usage
-  exit 0
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --bbox)
+      BBOX="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1")
+      shift # past argument
+      ;;
+  esac
+done
+
+set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters
+
+if [ ${#POSITIONAL_ARGS[@]} -lt 2 ]; then
+    usage
+    exit 2
 fi
 
 MODE="${1:-}"
@@ -101,6 +126,10 @@ fi
 STYLE_IN_CONTAINER="/data/osm2pgsql/itinerarius.lua"
 
 OSM2PGSQL_PERF_ARGS=(--number-processes "$OSM2PGSQL_PROCESSES")
+if [ -n "$BBOX" ]; then
+  OSM2PGSQL_PERF_ARGS+=(--bbox "$BBOX")
+fi
+
 if [ "$MODE" = "incremental" ]; then
   # NOTE: In osm2pgsql 2.x, --cache only applies in --slim mode.
   OSM2PGSQL_PERF_ARGS+=(--cache "$OSM2PGSQL_CACHE_MB")
