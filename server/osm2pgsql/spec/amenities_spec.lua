@@ -172,7 +172,7 @@ describe("amenities_module", function()
     assert.are.equal("hotel", table_inserts[1].row.subclass)
   end)
 
-  it("process_way imports only closed buildings", function()
+  it("process_way imports closed ways", function()
     local obj_open = {
       is_closed = false,
       tags = { amenity = "toilets" },
@@ -193,7 +193,7 @@ describe("amenities_module", function()
     }
 
     amenities.process_way(obj_closed_no_building)
-    assert.are.equal(0, #table_inserts)
+    assert.are.equal(1, #table_inserts)
 
     local obj_closed_building = {
       is_closed = true,
@@ -204,9 +204,9 @@ describe("amenities_module", function()
     }
 
     amenities.process_way(obj_closed_building)
-    assert.are.equal(1, #table_inserts)
-    assert.are.equal("hygiene", table_inserts[1].row.class)
-    assert.are.equal("toilets", table_inserts[1].row.subclass)
-    assert.are.equal("CENTROID", table_inserts[1].row.geom)
+    assert.are.equal(2, #table_inserts)
+    assert.are.equal("hygiene", table_inserts[2].row.class)
+    assert.are.equal("toilets", table_inserts[2].row.subclass)
+    assert.are.equal("CENTROID", table_inserts[2].row.geom)
   end)
 end)
