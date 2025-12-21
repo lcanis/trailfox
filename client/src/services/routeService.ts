@@ -12,10 +12,16 @@ export const RouteService = {
     offset: number = 0,
     limit: number = DEFAULT_PAGE_SIZE,
     timeoutMs: number = 15000
-  ): Promise<Route[]> {
+  ): Promise<{ routes: Route[]; totalCount: number | null }> {
     try {
       const url = `${API_URL}?select=${SELECT_FIELDS}&order=osm_id.asc&limit=${limit}&offset=${offset}`;
-      return await fetchJsonWithTimeout<Route[]>(url, undefined, timeoutMs);
+      // Request exact count from PostgREST
+      const { data, count } = await fetchJsonWithTimeout<Route[]>(
+        url,
+        { headers: { Prefer: 'count=exact' } },
+        timeoutMs
+      );
+      return { routes: data, totalCount: count };
     } catch (error) {
       console.error('Failed to fetch routes:', error);
       throw error;
@@ -31,7 +37,7 @@ export const RouteService = {
     offset: number = 0,
     searchQuery?: string,
     timeoutMs: number = 15000
-  ): Promise<Route[]> {
+  ): Promise<{ routes: Route[]; totalCount: number | null }> {
     try {
       // Use the RPC function
       let url = `${API_ROOT}/rpc/routes_in_bbox?min_lon=${minLon}&min_lat=${minLat}&max_lon=${maxLon}&max_lat=${maxLat}&limit=${limit}&offset=${offset}`;
@@ -52,7 +58,13 @@ export const RouteService = {
       }
 
       const urlWithSelect = `${url}&select=${SELECT_FIELDS}`;
-      return await fetchJsonWithTimeout<Route[]>(urlWithSelect, undefined, timeoutMs);
+      // Request exact count from PostgREST
+      const { data, count } = await fetchJsonWithTimeout<Route[]>(
+        urlWithSelect,
+        { headers: { Prefer: 'count=exact' } },
+        timeoutMs
+      );
+      return { routes: data, totalCount: count };
     } catch (error) {
       console.error('Failed to fetch routes in bbox:', error);
       throw error;

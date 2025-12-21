@@ -9,6 +9,7 @@ export const useRoutes = (filter?: {
   searchQuery?: string;
 }) => {
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
@@ -23,10 +24,11 @@ export const useRoutes = (filter?: {
       try {
         setLoading(true);
         let newRoutes: Route[];
+        let count: number | null = null;
 
         if (bboxKey) {
           const [minLon, minLat, maxLon, maxLat] = bboxKey.split(',').map(Number);
-          newRoutes = await RouteService.fetchRoutesInBbox(
+          const result = await RouteService.fetchRoutesInBbox(
             minLon,
             minLat,
             maxLon,
@@ -35,14 +37,21 @@ export const useRoutes = (filter?: {
             currentOffset,
             searchQuery
           );
+          newRoutes = result.routes;
+          count = result.totalCount;
         } else {
-          newRoutes = await RouteService.fetchRoutes(currentOffset, PAGE_SIZE);
+          const result = await RouteService.fetchRoutes(currentOffset, PAGE_SIZE);
+          newRoutes = result.routes;
+          count = result.totalCount;
         }
 
         if (isRefresh) {
           setRoutes(newRoutes);
+          setTotalCount(count);
         } else {
           setRoutes((prev) => [...prev, ...newRoutes]);
+          // Don't update totalCount on pagination to avoid flicker, unless it was null
+          setTotalCount((prev) => (prev === null ? count : prev));
         }
 
         if (newRoutes.length < PAGE_SIZE) {
@@ -78,5 +87,5 @@ export const useRoutes = (filter?: {
     loadRoutes(0, true);
   }, [loadRoutes]);
 
-  return { routes, loading, error, loadMore, hasMore, refresh };
+  return { routes, totalCount, loading, error, loadMore, hasMore, refresh };
 };

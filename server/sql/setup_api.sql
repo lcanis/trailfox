@@ -71,7 +71,7 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(min_lon double precision, min_lat 
 RETURNS SETOF api.routes AS $$
   SELECT *
   FROM api.routes
-  WHERE geom && ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326);
+  WHERE ST_Intersects(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326));
 $$ LANGUAGE sql STABLE;
 
 -- Safe wrapper for ST_LineLocatePoint that returns NULL if the provided line isn't a LINESTRING.

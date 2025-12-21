@@ -33,7 +33,7 @@ export const fetchJsonWithTimeout = async <T>(
   url: string,
   init?: RequestInit,
   timeoutMs: number = 8000
-): Promise<T> => {
+): Promise<{ data: T; count: number | null }> => {
   const timeoutController = new AbortController();
   const timeoutHandle = setTimeout(() => timeoutController.abort(), timeoutMs);
 
@@ -45,7 +45,19 @@ export const fetchJsonWithTimeout = async <T>(
       throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
 
-    return (await response.json()) as T;
+    const data = (await response.json()) as T;
+
+    // Parse Content-Range header if present (e.g. "0-24/357")
+    const contentRange = response.headers.get('Content-Range');
+    let count: number | null = null;
+    if (contentRange) {
+      const parts = contentRange.split('/');
+      if (parts.length === 2 && parts[1] !== '*') {
+        count = parseInt(parts[1], 10);
+      }
+    }
+
+    return { data, count };
   } catch (error) {
     if (isAbortError(error)) {
       throw new HttpTimeoutError(`Request timed out after ${timeoutMs}ms`);
