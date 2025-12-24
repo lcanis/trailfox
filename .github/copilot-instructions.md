@@ -3,6 +3,36 @@
 - IMPORTANT: Do NOT commit or push changes automatically. Make edits in a branch and open a pull request for review; ask a human before committing significant changes.
 - DRY principle: don't repeat yourself, don't repeat code, extract common patterns.
 
+## applies to: client/ directory (React Native + Expo)
+
+- Purpose: Cross-platform mobile and web app for exploring routes.
+- Stack: Expo SDK 52, React Native 0.81, TypeScript, MapLibre.
+
+Architecture & Patterns
+- **Platform Specifics**: Use `.native.tsx` and `.web.tsx` extensions for platform-divergent components (especially Maps and Bottom Sheets).
+- **Navigation**: Single-screen architecture with conditional overlays.
+- **Maps**:
+  - Native: `@maplibre/maplibre-react-native` (requires extensive mocking in tests).
+  - Web: `maplibre-gl` (JS).
+- **Bottom Sheet**: Uses `@gorhom/bottom-sheet`.
+  - **Critical**: Use `ScrollContainer` (wraps `BottomSheetScrollView`) for scrollable content inside sheets on native to handle gestures correctly.
+
+Testing (Jest)
+- **Mocking is Mandatory**: Native modules (`Reanimated`, `Worklets`, `MapLibre`, `SafeAreaContext`) are heavily mocked in `jest.setup.ts`.
+- **Run Tests**: `npm test` (runs Jest).
+- **Type Check**: `npm run check-types` (runs `tsc --noEmit`).
+- **Lint**: `npm run lint` (ESLint).
+
+Key Files
+- `src/config/settings.ts`: API URL configuration (auto-detects localhost/LAN).
+- `src/screens/DiscoveryScreen.tsx`: Main entry point and state orchestration.
+- `src/screens/ItineraryScreenBase.tsx`: Shared logic for the route detail view.
+- `jest.setup.ts`: Global mocks. **Check this first if tests fail with native module errors.**
+
+Workflows
+- **UI Changes**: Always verify layout on both Web (browser) and Native (Simulator).
+- **New Dependencies**: If adding native modules, ensure they are Expo-compatible or have a config plugin.
+
 ## applies to: server/ directory (PostGIS + import + PostgREST + helpers)
 
 - Purpose: help AI agents be immediately productive with database and import-related work. Be concise, *fail-fast*, and prefer simple, fast code over defensive complexity.
@@ -42,3 +72,4 @@ Style & conventions
 - Use `itinerarius.*` schema for core data; API views live in `api` schema and are exposed to PostgREST.
 
 If anything is missing or you want extra examples (e.g., a sample `EXPLAIN ANALYZE` guidance or a short materialized-view recipe for `route_amenities`), tell me and I’ll add it.
+
