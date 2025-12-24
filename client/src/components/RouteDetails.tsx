@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Linking,
   Platform,
   useWindowDimensions,
@@ -15,6 +14,7 @@ import { RouteService } from '../services/routeService';
 import { createGpx } from '../utils/gpx';
 import { OsmSymbol } from './OsmSymbol';
 import { allowMultistring } from '../config/settings';
+import { ScrollContainer } from './ScrollContainer';
 
 interface RouteDetailsProps {
   route: Route;
@@ -139,7 +139,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
           <Text style={styles.closeButton}>×</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.content}>
+      <ScrollContainer style={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Info</Text>
 
@@ -284,7 +284,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
             </>
           )}
         </View>
-      </ScrollView>
+      </ScrollContainer>
     </View>
   );
 };
@@ -298,11 +298,21 @@ const InfoRow = ({ label, value }: { label: string; value: string | number | nul
 
 const styles = StyleSheet.create({
   sidebar: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 300,
+    ...(Platform.OS === 'web'
+      ? {
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 300,
+          borderLeftWidth: 1,
+          borderLeftColor: '#eee',
+          zIndex: 30,
+        }
+      : {
+          flex: 1,
+          width: '100%',
+        }),
     backgroundColor: 'white',
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
@@ -310,19 +320,20 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 5,
     padding: 20,
-    zIndex: 30,
-    borderLeftWidth: 1,
-    borderLeftColor: '#eee',
   },
   sidebarSmall: {
-    width: '100%',
-    top: 'auto',
-    bottom: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    ...(Platform.OS === 'web'
+      ? {
+          width: '100%',
+          top: 'auto',
+          bottom: 0,
+          borderLeftWidth: 0,
+          borderTopWidth: 1,
+          borderTopColor: '#eee',
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+        }
+      : {}),
   },
   itineraryBtn: {
     backgroundColor: '#111',

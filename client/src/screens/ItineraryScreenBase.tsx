@@ -28,6 +28,9 @@ import {
   sanitizeSelectedClusterKey,
   titleize,
 } from './itinerary/itineraryModel';
+import { NativeBottomSheet } from '../components/NativeBottomSheet';
+import { ScrollContainer } from '../components/ScrollContainer';
+import ItineraryMap from '../components/ItineraryMap';
 
 interface ItineraryScreenProps {
   route: Route;
@@ -273,8 +276,13 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     [clusters]
   );
 
-  return (
-    <View style={[styles.overlay, { paddingTop: insets.top }]}>
+  const content = (
+    <View
+      style={[
+        Platform.OS === 'web' ? styles.overlay : styles.nativeContentContainer,
+        { paddingTop: insets.top },
+      ]}
+    >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>{route.name || 'Itinerary'}</Text>
@@ -327,7 +335,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
             ) : null}
             <View style={styles.leftPane}>
               {isWebSplit ? controlsNode : null}
-              <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+              <ScrollContainer style={styles.scroll} contentContainerStyle={styles.list}>
                 <View style={styles.currentMarker}>
                   <Text style={styles.currentMarkerText}>
                     🗺️ Timeline · within {radiusKm.toFixed(1)} km
@@ -354,7 +362,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
 
                     return (
                       <Pressable
-                        key={cluster.key}
+                        key={`${cluster.key || 'cluster'}-${index}`}
                         onPress={() =>
                           setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)
                         }
@@ -410,9 +418,9 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
                                 .slice()
                                 .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m)
                                 .slice(0, 10)
-                                .map((a) => (
+                                .map((a, amenityIndex) => (
                                   <Pressable
-                                    key={`${a.osm_type}-${a.osm_id}`}
+                                    key={`${a.osm_type}-${a.osm_id}-${amenityIndex}-${index}`}
                                     onHoverIn={() =>
                                       Platform.OS === 'web'
                                         ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
@@ -466,7 +474,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
                     );
                   })
                 )}
-              </ScrollView>
+              </ScrollContainer>
             </View>
 
             {Platform.OS === 'web' && split && rightPaneNode ? (
@@ -511,6 +519,27 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
       ) : null}
     </View>
   );
+
+  const snapPoints = React.useMemo(() => ['12%', '50%', '95%'], []);
+
+  if (Platform.OS !== 'web') {
+    const MapComponent = (
+      <ItineraryMap
+        routeOsmId={route.osm_id}
+        clusters={clusters}
+        selectedClusterKey={effectiveSelectedKey}
+        onSelectClusterKey={setSelectedKey}
+      />
+    );
+
+    return (
+      <NativeBottomSheet mapComponent={MapComponent} index={2} snapPoints={snapPoints}>
+        {content}
+      </NativeBottomSheet>
+    );
+  }
+
+  return content;
 };
 
 const styles = StyleSheet.create({
@@ -522,6 +551,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: THEME.background,
     zIndex: 100,
+  },
+  nativeContentContainer: {
+    flex: 1,
+    backgroundColor: THEME.surface,
   },
   header: {
     flexDirection: 'row',

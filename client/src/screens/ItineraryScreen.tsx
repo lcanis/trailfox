@@ -6,6 +6,20 @@ import ItineraryMap from '../components/ItineraryMap';
 export const ItineraryScreen = (props: React.ComponentProps<typeof BaseItineraryScreen>) => {
   const [selectedClusterKey, setSelectedClusterKey] = React.useState<string | null>(null);
   const showMapPane = Platform.OS === 'web';
+
+  if (Platform.OS !== 'web') {
+    return (
+      <View style={styles.backdrop}>
+        <BaseItineraryScreen
+          {...props}
+          split={false}
+          selectedClusterKey={selectedClusterKey}
+          onSelectClusterKey={setSelectedClusterKey}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.backdrop}>
       <BaseItineraryScreen
@@ -39,5 +53,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.06)',
     zIndex: 99,
+    flex: 1, // Ensure it takes space
   },
 });

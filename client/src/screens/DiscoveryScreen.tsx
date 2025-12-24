@@ -1,81 +1,38 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  StyleSheet,
-  ActivityIndicator,
-  Text,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
-import { useRoutes } from '../hooks/useRoutes';
+import React from 'react';
+import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { useDiscoveryScreen } from '../hooks/useDiscoveryScreen';
 import { RouteList } from '../components/RouteList';
 import { RouteDetails } from '../components/RouteDetails';
 import Map from '../components/Map';
-import { Route, RouteFilter as RouteFilterType } from '../types';
+import { NativeBottomSheet } from '../components/NativeBottomSheet';
 import { ItineraryScreen } from './ItineraryScreen';
 
 export const DiscoveryScreen = () => {
-  // UI State
-  const [filter, setFilter] = useState<RouteFilterType>({
-    searchQuery: '',
-    viewboxOnly: true,
-    sortBy: null, // No sort initially
-  });
+  const snapPoints = React.useMemo(() => ['12%', '50%', '95%'], []);
 
-  const [bbox, setBbox] = useState<[number, number, number, number] | undefined>(undefined);
-
-  const { routes, totalCount, loading, error, loadMore, hasMore } = useRoutes({
-    bbox: filter.viewboxOnly ? bbox : undefined,
-    searchQuery: filter.searchQuery,
-    sortBy: filter.sortBy,
-  });
-
-  const { width, height } = useWindowDimensions();
-  // Always treat native (iOS/Android) as "small". Simulators can report large pixel widths
-  // which would otherwise prevent mobile layout rules from applying.
-  const isSmallScreen = Platform.OS !== 'web' || Math.min(width, height) < 768;
-
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [hoveredId, setHoveredId] = useState<number | null>(null);
-  const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(null);
-
-  // Derived Data
-  // We rely on server-side filtering and sorting via useRoutes.
-  // Client-side filtering is removed to avoid confusion with pagination.
-  const displayedRoutes = routes;
-
-  const activeId = selectedId || hoveredId;
-  // Show details for selected route, or hovered if none selected.
-  const targetId = selectedId || hoveredId;
-  const detailsRoute = targetId ? routes.find((r) => r.osm_id === targetId) : null;
-  const itineraryRoute = itineraryRouteId
-    ? routes.find((r) => r.osm_id === itineraryRouteId)
-    : null;
-
-  // Handlers
-  const handleViewChange = useCallback((_ids: Set<number>) => {
-    // setVisibleIds(ids); // Client-side filtering disabled
-  }, []);
-
-  const handleBboxChange = useCallback((newBbox: [number, number, number, number]) => {
-    setBbox(newBbox);
-  }, []);
-
-  const handleSelect = useCallback((route: Route) => {
-    setSelectedId(route.osm_id);
-  }, []);
-
-  const handleMapSelect = useCallback((id: number | null) => {
-    setSelectedId(id);
-  }, []);
-
-  const handleMapHover = useCallback((id: number | null) => {
-    setHoveredId(id);
-  }, []);
-
-  const handleOpenItinerary = useCallback((route: Route) => {
-    setItineraryRouteId(route.osm_id);
-  }, []);
+  const {
+    filter,
+    setFilter,
+    routes,
+    totalCount,
+    loading,
+    error,
+    loadMore,
+    hasMore,
+    selectedId,
+    activeId,
+    detailsRoute,
+    itineraryRoute,
+    displayedRoutes,
+    handleViewChange,
+    handleBboxChange,
+    handleSelect,
+    handleMapSelect,
+    handleMapHover,
+    handleOpenItinerary,
+    handleCloseDetails,
+    handleCloseItinerary,
+  } = useDiscoveryScreen();
 
   if (loading && routes.length === 0) {
     return (
@@ -94,9 +51,27 @@ export const DiscoveryScreen = () => {
     );
   }
 
-  return (
-    <View style={[styles.container, isSmallScreen && styles.containerSmall]}>
-      <View style={[styles.listContainer, isSmallScreen && styles.listContainerSmall]}>
+  const MapComponent = (
+    <Map
+      onHover={handleMapHover}
+      onSelect={handleMapSelect}
+      onViewChange={handleViewChange}
+      onBboxChange={handleBboxChange}
+      selectedId={selectedId}
+      highlightedId={activeId}
+      compact={false}
+    />
+  );
+
+  const ContentComponent = (
+    <View style={{ flex: 1 }}>
+      {detailsRoute ? (
+        <RouteDetails
+          route={detailsRoute}
+          onClose={handleCloseDetails}
+          onOpenItinerary={handleOpenItinerary}
+        />
+      ) : (
         <RouteList
           routes={displayedRoutes}
           filter={filter}
@@ -107,70 +82,26 @@ export const DiscoveryScreen = () => {
           loading={loading}
           totalCount={totalCount}
         />
-      </View>
-
-      {/* Always keep the map very small (20 px) so the list is prominent */}
-      <View style={[styles.mapContainer, isSmallScreen && styles.mapContainerSmall]}>
-        <Map
-          onHover={handleMapHover}
-          onSelect={handleMapSelect}
-          onViewChange={handleViewChange}
-          onBboxChange={handleBboxChange}
-          selectedId={selectedId}
-          highlightedId={activeId}
-          compact={true}
-        />
-      </View>
-
-      {detailsRoute && (
-        <RouteDetails
-          route={detailsRoute}
-          onClose={() => setSelectedId(null)}
-          onOpenItinerary={handleOpenItinerary}
-        />
       )}
+    </View>
+  );
 
-      {itineraryRoute && (
-        <ItineraryScreen route={itineraryRoute} onClose={() => setItineraryRouteId(null)} />
-      )}
+  return (
+    <View style={{ flex: 1 }}>
+      <NativeBottomSheet
+        mapComponent={MapComponent}
+        index={1} // Default to mid-range (50%)
+        snapPoints={snapPoints}
+      >
+        {ContentComponent}
+      </NativeBottomSheet>
+
+      {itineraryRoute && <ItineraryScreen route={itineraryRoute} onClose={handleCloseItinerary} />}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row',
-    width: '100%',
-    height: '100%',
-    overflow: 'hidden',
-  },
-  containerSmall: {
-    // Map on top (visually), List on bottom? Or Column (List top, Map bottom).
-    // Usually Map is main. Let's do Column: Map Top, List Bottom.
-    // But in React Native Web Column is Top->Bottom.
-    // If we want Map on Top, it should be first in DOM or flex-direction column.
-    // But our JSX has List first. So column-reverse puts List at bottom.
-    flexDirection: 'column-reverse',
-  },
-  listContainer: {
-    width: 300,
-    height: '100%',
-    zIndex: 20,
-  },
-  listContainerSmall: {
-    width: '100%',
-    flex: 1,
-  },
-  mapContainer: {
-    flex: 1,
-    height: '100%',
-  },
-  mapContainerSmall: {
-    // Very small map on mobile (20 pts) so the list dominates on start.
-    height: 20,
-    flex: 0,
-  },
   center: {
     flex: 1,
     justifyContent: 'center',

@@ -18,8 +18,7 @@ export const DEVELOPER_MODE = true;
 // Basemap style used by MapLibre on web.
 // Note: Protomaps styles require an API key and may fail (403) if the key is invalid.
 //export const WEB_BASEMAP_STYLE_URL = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-export const WEB_BASEMAP_STYLE_URL =
-  'https://api.protomaps.com/styles/v2/light.json?key=dcecaff09bb71b06';
+export const WEB_BASEMAP_STYLE_URL = '';
 
 // API configuration used by the client during development and production.
 // Local dev: use Caddy reverse proxy running on localhost:8090 (see server setup)

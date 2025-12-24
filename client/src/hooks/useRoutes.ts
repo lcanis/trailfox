@@ -67,7 +67,18 @@ export const useRoutes = (filter?: {
           setRoutes(newRoutes);
           setTotalCount(count);
         } else {
-          setRoutes((prev) => [...prev, ...newRoutes]);
+          setRoutes((prev) => {
+            const allRoutes = [...prev, ...newRoutes];
+            const uniqueRoutes = [];
+            const seenIds = new Set();
+            for (const route of allRoutes) {
+              if (!seenIds.has(route.osm_id)) {
+                seenIds.add(route.osm_id);
+                uniqueRoutes.push(route);
+              }
+            }
+            return uniqueRoutes;
+          });
           // Don't update totalCount on pagination to avoid flicker, unless it was null
           setTotalCount((prev) => (prev === null ? count : prev));
         }

@@ -3,6 +3,15 @@ import { render } from '@testing-library/react-native';
 import { RouteDetails } from '../RouteDetails';
 import type { Route } from '../../types';
 
+// Mock ScrollContainer since it uses BottomSheetScrollView which might need mocking
+jest.mock('../ScrollContainer', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return {
+    ScrollContainer: ({ children, style }: any) => <View style={style}>{children}</View>,
+  };
+});
+
 describe('RouteDetails segments display', () => {
   const baseRoute: Route = {
     osm_id: 1,
