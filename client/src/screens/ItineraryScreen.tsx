@@ -1,44 +1,42 @@
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import { ItineraryScreen as BaseItineraryScreen } from './ItineraryScreenBase';
+import { StyleSheet, View } from 'react-native';
+import { ItineraryContent } from './ItineraryContent';
 import ItineraryMap from '../components/ItineraryMap';
+import { NativeBottomSheet } from '../components/NativeBottomSheet';
 
-export const ItineraryScreen = (props: React.ComponentProps<typeof BaseItineraryScreen>) => {
+export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryContent>) => {
   const [selectedClusterKey, setSelectedClusterKey] = React.useState<string | null>(null);
-  const showMapPane = Platform.OS === 'web';
 
-  if (Platform.OS !== 'web') {
-    return (
-      <View style={styles.backdrop}>
-        <BaseItineraryScreen
-          {...props}
-          split={false}
-          selectedClusterKey={selectedClusterKey}
-          onSelectClusterKey={setSelectedClusterKey}
-        />
-      </View>
-    );
-  }
+  const snapPoints = React.useMemo(() => ['12%', '50%', '95%'], []);
 
   return (
     <View style={styles.backdrop}>
-      <BaseItineraryScreen
+      <ItineraryContent
         {...props}
-        split={showMapPane}
         selectedClusterKey={selectedClusterKey}
         onSelectClusterKey={setSelectedClusterKey}
-        renderRightPane={
-          showMapPane
-            ? ({ route, clusters, selectedClusterKey, setSelectedClusterKey }) => (
-                <ItineraryMap
-                  routeOsmId={route.osm_id}
-                  clusters={clusters}
-                  selectedClusterKey={selectedClusterKey}
-                  onSelectClusterKey={setSelectedClusterKey}
-                />
-              )
-            : undefined
-        }
+        renderWrapper={({
+          content,
+          clusters,
+          selectedClusterKey,
+          setSelectedClusterKey,
+          route,
+        }) => (
+          <NativeBottomSheet
+            index={2}
+            snapPoints={snapPoints}
+            mapComponent={
+              <ItineraryMap
+                routeOsmId={route.osm_id}
+                clusters={clusters}
+                selectedClusterKey={selectedClusterKey}
+                onSelectClusterKey={setSelectedClusterKey}
+              />
+            }
+          >
+            {content}
+          </NativeBottomSheet>
+        )}
       />
     </View>
   );
@@ -51,8 +49,6 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    zIndex: 99,
-    flex: 1, // Ensure it takes space
+    zIndex: 100,
   },
 });

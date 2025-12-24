@@ -28,11 +28,9 @@ import {
   sanitizeSelectedClusterKey,
   titleize,
 } from './itinerary/itineraryModel';
-import { NativeBottomSheet } from '../components/NativeBottomSheet';
-import { ScrollContainer } from '../components/ScrollContainer';
-import ItineraryMap from '../components/ItineraryMap';
+import { ListContainer } from '../components/ListContainer';
 
-interface ItineraryScreenProps {
+interface ItineraryContentProps {
   route: Route;
   onClose: () => void;
   split?: boolean;
@@ -45,6 +43,13 @@ interface ItineraryScreenProps {
     selectedClusterKey: string | null;
     setSelectedClusterKey: (key: string | null) => void;
   }) => React.ReactNode;
+  renderWrapper?: (ctx: {
+    content: React.ReactNode;
+    clusters: AmenityCluster[];
+    selectedClusterKey: string | null;
+    setSelectedClusterKey: (key: string | null) => void;
+    route: Route;
+  }) => React.ReactElement;
   selectedClusterKey?: string | null;
   onSelectClusterKey?: (key: string | null) => void;
 }
@@ -61,11 +66,12 @@ const tagsToList = (tags: Record<string, string> | null | undefined) => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
+export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   route,
   onClose,
   split,
   renderRightPane,
+  renderWrapper,
   selectedClusterKey,
   onSelectClusterKey,
 }) => {
@@ -114,8 +120,6 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
 
   const fromLoc = route.tags?.from;
   const toLoc = route.tags?.to;
-
-  const isWebSplit = Platform.OS === 'web' && Boolean(split && renderRightPane);
 
   const availableClasses = React.useMemo(() => {
     return getAvailableClasses(rawAmenities);
@@ -311,7 +315,7 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      {!isWebSplit ? controlsNode : null}
+      {!split ? controlsNode : null}
 
       <View style={[styles.content, split && styles.contentSplit]}>
         {loading && (
@@ -329,157 +333,153 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
         )}
 
         {!loading && !error && (
-          <View style={[styles.splitRow, Platform.OS !== 'web' && styles.splitRowSingle]}>
-            {Platform.OS !== 'web' && split && rightPaneNode ? (
-              <View style={styles.mapPane}>{rightPaneNode}</View>
-            ) : null}
+          <View style={[styles.splitRow, !split && styles.splitRowSingle]}>
             <View style={styles.leftPane}>
-              {isWebSplit ? controlsNode : null}
-              <ScrollContainer style={styles.scroll} contentContainerStyle={styles.list}>
-                <View style={styles.currentMarker}>
-                  <Text style={styles.currentMarkerText}>
-                    🗺️ Timeline · within {radiusKm.toFixed(1)} km
-                  </Text>
-                </View>
-
-                {displayedClusters.length === 0 ? (
+              {split ? controlsNode : null}
+              <ListContainer
+                style={styles.scroll}
+                contentContainerStyle={styles.list}
+                data={displayedClusters}
+                keyExtractor={(item, index) => item.key || `cluster-${index}`}
+                ListHeaderComponent={
+                  <View style={styles.currentMarker}>
+                    <Text style={styles.currentMarkerText}>
+                      🗺️ Timeline · within {radiusKm.toFixed(1)} km
+                    </Text>
+                  </View>
+                }
+                ListEmptyComponent={
                   <Text style={styles.muted}>
                     No amenities found within {radiusKm.toFixed(1)} km of this route.
                   </Text>
-                ) : (
-                  displayedClusters.map((cluster, index) => {
-                    const { title, isPlaceHeader } = getClusterDisplayTitle(cluster);
-                    const minDist = getClusterMinDistanceM(cluster);
-                    const isCurrent = index === 0;
+                }
+                renderItem={({ item: cluster, index }) => {
+                  const { title, isPlaceHeader } = getClusterDisplayTitle(cluster);
+                  const minDist = getClusterMinDistanceM(cluster);
+                  const isCurrent = index === 0;
 
-                    const marginTop = getTimelineMarginTop({
-                      displayedClusters,
-                      index,
-                      pixelsPerKm: 90,
-                    });
+                  const marginTop = getTimelineMarginTop({
+                    displayedClusters,
+                    index,
+                    pixelsPerKm: 90,
+                  });
 
-                    const isSelected = cluster.key === effectiveSelectedKey;
+                  const isSelected = cluster.key === effectiveSelectedKey;
 
-                    return (
-                      <Pressable
-                        key={`${cluster.key || 'cluster'}-${index}`}
-                        onPress={() =>
-                          setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)
-                        }
-                        style={({ pressed }) => [
-                          { marginTop },
-                          styles.timelineItem,
-                          isCurrent && styles.timelineItemCurrent,
-                          isSelected && styles.timelineItemSelected,
-                          pressed && styles.timelineItemPressed,
-                          { minHeight: 70 + cluster.size * 3 },
-                        ]}
-                      >
-                        <View style={styles.timelineMarker}>
-                          <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
-                          {index < displayedClusters.length - 1 && (
-                            <View
-                              style={[styles.markerLine, isCurrent && styles.markerLineCurrent]}
-                            />
-                          )}
+                  return (
+                    <Pressable
+                      onPress={() =>
+                        setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)
+                      }
+                      style={({ pressed }) => [
+                        { marginTop },
+                        styles.timelineItem,
+                        isCurrent && styles.timelineItemCurrent,
+                        isSelected && styles.timelineItemSelected,
+                        pressed && styles.timelineItemPressed,
+                        { minHeight: 70 + cluster.size * 3 },
+                      ]}
+                    >
+                      <View style={styles.timelineMarker}>
+                        <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
+                        {index < displayedClusters.length - 1 && (
+                          <View
+                            style={[styles.markerLine, isCurrent && styles.markerLineCurrent]}
+                          />
+                        )}
+                      </View>
+
+                      <View style={styles.timelineContent}>
+                        <Text
+                          style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
+                          numberOfLines={1}
+                        >
+                          {title}
+                        </Text>
+                        <View style={styles.stopLocationRow}>
+                          <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
+                          <Text style={styles.stopMeta}>·</Text>
+                          <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
+                          <Text style={styles.stopMeta}>·</Text>
+                          <Text style={styles.stopMeta}>📍 {cluster.size}</Text>
                         </View>
 
-                        <View style={styles.timelineContent}>
-                          <Text
-                            style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
-                            numberOfLines={1}
-                          >
-                            {title}
-                          </Text>
-                          <View style={styles.stopLocationRow}>
-                            <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
-                            <Text style={styles.stopMeta}>·</Text>
-                            <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
-                            <Text style={styles.stopMeta}>·</Text>
-                            <Text style={styles.stopMeta}>📍 {cluster.size}</Text>
-                          </View>
-
-                          <View style={styles.amenityTagsRow}>
-                            {Object.entries(cluster.countsByClass)
-                              .sort((a, b) => b[1] - a[1])
-                              .slice(0, 6)
-                              .map(([cls, count]) => (
-                                <View key={cls} style={styles.amenityTag}>
-                                  <Text style={styles.amenityTagText}>
-                                    {normalizeAmenityClassLabel(cls)} ×{count}
-                                  </Text>
-                                </View>
-                              ))}
-                          </View>
-
-                          {isSelected && cluster.size > 1 && (
-                            <View style={styles.detailsBox}>
-                              {cluster.amenities
-                                .slice()
-                                .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m)
-                                .slice(0, 10)
-                                .map((a, amenityIndex) => (
-                                  <Pressable
-                                    key={`${a.osm_type}-${a.osm_id}-${amenityIndex}-${index}`}
-                                    onHoverIn={() =>
-                                      Platform.OS === 'web'
-                                        ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
-                                            title:
-                                              a.name ||
-                                              `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                                            tags: a.tags,
-                                          })
-                                        : undefined
-                                    }
-                                    onHoverOut={() =>
-                                      Platform.OS === 'web' ? scheduleHideDevTags() : undefined
-                                    }
-                                    onPressIn={() =>
-                                      DEVELOPER_MODE
-                                        ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
-                                            title:
-                                              a.name ||
-                                              `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                                            tags: a.tags,
-                                          })
-                                        : undefined
-                                    }
-                                    style={styles.detailsLineRow}
-                                  >
-                                    <Text style={styles.detailsLine}>• </Text>
-                                    <Text style={styles.detailsLine}>
-                                      {a.name
-                                        ? a.name
-                                        : a.subclass
-                                          ? titleize(a.subclass)
-                                          : 'Unnamed'}
-                                      {a.subclass && a.name
-                                        ? ` — ${titleize(a.subclass)}`
-                                        : ''}{' '}
-                                    </Text>
-                                    <Text style={styles.detailsLine}>
-                                      ({formatMeters(a.distance_from_trail_m)})
-                                    </Text>
-                                  </Pressable>
-                                ))}
-                              {cluster.amenities.length > 10 && (
-                                <Text style={styles.detailsMore}>
-                                  +{cluster.amenities.length - 10} more
+                        <View style={styles.amenityTagsRow}>
+                          {Object.entries(cluster.countsByClass)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 6)
+                            .map(([cls, count]) => (
+                              <View key={cls} style={styles.amenityTag}>
+                                <Text style={styles.amenityTagText}>
+                                  {normalizeAmenityClassLabel(cls)} ×{count}
                                 </Text>
-                              )}
-                            </View>
-                          )}
+                              </View>
+                            ))}
                         </View>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </ScrollContainer>
+
+                        {isSelected && cluster.size > 1 && (
+                          <View style={styles.detailsBox}>
+                            {cluster.amenities
+                              .slice()
+                              .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m)
+                              .slice(0, 10)
+                              .map((a, amenityIndex) => (
+                                <Pressable
+                                  key={`${a.osm_type}-${a.osm_id}-${amenityIndex}-${index}`}
+                                  onHoverIn={() =>
+                                    Platform.OS === 'web'
+                                      ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
+                                          title:
+                                            a.name ||
+                                            `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
+                                          tags: a.tags,
+                                        })
+                                      : undefined
+                                  }
+                                  onHoverOut={() =>
+                                    Platform.OS === 'web' ? scheduleHideDevTags() : undefined
+                                  }
+                                  onPressIn={() =>
+                                    DEVELOPER_MODE
+                                      ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
+                                          title:
+                                            a.name ||
+                                            `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
+                                          tags: a.tags,
+                                        })
+                                      : undefined
+                                  }
+                                  style={styles.detailsLineRow}
+                                >
+                                  <Text style={styles.detailsLine}>• </Text>
+                                  <Text style={styles.detailsLine}>
+                                    {a.name
+                                      ? a.name
+                                      : a.subclass
+                                        ? titleize(a.subclass)
+                                        : 'Unnamed'}
+                                    {a.subclass && a.name ? ` — ${titleize(a.subclass)}` : ''}{' '}
+                                  </Text>
+                                  <Text style={styles.detailsLine}>
+                                    ({formatMeters(a.distance_from_trail_m)})
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            {cluster.amenities.length > 10 && (
+                              <Text style={styles.detailsMore}>
+                                +{cluster.amenities.length - 10} more
+                              </Text>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                }}
+              />
             </View>
 
-            {Platform.OS === 'web' && split && rightPaneNode ? (
-              <View style={styles.mapPane}>{rightPaneNode}</View>
-            ) : null}
+            {split && rightPaneNode ? <View style={styles.mapPane}>{rightPaneNode}</View> : null}
           </View>
         )}
       </View>
@@ -520,23 +520,14 @@ export const ItineraryScreen: React.FC<ItineraryScreenProps> = ({
     </View>
   );
 
-  const snapPoints = React.useMemo(() => ['12%', '50%', '95%'], []);
-
-  if (Platform.OS !== 'web') {
-    const MapComponent = (
-      <ItineraryMap
-        routeOsmId={route.osm_id}
-        clusters={clusters}
-        selectedClusterKey={effectiveSelectedKey}
-        onSelectClusterKey={setSelectedKey}
-      />
-    );
-
-    return (
-      <NativeBottomSheet mapComponent={MapComponent} index={2} snapPoints={snapPoints}>
-        {content}
-      </NativeBottomSheet>
-    );
+  if (renderWrapper) {
+    return renderWrapper({
+      content,
+      clusters: clustersWithEndpoints,
+      selectedClusterKey: effectiveSelectedKey,
+      setSelectedClusterKey: setSelectedKey,
+      route,
+    });
   }
 
   return content;

@@ -1,14 +1,14 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { ItineraryScreen as BaseItineraryScreen } from './ItineraryScreenBase';
+import { ItineraryContent } from './ItineraryContent';
 import ItineraryMap from '../components/ItineraryMap.web';
 
 // Web tweaks: keep a subtle backdrop so the user understands this is an overlay.
-export const ItineraryScreen = (props: React.ComponentProps<typeof BaseItineraryScreen>) => {
+export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryContent>) => {
   const [selectedClusterKey, setSelectedClusterKey] = React.useState<string | null>(null);
   return (
     <View style={styles.backdrop}>
-      <BaseItineraryScreen
+      <ItineraryContent
         {...props}
         split
         selectedClusterKey={selectedClusterKey}
