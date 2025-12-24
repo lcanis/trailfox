@@ -53,9 +53,9 @@ export const RouteList: React.FC<RouteListProps> = ({
     <View style={styles.container}>
       {Platform.OS === 'web' ? header : null}
 
-      <ListContainer
+      <ListContainer<Route>
         data={routes}
-        keyExtractor={(item) => String(item.osm_id)}
+        keyExtractor={(item: Route) => String(item.osm_id)}
         style={styles.list}
         ListHeaderComponent={Platform.OS !== 'web' ? header : null}
         onEndReached={() => {
@@ -65,7 +65,7 @@ export const RouteList: React.FC<RouteListProps> = ({
         }}
         onEndReachedThreshold={0.5}
         ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 10 }} /> : null}
-        renderItem={({ item }) => {
+        renderItem={({ item }: { item: Route }) => {
           const networkInfo = item.network ? NETWORK_MAP[item.network] : null;
           return (
             <TouchableOpacity

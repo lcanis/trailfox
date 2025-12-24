@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { View } from 'react-native';
+import { render } from '@testing-library/react-native';
 import { ItineraryContent } from '../ItineraryContent';
 import { Route } from '../../types';
 import { useItinerary } from '../../hooks/useItinerary';
@@ -15,9 +16,10 @@ jest.mock('../itinerary/itineraryModel', () => ({
 jest.mock('../../components/ListContainer', () => ({
   ListContainer: (props: any) => {
     const React = require('react');
+    const { View } = require('react-native');
     const { ListHeaderComponent, ListEmptyComponent, data, renderItem, keyExtractor } = props;
     return (
-      <mock-ListContainer>
+      <View testID="mock-ListContainer">
         {ListHeaderComponent}
         {data.length === 0 && ListEmptyComponent}
         {data.map((item: any, index: number) => (
@@ -25,7 +27,7 @@ jest.mock('../../components/ListContainer', () => ({
             {renderItem({ item, index })}
           </React.Fragment>
         ))}
-      </mock-ListContainer>
+      </View>
     );
   },
 }));
@@ -124,7 +126,7 @@ describe('ItineraryContent', () => {
   });
 
   it('calls renderWrapper if provided', () => {
-    const renderWrapper = jest.fn().mockReturnValue(<mock-Wrapper />);
+    const renderWrapper = jest.fn().mockReturnValue(<View testID="mock-Wrapper" />);
     render(
       <ItineraryContent route={mockRoute} onClose={jest.fn()} renderWrapper={renderWrapper} />
     );

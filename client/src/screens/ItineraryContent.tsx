@@ -2,9 +2,10 @@ import React from 'react';
 import debounce from 'lodash.debounce';
 import {
   ActivityIndicator,
+  FlatList,
+  Modal,
   Platform,
   Pressable,
-  Switch,
   ScrollView,
   StyleSheet,
   Text,
@@ -49,13 +50,31 @@ interface ItineraryContentProps {
     selectedClusterKey: string | null;
     setSelectedClusterKey: (key: string | null) => void;
     route: Route;
+    onOpenFilters: () => void;
   }) => React.ReactElement;
   selectedClusterKey?: string | null;
   onSelectClusterKey?: (key: string | null) => void;
+  userLocation?: { latitude: number; longitude: number } | null;
+  isFollowingUser?: boolean;
+  onToggleFollowUser?: () => void;
 }
 
 const formatKm = (km: number) => `${km.toFixed(1)} km`;
 const formatMeters = (m: number) => `${Math.round(m)} m`;
+
+const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
 
 const THEME = ITINERARY_THEME;
 
@@ -74,11 +93,15 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   renderWrapper,
   selectedClusterKey,
   onSelectClusterKey,
+  userLocation,
+  isFollowingUser,
+  onToggleFollowUser,
 }) => {
   const insets = useSafeAreaInsets();
+  const listRef = React.useRef<FlatList>(null);
   const [radiusKm, setRadiusKm] = React.useState(0.2);
   const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
-  const [invert, setInvert] = React.useState(false);
+  const [filterModalVisible, setFilterModalVisible] = React.useState(false);
   const [selectedClasses, setSelectedClasses] = React.useState<Set<string>>(new Set());
   const [internalSelectedKey, setInternalSelectedKey] = React.useState<string | null>(null);
   const [devTagsOverlay, setDevTagsOverlay] = React.useState<{
@@ -162,82 +185,87 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   }, [debouncedSetRadius]);
 
   const controlsNode = (
-    <View style={styles.controlsBar}>
-      <View style={styles.controlsLeft}>
-        <View style={styles.radiusRow}>
-          <Text style={styles.controlLabel}>📏 Radius</Text>
-          <Text style={styles.radiusValue}>{tempRadiusKm.toFixed(1)} km</Text>
-        </View>
-        <RadiusSlider
-          value={tempRadiusKm}
-          onValueChange={(v: number) => {
-            const newV = clamp(Math.round(v * 10) / 10, 0.1, 1);
-            setTempRadiusKm(newV);
-            debouncedSetRadius(newV);
-          }}
-          minimumValue={0.1}
-          maximumValue={1}
-          step={0.1}
-          minimumTrackTintColor={THEME.accent}
-          maximumTrackTintColor={THEME.border}
-          thumbTintColor={THEME.accent}
-        />
-
-        <View style={styles.filterRow}>
-          <Text style={styles.controlLabel}>🏷️ Filter</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterChips}
-          >
-            <Pressable
-              onPress={() => setSelectedClasses(new Set())}
-              style={[styles.filterChip, selectedClasses.size === 0 && styles.filterChipActive]}
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={filterModalVisible}
+      onRequestClose={() => setFilterModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Filters & Settings</Text>
+            <TouchableOpacity
+              onPress={() => setFilterModalVisible(false)}
+              style={styles.closeButton}
             >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  selectedClasses.size === 0 && styles.filterChipTextActive,
-                ]}
-              >
-                All
-              </Text>
-            </Pressable>
-            {availableClasses.map((cls) => {
-              const active = selectedClasses.has(cls);
-              return (
+              <Text style={styles.closeText}>×</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            <View style={styles.radiusRow}>
+              <Text style={styles.controlLabel}>📏 Radius</Text>
+              <Text style={styles.radiusValue}>{tempRadiusKm.toFixed(1)} km</Text>
+            </View>
+            <RadiusSlider
+              value={tempRadiusKm}
+              onValueChange={(v: number) => {
+                const newV = clamp(Math.round(v * 10) / 10, 0.1, 1);
+                setTempRadiusKm(newV);
+                debouncedSetRadius(newV);
+              }}
+              minimumValue={0.1}
+              maximumValue={1}
+              step={0.1}
+              minimumTrackTintColor={THEME.accent}
+              maximumTrackTintColor={THEME.border}
+              thumbTintColor={THEME.accent}
+            />
+
+            <View style={styles.filterRow}>
+              <Text style={styles.controlLabel}>🏷️ Filter Amenities</Text>
+              <View style={styles.filterChipsContainer}>
                 <Pressable
-                  key={cls}
-                  onPress={() => {
-                    setSelectedClasses((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(cls)) next.delete(cls);
-                      else next.add(cls);
-                      return next;
-                    });
-                  }}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setSelectedClasses(new Set())}
+                  style={[styles.filterChip, selectedClasses.size === 0 && styles.filterChipActive]}
                 >
-                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                    {normalizeAmenityClassLabel(cls)}
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selectedClasses.size === 0 && styles.filterChipTextActive,
+                    ]}
+                  >
+                    All
                   </Text>
                 </Pressable>
-              );
-            })}
+                {availableClasses.map((cls) => {
+                  const active = selectedClasses.has(cls);
+                  return (
+                    <Pressable
+                      key={cls}
+                      onPress={() => {
+                        setSelectedClasses((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(cls)) next.delete(cls);
+                          else next.add(cls);
+                          return next;
+                        });
+                      }}
+                      style={[styles.filterChip, active && styles.filterChipActive]}
+                    >
+                      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                        {normalizeAmenityClassLabel(cls)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           </ScrollView>
         </View>
       </View>
-
-      <View style={styles.controlsRight}>
-        <Text style={styles.controlLabel}>🔁 Invert</Text>
-        <Switch
-          value={invert}
-          onValueChange={setInvert}
-          trackColor={{ false: THEME.border, true: THEME.accent }}
-          thumbColor={THEME.surface}
-        />
-      </View>
-    </View>
+    </Modal>
   );
 
   const clustersWithEndpoints = React.useMemo(() => {
@@ -245,8 +273,33 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   }, [clusters, route]);
 
   const displayedClusters = React.useMemo(() => {
-    return getDisplayedClusters(clustersWithEndpoints, invert);
-  }, [clustersWithEndpoints, invert]);
+    return getDisplayedClusters(clustersWithEndpoints, false);
+  }, [clustersWithEndpoints]);
+
+  // Scroll to nearest cluster when following user
+  React.useEffect(() => {
+    if (isFollowingUser && userLocation && displayedClusters.length > 0) {
+      let minDistance = Infinity;
+      let nearestIndex = -1;
+
+      displayedClusters.forEach((cluster, index) => {
+        const dist = getDistanceFromLatLonInKm(
+          userLocation.latitude,
+          userLocation.longitude,
+          cluster.lat,
+          cluster.lon
+        );
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestIndex = index;
+        }
+      });
+
+      if (nearestIndex !== -1 && listRef.current) {
+        listRef.current.scrollToIndex({ index: nearestIndex, animated: true, viewPosition: 0.5 });
+      }
+    }
+  }, [isFollowingUser, userLocation, displayedClusters]);
 
   React.useEffect(() => {
     const next = sanitizeSelectedClusterKey({ selectedKey: effectiveSelectedKey, clusters });
@@ -284,17 +337,16 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     <View
       style={[
         Platform.OS === 'web' ? styles.overlay : styles.nativeContentContainer,
-        { paddingTop: insets.top },
+        Platform.OS === 'web' ? { paddingTop: insets.top } : null,
       ]}
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>{route.name || 'Itinerary'}</Text>
           <View style={styles.subtitleRow}>
-            <Text style={styles.subtitleText}>
-              {fromLoc && toLoc ? `${fromLoc} → ${toLoc}` : 'Relation'}
-              {DEVELOPER_MODE ? ` ${route.osm_id}` : null}
-            </Text>
+            {fromLoc && toLoc ? (
+              <Text style={styles.subtitleText}>{`${fromLoc} → ${toLoc}`}</Text>
+            ) : null}
           </View>
           <View style={styles.headerStatsRow}>
             <View style={styles.stat}>
@@ -336,11 +388,19 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
           <View style={[styles.splitRow, !split && styles.splitRowSingle]}>
             <View style={styles.leftPane}>
               {split ? controlsNode : null}
-              <ListContainer
+              <ListContainer<AmenityCluster>
+                ref={listRef}
+                onScrollBeginDrag={() => {
+                  if (isFollowingUser && onToggleFollowUser) {
+                    onToggleFollowUser();
+                  }
+                }}
                 style={styles.scroll}
                 contentContainerStyle={styles.list}
                 data={displayedClusters}
-                keyExtractor={(item, index) => item.key || `cluster-${index}`}
+                keyExtractor={(item: AmenityCluster, index: number) =>
+                  item.key || `cluster-${index}`
+                }
                 ListHeaderComponent={
                   <View style={styles.currentMarker}>
                     <Text style={styles.currentMarkerText}>
@@ -353,7 +413,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                     No amenities found within {radiusKm.toFixed(1)} km of this route.
                   </Text>
                 }
-                renderItem={({ item: cluster, index }) => {
+                renderItem={({ item: cluster, index }: { item: AmenityCluster; index: number }) => {
                   const { title, isPlaceHeader } = getClusterDisplayTitle(cluster);
                   const minDist = getClusterMinDistanceM(cluster);
                   const isCurrent = index === 0;
@@ -408,7 +468,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                           {Object.entries(cluster.countsByClass)
                             .sort((a, b) => b[1] - a[1])
                             .slice(0, 6)
-                            .map(([cls, count]) => (
+                            .map(([cls, count]: [string, number]) => (
                               <View key={cls} style={styles.amenityTag}>
                                 <Text style={styles.amenityTagText}>
                                   {normalizeAmenityClassLabel(cls)} ×{count}
@@ -421,9 +481,12 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                           <View style={styles.detailsBox}>
                             {cluster.amenities
                               .slice()
-                              .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m)
+                              .sort(
+                                (a: RouteAmenity, b: RouteAmenity) =>
+                                  a.distance_from_trail_m - b.distance_from_trail_m
+                              )
                               .slice(0, 10)
-                              .map((a, amenityIndex) => (
+                              .map((a: RouteAmenity, amenityIndex: number) => (
                                 <Pressable
                                   key={`${a.osm_type}-${a.osm_id}-${amenityIndex}-${index}`}
                                   onHoverIn={() =>
@@ -527,6 +590,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       selectedClusterKey: effectiveSelectedKey,
       setSelectedClusterKey: setSelectedKey,
       route,
+      onOpenFilters: () => setFilterModalVisible(true),
     });
   }
 
@@ -552,7 +616,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: THEME.border,
     backgroundColor: THEME.surface,
@@ -564,14 +628,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '800',
-    marginBottom: 6,
+    marginBottom: 4,
     color: THEME.textPrimary,
   },
   subtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   subtitleText: {
     fontSize: 12,
@@ -921,5 +985,70 @@ const styles = StyleSheet.create({
   devTagValue: {
     fontSize: 12,
     color: THEME.textPrimary,
+  },
+
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.surface,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    gap: 6,
+  },
+  actionButtonActive: {
+    backgroundColor: THEME.accent,
+    borderColor: THEME.accentDark,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: THEME.textPrimary,
+  },
+  actionButtonTextActive: {
+    color: THEME.surface,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: THEME.surface,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  modalBody: {
+    padding: 16,
+  },
+  filterChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
 });

@@ -21,6 +21,10 @@ interface ItineraryMapProps {
   clusters: AmenityCluster[];
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
+  userLocation?: { latitude: number; longitude: number } | null;
+  isFollowingUser?: boolean;
+  onToggleFollowUser?: () => void;
+  onOpenFilters?: () => void;
 }
 
 export default function ItineraryMap({

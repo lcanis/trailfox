@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, ElementRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Camera,
   MapView,
@@ -7,17 +8,23 @@ import {
   LineLayer,
   CircleLayer,
   ShapeSource,
+  UserLocation,
 } from '@maplibre/maplibre-react-native';
 import { AmenityCluster } from '../types';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ItineraryMapProps {
   routeOsmId: number;
   clusters: AmenityCluster[];
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
+  userLocation?: { latitude: number; longitude: number } | null;
+  isFollowingUser?: boolean;
+  onToggleFollowUser?: () => void;
+  onOpenFilters?: () => void;
 }
 
 export default function ItineraryMap({
@@ -25,10 +32,26 @@ export default function ItineraryMap({
   clusters,
   selectedClusterKey,
   onSelectClusterKey,
+  userLocation,
+  isFollowingUser,
+  onToggleFollowUser,
+  onOpenFilters,
 }: ItineraryMapProps) {
   const cameraRef = useRef<ElementRef<typeof Camera>>(null);
   const mapRef = useRef<MapViewRef>(null);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const insets = useSafeAreaInsets();
+
+  // Handle following user
+  useEffect(() => {
+    if (isFollowingUser && userLocation && cameraRef.current) {
+      cameraRef.current.setCamera({
+        centerCoordinate: [userLocation.longitude, userLocation.latitude],
+        zoomLevel: 14,
+        animationDuration: 500,
+      });
+    }
+  }, [isFollowingUser, userLocation]);
 
   // Fetch Route GeoJSON
   useEffect(() => {
@@ -94,14 +117,29 @@ export default function ItineraryMap({
     }
   };
 
+  const handleMapPress = () => {
+    // If we are following user, stop following on map interaction
+    if (isFollowingUser && onToggleFollowUser) {
+      onToggleFollowUser();
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onTouchStart={() => {
+        if (isFollowingUser && onToggleFollowUser) {
+          onToggleFollowUser();
+        }
+      }}
+    >
       <MapView
         ref={mapRef}
         style={styles.map}
         mapStyle={WEB_BASEMAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'}
         logoEnabled={false}
         attributionEnabled={false}
+        onPress={handleMapPress}
       >
         <Camera
           ref={cameraRef}
@@ -109,6 +147,8 @@ export default function ItineraryMap({
             zoomLevel: 10,
           }}
         />
+
+        <UserLocation visible={true} />
 
         {/* Route Line */}
         {routeGeoJSON && (
@@ -142,6 +182,34 @@ export default function ItineraryMap({
           />
         </ShapeSource>
       </MapView>
+
+      {/* Filter Button */}
+      {onOpenFilters && (
+        <TouchableOpacity
+          style={[styles.mapButton, { top: insets.top + 16, right: 72 }]}
+          onPress={onOpenFilters}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="filter" size={20} color="#666" />
+        </TouchableOpacity>
+      )}
+
+      {/* Location Button */}
+      <TouchableOpacity
+        style={[styles.mapButton, { top: insets.top + 16, right: 16 }]}
+        onPress={onToggleFollowUser}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[
+            styles.mapButtonIcon,
+            styles.locationArrow,
+            isFollowingUser && styles.locationIconActive,
+          ]}
+        >
+          ➤
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -152,5 +220,33 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapButton: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    backgroundColor: 'white',
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 10,
+  },
+  mapButtonIcon: {
+    fontSize: 20,
+    color: '#666',
+  },
+  locationArrow: {
+    transform: [{ rotate: '-45deg' }],
+  },
+  locationIconActive: {
+    color: ITINERARY_THEME.accent,
   },
 });

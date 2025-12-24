@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 import { BlurView } from '@react-native-community/blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -21,11 +22,12 @@ interface NativeBottomSheetProps {
 export const NativeBottomSheet = ({
   mapComponent,
   children,
-  snapPoints = ['12%', '50%', '95%'],
+  snapPoints = ['12%', '50%', '80%'],
   index = 1,
 }: NativeBottomSheetProps) => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const animatedIndex = useSharedValue(index);
+  const insets = useSafeAreaInsets();
 
   // Background animation style (Apple Maps effect)
   const animatedBackgroundStyle = useAnimatedStyle(() => {
@@ -88,6 +90,8 @@ export const NativeBottomSheet = ({
         backgroundComponent={CustomBackground}
         handleIndicatorStyle={styles.handleIndicator}
         enablePanDownToClose={false}
+        enableOverDrag={false}
+        topInset={insets.top}
       >
         {children}
       </BottomSheet>
