@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -89,7 +89,7 @@ export const NativeBottomSheet = ({
         handleIndicatorStyle={styles.handleIndicator}
         enablePanDownToClose={false}
       >
-        <BottomSheetView style={styles.contentContainer}>{children}</BottomSheetView>
+        {children}
       </BottomSheet>
     </View>
   );
