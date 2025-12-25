@@ -93,4 +93,18 @@ export const RouteService = {
       throw error;
     }
   },
+
+  async fetchRouteById(id: number, timeoutMs: number = 15000): Promise<Route | null> {
+    try {
+      const { data } = await fetchJsonWithTimeout<Route[]>(
+        `${API_URL}?osm_id=eq.${id}&select=${SELECT_FIELDS}`,
+        {},
+        timeoutMs
+      );
+      return data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('Failed to fetch route by id:', error);
+      throw error;
+    }
+  },
 };

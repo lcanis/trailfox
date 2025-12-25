@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
-import { FlatListProps } from 'react-native';
+import { FlatListProps, FlatList } from 'react-native';
 
-export function ListContainer<T>(props: FlatListProps<T> & { ref?: React.Ref<any> }) {
-  return <BottomSheetFlatList {...(props as any)} />;
-}
+export const ListContainer = forwardRef(function ListContainer<T>(
+  props: FlatListProps<T>,
+  ref: React.Ref<FlatList<T>>
+) {
+  return <BottomSheetFlatList ref={ref as any} {...(props as any)} />;
+}) as <T>(props: FlatListProps<T> & { ref?: React.Ref<FlatList<T>> }) => React.ReactElement;

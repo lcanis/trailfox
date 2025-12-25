@@ -24,6 +24,7 @@ interface ItineraryMapProps {
   userLocation?: { latitude: number; longitude: number } | null;
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
+  followDisableGuardUntil?: number;
   onOpenFilters?: () => void;
 }
 
@@ -35,6 +36,7 @@ export default function ItineraryMap({
   userLocation,
   isFollowingUser,
   onToggleFollowUser,
+  followDisableGuardUntil,
   onOpenFilters,
 }: ItineraryMapProps) {
   const cameraRef = useRef<ElementRef<typeof Camera>>(null);
@@ -120,6 +122,7 @@ export default function ItineraryMap({
   const handleMapPress = () => {
     // If we are following user, stop following on map interaction
     if (isFollowingUser && onToggleFollowUser) {
+      if (followDisableGuardUntil && Date.now() < followDisableGuardUntil) return;
       onToggleFollowUser();
     }
   };
@@ -129,6 +132,7 @@ export default function ItineraryMap({
       style={styles.container}
       onTouchStart={() => {
         if (isFollowingUser && onToggleFollowUser) {
+          if (followDisableGuardUntil && Date.now() < followDisableGuardUntil) return;
           onToggleFollowUser();
         }
       }}
@@ -148,7 +152,7 @@ export default function ItineraryMap({
           }}
         />
 
-        <UserLocation visible={true} />
+        <UserLocation visible={isFollowingUser} />
 
         {/* Route Line */}
         {routeGeoJSON && (

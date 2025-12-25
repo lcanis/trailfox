@@ -7,13 +7,21 @@ import { useUserLocation } from '../hooks/useUserLocation';
 
 export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryContent>) => {
   const [selectedClusterKey, setSelectedClusterKey] = React.useState<string | null>(null);
-  const { location: userLocation } = useUserLocation();
   const [isFollowingUser, setIsFollowingUser] = React.useState(false);
+  const { location: userLocation } = useUserLocation({ enabled: isFollowingUser });
+  const followDisableGuardUntilRef = React.useRef(0);
 
-  const snapPoints = React.useMemo(() => ['8%', '50%', '95%'], []);
+  const snapPoints = React.useMemo(() => ['8%', '50%', '85%'], []);
 
   const handleToggleFollowUser = () => {
-    setIsFollowingUser((prev) => !prev);
+    setIsFollowingUser((prev) => {
+      const next = !prev;
+      if (next) {
+        // Prevent immediate disable from map touch events triggered by the button tap.
+        followDisableGuardUntilRef.current = Date.now() + 800;
+      }
+      return next;
+    });
   };
 
   const handleSelectClusterKey = (key: string | null) => {
@@ -41,7 +49,7 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
           onOpenFilters,
         }) => (
           <NativeBottomSheet
-            index={2}
+            index={1}
             snapPoints={snapPoints}
             mapComponent={
               <ItineraryMap
@@ -52,6 +60,7 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
                 userLocation={userLocation}
                 isFollowingUser={isFollowingUser}
                 onToggleFollowUser={handleToggleFollowUser}
+                followDisableGuardUntil={followDisableGuardUntilRef.current}
                 onOpenFilters={onOpenFilters}
               />
             }

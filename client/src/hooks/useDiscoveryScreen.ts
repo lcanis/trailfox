@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRoutes } from './useRoutes';
 import { Route, RouteFilter as RouteFilterType } from '../types';
+import { RouteService } from '../services/routeService';
+import { DEBUG_ITINERARY_ROUTE_ID } from '../config/settings';
 
 export const useDiscoveryScreen = () => {
   // UI State
@@ -20,7 +22,24 @@ export const useDiscoveryScreen = () => {
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
-  const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(null);
+  const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(DEBUG_ITINERARY_ROUTE_ID);
+  const [fetchedItineraryRoute, setFetchedItineraryRoute] = useState<Route | null>(null);
+
+  // Fetch itinerary route if it's not in the current routes list
+  useEffect(() => {
+    if (itineraryRouteId) {
+      const found = routes.find((r) => r.osm_id === itineraryRouteId);
+      if (found) {
+        setFetchedItineraryRoute(found);
+      } else {
+        RouteService.fetchRouteById(itineraryRouteId)
+          .then(setFetchedItineraryRoute)
+          .catch(console.error);
+      }
+    } else {
+      setFetchedItineraryRoute(null);
+    }
+  }, [itineraryRouteId, routes]);
 
   // Derived Data
   // We rely on server-side filtering and sorting via useRoutes.
@@ -31,9 +50,7 @@ export const useDiscoveryScreen = () => {
   // Show details for selected route, or hovered if none selected.
   const targetId = selectedId || hoveredId;
   const detailsRoute = targetId ? routes.find((r) => r.osm_id === targetId) : null;
-  const itineraryRoute = itineraryRouteId
-    ? routes.find((r) => r.osm_id === itineraryRouteId)
-    : null;
+  const itineraryRoute = fetchedItineraryRoute;
 
   // Handlers
   const handleViewChange = useCallback((_ids: Set<number>) => {

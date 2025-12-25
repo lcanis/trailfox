@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, {
   Extrapolation,
@@ -7,7 +7,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
-import { BlurView } from '@react-native-community/blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -59,16 +58,6 @@ export const NativeBottomSheet = ({
 
   // Custom Background Component with Blur
   const CustomBackground = ({ style }: any) => {
-    if (Platform.OS === 'ios') {
-      return (
-        <BlurView
-          style={[style, styles.blurView]}
-          blurType="chromeMaterial"
-          blurAmount={20}
-          reducedTransparencyFallbackColor="white"
-        />
-      );
-    }
     return <View style={[style, { backgroundColor: 'white' }]} />;
   };
 
@@ -93,7 +82,7 @@ export const NativeBottomSheet = ({
         enableOverDrag={false}
         topInset={insets.top}
       >
-        {children}
+        <View style={{ flex: 1 }}>{children}</View>
       </BottomSheet>
     </View>
   );

@@ -24,6 +24,7 @@ interface ItineraryMapProps {
   userLocation?: { latitude: number; longitude: number } | null;
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
+  followDisableGuardUntil?: number;
   onOpenFilters?: () => void;
 }
 

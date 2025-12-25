@@ -11,6 +11,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AmenityCluster, Route, RouteAmenity } from '../types';
@@ -21,15 +22,13 @@ import { DEVELOPER_MODE } from '../constants';
 import {
   addItineraryEndpointClusters,
   getAvailableClasses,
-  getClusterDisplayTitle,
-  getClusterMinDistanceM,
   getDisplayedClusters,
   getTimelineMarginTop,
   normalizeAmenityClassLabel,
   sanitizeSelectedClusterKey,
-  titleize,
 } from './itinerary/itineraryModel';
 import { ListContainer } from '../components/ListContainer';
+import { TimelineItem } from '../components/TimelineItem';
 
 interface ItineraryContentProps {
   route: Route;
@@ -58,9 +57,6 @@ interface ItineraryContentProps {
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
 }
-
-const formatKm = (km: number) => `${km.toFixed(1)} km`;
-const formatMeters = (m: number) => `${Math.round(m)} m`;
 
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; // Radius of the earth in km
@@ -98,6 +94,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   onToggleFollowUser,
 }) => {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const listRef = React.useRef<FlatList>(null);
   const [radiusKm, setRadiusKm] = React.useState(0.2);
   const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
@@ -273,33 +270,174 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   }, [clusters, route]);
 
   const displayedClusters = React.useMemo(() => {
-    return getDisplayedClusters(clustersWithEndpoints, false);
-  }, [clustersWithEndpoints]);
+    const base = getDisplayedClusters(clustersWithEndpoints, false);
+    if (!userLocation) return base;
+
+    // Find nearest cluster to get an approximate trail_km for the user
+    let minDistance = Infinity;
+    let nearestTrailKm = 0;
+    base.forEach((c) => {
+      if (c.key === 'user-location') return; // Skip if already there (shouldn't happen in base)
+      const d = getDistanceFromLatLonInKm(
+        userLocation.latitude,
+        userLocation.longitude,
+        c.lat,
+        c.lon
+      );
+      if (d < minDistance) {
+        minDistance = d;
+        nearestTrailKm = c.trail_km;
+      }
+    });
+
+    const userCluster: AmenityCluster = {
+      key: 'user-location',
+      trail_km: nearestTrailKm,
+      amenities: [],
+      countsByClass: {},
+      size: 0,
+      lat: userLocation.latitude,
+      lon: userLocation.longitude,
+    };
+
+    // Insert and sort. We use a stable sort or ensure user-location is distinct.
+    const out = [...base, userCluster];
+    out.sort((a, b) => {
+      if (a.trail_km !== b.trail_km) return a.trail_km - b.trail_km;
+      if (a.key === 'user-location') return -1; // Put user slightly before amenities at same KM
+      if (b.key === 'user-location') return 1;
+      return 0;
+    });
+    return out;
+  }, [clustersWithEndpoints, userLocation]);
+
+  const renderItem = React.useCallback(
+    ({ item: cluster, index }: { item: AmenityCluster; index: number }) => (
+      <TimelineItem
+        cluster={cluster}
+        index={index}
+        totalItems={displayedClusters.length}
+        marginTop={getTimelineMarginTop({
+          displayedClusters,
+          index,
+          pixelsPerKm: 90,
+        })}
+        isSelected={cluster.key === effectiveSelectedKey}
+        onPress={() => setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)}
+        isDeveloperMode={DEVELOPER_MODE}
+        onShowDevTags={showDevTags}
+        onScheduleHideDevTags={scheduleHideDevTags}
+      />
+    ),
+    [displayedClusters, effectiveSelectedKey, setSelectedKey, showDevTags, scheduleHideDevTags]
+  );
+
+  const lastScrolledIndexRef = React.useRef<number | null>(null);
+  const lastFollowToggleRef = React.useRef<boolean>(false);
+  const lastScrollYRef = React.useRef(0);
+  const lastProgrammaticScrollRef = React.useRef<{ ts: number; target: number } | null>(null);
+
+  const getItemLayout = React.useCallback((data: any, index: number) => {
+    const clusters = data as AmenityCluster[];
+    if (!clusters || index < 0 || index >= clusters.length) {
+      return { length: 0, offset: 0, index };
+    }
+
+    // Keep this aligned with:
+    // - styles.list padding
+    // - ItemSeparatorComponent height
+    // - TimelineItem layout (including current marker marginBottom)
+    const SEPARATOR_HEIGHT = 12;
+    const TOP_PADDING = 16;
+    const CURRENT_MARKER_MARGIN_BOTTOM = 12;
+    const CURRENT_MARKER_BOX_HEIGHT = 46;
+
+    let offset = TOP_PADDING;
+    for (let i = 0; i < index; i++) {
+      const cluster = clusters[i];
+      const marginTop = getTimelineMarginTop({
+        displayedClusters: clusters,
+        index: i,
+        pixelsPerKm: 90,
+      });
+      let height = 70 + (cluster.size || 0) * 3;
+      let marginBottom = 0;
+      if (cluster.key === 'user-location') {
+        height = CURRENT_MARKER_BOX_HEIGHT;
+        marginBottom = CURRENT_MARKER_MARGIN_BOTTOM;
+      }
+
+      offset += marginTop + height + marginBottom + SEPARATOR_HEIGHT;
+    }
+
+    const cluster = clusters[index];
+    const marginTop = getTimelineMarginTop({
+      displayedClusters: clusters,
+      index,
+      pixelsPerKm: 90,
+    });
+    let height = 70 + (cluster.size || 0) * 3;
+    let marginBottom = 0;
+    if (cluster.key === 'user-location') {
+      height = CURRENT_MARKER_BOX_HEIGHT;
+      marginBottom = CURRENT_MARKER_MARGIN_BOTTOM;
+    }
+
+    return {
+      length: marginTop + height + marginBottom + SEPARATOR_HEIGHT,
+      offset,
+      index,
+    };
+  }, []);
 
   // Scroll to nearest cluster when following user
   React.useEffect(() => {
-    if (isFollowingUser && userLocation && displayedClusters.length > 0) {
-      let minDistance = Infinity;
-      let nearestIndex = -1;
+    const following = !!isFollowingUser;
+    const followChanged = following !== lastFollowToggleRef.current;
+    lastFollowToggleRef.current = following;
 
-      displayedClusters.forEach((cluster, index) => {
-        const dist = getDistanceFromLatLonInKm(
-          userLocation.latitude,
-          userLocation.longitude,
-          cluster.lat,
-          cluster.lon
+    if (following && userLocation && displayedClusters.length > 0) {
+      const nearestIndex = displayedClusters.findIndex((c) => c.key === 'user-location');
+
+      if (nearestIndex !== -1 && (nearestIndex !== lastScrolledIndexRef.current || followChanged)) {
+        const timer = setTimeout(
+          () => {
+            if (listRef.current && following) {
+              try {
+                const layout = getItemLayout(displayedClusters, nearestIndex);
+
+                // Record that we are doing a programmatic scroll
+                lastProgrammaticScrollRef.current = { ts: Date.now(), index: nearestIndex };
+                lastScrolledIndexRef.current = nearestIndex;
+
+                // Jump then scroll
+                listRef.current.scrollToOffset({ offset: layout.offset, animated: false });
+
+                setTimeout(() => {
+                  if (!following || !listRef.current) return;
+                  try {
+                    listRef.current.scrollToIndex({
+                      index: nearestIndex,
+                      animated: true,
+                      viewPosition: 0.05,
+                    });
+                  } catch (e) {
+                    console.warn('[ItineraryContent] Auto-scroll retry failed:', e);
+                  }
+                }, 100);
+              } catch (e) {
+                console.warn('[ItineraryContent] Auto-scroll failed:', e);
+              }
+            }
+          },
+          followChanged ? 300 : 500
         );
-        if (dist < minDistance) {
-          minDistance = dist;
-          nearestIndex = index;
-        }
-      });
-
-      if (nearestIndex !== -1 && listRef.current) {
-        listRef.current.scrollToIndex({ index: nearestIndex, animated: true, viewPosition: 0.5 });
+        return () => clearTimeout(timer);
       }
+    } else if (!following) {
+      lastScrolledIndexRef.current = null;
     }
-  }, [isFollowingUser, userLocation, displayedClusters]);
+  }, [isFollowingUser, userLocation, displayedClusters, getItemLayout]);
 
   React.useEffect(() => {
     const next = sanitizeSelectedClusterKey({ selectedKey: effectiveSelectedKey, clusters });
@@ -337,7 +475,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     <View
       style={[
         Platform.OS === 'web' ? styles.overlay : styles.nativeContentContainer,
-        Platform.OS === 'web' ? { paddingTop: insets.top } : null,
+        Platform.OS === 'web' ? { paddingTop: insets.top } : { maxHeight: screenHeight },
       ]}
     >
       <View style={styles.header}>
@@ -390,10 +528,24 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
               {split ? controlsNode : null}
               <ListContainer<AmenityCluster>
                 ref={listRef}
+                testID="itinerary-list"
+                getItemLayout={getItemLayout}
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
+                ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+                scrollEventThrottle={16}
+                onScroll={(e) => {
+                  lastScrollYRef.current = e.nativeEvent.contentOffset.y;
+                }}
                 onScrollBeginDrag={() => {
-                  if (isFollowingUser && onToggleFollowUser) {
-                    onToggleFollowUser();
-                  }
+                  if (!isFollowingUser || !onToggleFollowUser) return;
+
+                  // Some native implementations can emit scroll-begin events during/after
+                  // programmatic scrolls. Don't treat that as a user gesture.
+                  const prog = lastProgrammaticScrollRef.current;
+                  if (prog && Date.now() - prog.ts < 800) return;
+
+                  onToggleFollowUser();
                 }}
                 style={styles.scroll}
                 contentContainerStyle={styles.list}
@@ -401,144 +553,13 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                 keyExtractor={(item: AmenityCluster, index: number) =>
                   item.key || `cluster-${index}`
                 }
-                ListHeaderComponent={
-                  <View style={styles.currentMarker}>
-                    <Text style={styles.currentMarkerText}>
-                      🗺️ Timeline · within {radiusKm.toFixed(1)} km
-                    </Text>
-                  </View>
-                }
+                ListFooterComponent={<View style={{ height: 400 }} />}
                 ListEmptyComponent={
                   <Text style={styles.muted}>
                     No amenities found within {radiusKm.toFixed(1)} km of this route.
                   </Text>
                 }
-                renderItem={({ item: cluster, index }: { item: AmenityCluster; index: number }) => {
-                  const { title, isPlaceHeader } = getClusterDisplayTitle(cluster);
-                  const minDist = getClusterMinDistanceM(cluster);
-                  const isCurrent = index === 0;
-
-                  const marginTop = getTimelineMarginTop({
-                    displayedClusters,
-                    index,
-                    pixelsPerKm: 90,
-                  });
-
-                  const isSelected = cluster.key === effectiveSelectedKey;
-
-                  return (
-                    <Pressable
-                      onPress={() =>
-                        setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)
-                      }
-                      style={({ pressed }) => [
-                        { marginTop },
-                        styles.timelineItem,
-                        isCurrent && styles.timelineItemCurrent,
-                        isSelected && styles.timelineItemSelected,
-                        pressed && styles.timelineItemPressed,
-                        { minHeight: 70 + cluster.size * 3 },
-                      ]}
-                    >
-                      <View style={styles.timelineMarker}>
-                        <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
-                        {index < displayedClusters.length - 1 && (
-                          <View
-                            style={[styles.markerLine, isCurrent && styles.markerLineCurrent]}
-                          />
-                        )}
-                      </View>
-
-                      <View style={styles.timelineContent}>
-                        <Text
-                          style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
-                          numberOfLines={1}
-                        >
-                          {title}
-                        </Text>
-                        <View style={styles.stopLocationRow}>
-                          <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
-                          <Text style={styles.stopMeta}>·</Text>
-                          <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
-                          <Text style={styles.stopMeta}>·</Text>
-                          <Text style={styles.stopMeta}>📍 {cluster.size}</Text>
-                        </View>
-
-                        <View style={styles.amenityTagsRow}>
-                          {Object.entries(cluster.countsByClass)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 6)
-                            .map(([cls, count]: [string, number]) => (
-                              <View key={cls} style={styles.amenityTag}>
-                                <Text style={styles.amenityTagText}>
-                                  {normalizeAmenityClassLabel(cls)} ×{count}
-                                </Text>
-                              </View>
-                            ))}
-                        </View>
-
-                        {isSelected && cluster.size > 1 && (
-                          <View style={styles.detailsBox}>
-                            {cluster.amenities
-                              .slice()
-                              .sort(
-                                (a: RouteAmenity, b: RouteAmenity) =>
-                                  a.distance_from_trail_m - b.distance_from_trail_m
-                              )
-                              .slice(0, 10)
-                              .map((a: RouteAmenity, amenityIndex: number) => (
-                                <Pressable
-                                  key={`${a.osm_type}-${a.osm_id}-${amenityIndex}-${index}`}
-                                  onHoverIn={() =>
-                                    Platform.OS === 'web'
-                                      ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
-                                          title:
-                                            a.name ||
-                                            `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                                          tags: a.tags,
-                                        })
-                                      : undefined
-                                  }
-                                  onHoverOut={() =>
-                                    Platform.OS === 'web' ? scheduleHideDevTags() : undefined
-                                  }
-                                  onPressIn={() =>
-                                    DEVELOPER_MODE
-                                      ? showDevTags(`${a.osm_type}-${a.osm_id}`, {
-                                          title:
-                                            a.name ||
-                                            `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                                          tags: a.tags,
-                                        })
-                                      : undefined
-                                  }
-                                  style={styles.detailsLineRow}
-                                >
-                                  <Text style={styles.detailsLine}>• </Text>
-                                  <Text style={styles.detailsLine}>
-                                    {a.name
-                                      ? a.name
-                                      : a.subclass
-                                        ? titleize(a.subclass)
-                                        : 'Unnamed'}
-                                    {a.subclass && a.name ? ` — ${titleize(a.subclass)}` : ''}{' '}
-                                  </Text>
-                                  <Text style={styles.detailsLine}>
-                                    ({formatMeters(a.distance_from_trail_m)})
-                                  </Text>
-                                </Pressable>
-                              ))}
-                            {cluster.amenities.length > 10 && (
-                              <Text style={styles.detailsMore}>
-                                +{cluster.amenities.length - 10} more
-                              </Text>
-                            )}
-                          </View>
-                        )}
-                      </View>
-                    </Pressable>
-                  );
-                }}
+                renderItem={renderItem}
               />
             </View>
 
@@ -548,14 +569,8 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       </View>
 
       {DEVELOPER_MODE && devTagsOverlay ? (
-        <View
-          style={styles.devOverlayBackdrop}
-          pointerEvents={Platform.OS === 'web' ? 'none' : 'auto'}
-        >
-          <View
-            style={styles.devOverlayCard}
-            pointerEvents={Platform.OS === 'web' ? 'none' : 'auto'}
-          >
+        <View style={styles.devOverlayBackdrop}>
+          <View style={styles.devOverlayCard}>
             <View style={styles.devOverlayHeader}>
               <Text style={styles.devOverlayTitle} numberOfLines={1}>
                 {devTagsOverlay.title}
@@ -610,6 +625,7 @@ const styles = StyleSheet.create({
   nativeContentContainer: {
     flex: 1,
     backgroundColor: THEME.surface,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -752,6 +768,7 @@ const styles = StyleSheet.create({
   leftPane: {
     flex: 1,
     minWidth: 0,
+    overflow: 'hidden',
   },
   scroll: {
     flex: 1,
@@ -784,7 +801,17 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    gap: 12,
+  },
+  devScrollRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  devScrollChip: {
+    alignSelf: 'flex-start',
+  },
+  devScrollInfo: {
+    textAlign: 'left',
   },
   currentMarker: {
     padding: 16,
