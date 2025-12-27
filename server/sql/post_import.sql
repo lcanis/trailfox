@@ -41,12 +41,15 @@ DO $$ BEGIN RAISE NOTICE 'Creating and populating itinerarius.route_info...'; EN
 CREATE TABLE IF NOT EXISTS itinerarius.ri (
     osm_id bigint PRIMARY KEY,
     geom geometry(Geometry, 4326),
+    geom_m geometry(GeometryM, 4326),
     length_m numeric,
     merged_geom_type text,
     geom_build_case text,
     geom_quality text,
     geom_parts integer
 );
+-- Ensure geom_m exists if table was created previously
+ALTER TABLE itinerarius.ri ADD COLUMN IF NOT EXISTS geom_m geometry(GeometryM, 4326);
 CREATE INDEX IF NOT EXISTS idx_ri_osm_id ON itinerarius.ri (osm_id);
 
 -- Re-populate ri from scratch using a simpler approach
@@ -55,6 +58,7 @@ TRUNCATE itinerarius.ri;
 INSERT INTO itinerarius.ri (
     osm_id,
     geom,
+    geom_m,
     length_m,
     merged_geom_type,
     geom_build_case,
@@ -71,19 +75,31 @@ merged AS (
         osm_id, 
         ST_LineMerge(raw_geom) as geom
     FROM base
+),
+with_stats AS (
+    SELECT
+        osm_id,
+        geom,
+        ST_Length(geom::geography) as length_m,
+        GeometryType(geom) as merged_geom_type,
+        'simple_merge' as geom_build_case,
+        CASE
+            WHEN GeometryType(geom) = 'LINESTRING' THEN 'ok_singleline'
+            ELSE concat(ST_NumGeometries(geom)::text, ' parts')
+        END as geom_quality,
+        ST_NumGeometries(geom) as geom_parts
+    FROM merged
 )
 SELECT
     osm_id,
     geom,
-    ST_Length(geom::geography) as length_m,
-    GeometryType(geom) as merged_geom_type,
-    'simple_merge' as geom_build_case,
-    CASE
-        WHEN GeometryType(geom) = 'LINESTRING' THEN 'ok_singleline'
-        ELSE concat(ST_NumGeometries(geom)::text, ' parts')
-    END as geom_quality,
-    ST_NumGeometries(geom) as geom_parts
-FROM merged; 
+    ST_AddMeasure(geom, 0, length_m) as geom_m,
+    length_m,
+    merged_geom_type,
+    geom_build_case,
+    geom_quality,
+    geom_parts
+FROM with_stats; 
 
 ---- quality work done, now create indexes and materialize derived columns
 -- 
@@ -91,7 +107,8 @@ DO $$ BEGIN RAISE NOTICE 'Creating materialized view routes_info...'; END $$;
 CREATE INDEX IF NOT EXISTS idx_routes_osm_id ON itinerarius.routes (osm_id);
 CREATE INDEX IF NOT EXISTS idx_ri_osm_id ON itinerarius.ri (osm_id);
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS itinerarius.routes_info AS
+DROP MATERIALIZED VIEW IF EXISTS itinerarius.routes_info CASCADE;
+CREATE MATERIALIZED VIEW itinerarius.routes_info AS
 SELECT
     r.osm_id,
     r.name,
@@ -104,8 +121,9 @@ SELECT
     r.descent,
     r.roundtrip,
     r.tags,
-    (ST_Length(ri.geom::geography)) AS length_m,
+    ri.length_m,
     ri.geom,
+    ri.geom_m,
     (ST_Transform(ri.geom, 3857)) AS geom_3857,
     ri.merged_geom_type,
     ri.geom_build_case,

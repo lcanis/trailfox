@@ -108,18 +108,21 @@ DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 -- subdivided version of routes_info 
 DROP TABLE IF EXISTS routes_subdivide CASCADE;
 CREATE TABLE routes_subdivide AS
-SELECT 
+WITH segments AS (
+    SELECT 
+        osm_id,
+        (ST_DumpSegments(ST_Segmentize(geom_m, 1000))).geom AS seg_m
+    FROM itinerarius.routes_info
+    WHERE geom_m IS NOT NULL
+)
+SELECT
     osm_id,
-    (ST_DumpSegments(
-        ST_Segmentize(
-            ST_AddMeasure(g, 0, ST_Length(g)),
-            1000
-        )
-    )).geom AS geom
-FROM (SELECT osm_id, ST_Simplify(geom_3857, 100) as g FROM itinerarius.routes_info) sub;
+    seg_m AS geom_m,
+    ST_Transform(seg_m, 3857) AS geom_3857
+FROM segments;
 
 CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON routes_subdivide (osm_id);
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON routes_subdivide USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON routes_subdivide USING GIST (geom_3857);
 
 DROP VIEW IF EXISTS api.route_amenities;
 CREATE OR REPLACE VIEW api.route_amenities AS
@@ -130,19 +133,19 @@ WITH candidates_all AS (
         r.osm_id AS route_id,
         a.osm_id AS amenity_id,
         a.osm_type AS amenity_type,
-        r.geom as segment_geom,
         -- Calculate distance here to pick the closest segment later
-        ST_Distance(r.geom, a.geom) as dist_from_route_m,
-        a.name, a.class, a.subclass, a.tags, a.geom
+        ST_Distance(r.geom_3857, a.geom) as dist_from_route_m,
+        a.name, a.class, a.subclass, a.tags, a.geom AS amenity_geom,
+        r.geom_m AS segment_m
     FROM routes_subdivide r
     JOIN itinerarius.amenities a
-      ON ST_DWithin(r.geom, a.geom, 1000)
+      ON ST_DWithin(r.geom_3857, a.geom, 1000)
 ),
 candidates AS (
-    -- Pick the closest segment for each amenity to get accurate M-value
+    -- Pick the closest segment for each amenity
     SELECT DISTINCT ON (route_id, amenity_id, amenity_type)
-        route_id, amenity_id, amenity_type, segment_geom, dist_from_route_m,
-        name, class, subclass, tags, geom
+        route_id, amenity_id, amenity_type, dist_from_route_m,
+        name, class, subclass, tags, amenity_geom, segment_m
     FROM candidates_all
     ORDER BY route_id, amenity_id, amenity_type, dist_from_route_m ASC
 )
@@ -153,17 +156,13 @@ SELECT
     c.name,
     c.class,
     c.subclass,
-    ST_X(ST_Transform(c.geom, 4326)) AS lon,
-    ST_Y(ST_Transform(c.geom, 4326)) AS lat,
+    ST_X(ST_Transform(c.amenity_geom, 4326)) AS lon,
+    ST_Y(ST_Transform(c.amenity_geom, 4326)) AS lat,
     c.dist_from_route_m AS distance_from_trail_m,
-    (m.m_val * (ri.length_m / NULLIF(ST_Length(ri.geom_3857), 0))) / 1000.0 AS trail_km,
+    -- Use the pre-calculated measures in the segment for high performance
+    ST_M(ST_LineInterpolatePoint(c.segment_m, ST_LineLocatePoint(c.segment_m, ST_Transform(c.amenity_geom, 4326)))) / 1000.0 AS trail_km,
     c.tags
 FROM candidates c
-CROSS JOIN LATERAL (SELECT c.geom AS geom_3857) p
-CROSS JOIN LATERAL (SELECT ST_LineLocatePoint(c.segment_geom, p.geom_3857) as seg_frac) frac
-CROSS JOIN LATERAL (SELECT ST_M(ST_LineInterpolatePoint(c.segment_geom, frac.seg_frac)) as m_val) m
-JOIN itinerarius.routes_info ri 
-  ON c.route_id = ri.osm_id
 ORDER BY c.route_id, trail_km;
 
 GRANT SELECT ON api.routes TO calixtinus;
