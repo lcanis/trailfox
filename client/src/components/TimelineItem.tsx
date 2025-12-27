@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AmenityCluster, RouteAmenity } from '../types';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import {
@@ -25,6 +25,7 @@ interface TimelineItemProps {
     overlay: { title: string; tags: Record<string, string> | null }
   ) => void;
   onScheduleHideDevTags: () => void;
+  isLocating?: boolean;
 }
 
 const formatKm = (km: number) => `${km.toFixed(1)} km`;
@@ -42,6 +43,7 @@ export const TimelineItem = React.memo(
     isDeveloperMode,
     onShowDevTags,
     onScheduleHideDevTags,
+    isLocating,
   }: TimelineItemProps) => {
     if (cluster.key === 'user-location') {
       const metrics = cluster.userMetrics;
@@ -52,7 +54,12 @@ export const TimelineItem = React.memo(
           style={[styles.currentMarker, { marginTop, marginBottom: 12 }]}
         >
           <View style={styles.currentMarkerHeader}>
-            <Text style={styles.currentMarkerText}>📍 Current position</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.currentMarkerText}>📍 Current position</Text>
+              {isLocating && (
+                <ActivityIndicator size="small" color={THEME.accent} style={{ marginLeft: 8 }} />
+              )}
+            </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.currentMarkerKm}>{formatKm(cluster.trail_km)}</Text>
               {cluster.kmFromStart !== undefined &&

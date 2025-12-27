@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import { useState, useEffect, useCallback } from 'react';
+import { useOnForeground } from './useOnForeground';
 
 export interface UserLocation {
   latitude: number;
@@ -12,6 +13,7 @@ export const useUserLocation = (params?: { enabled?: boolean }) => {
   const [location, setLocation] = useState<UserLocation | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<Location.PermissionStatus | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
 
   const requestPermission = useCallback(async () => {
     try {
@@ -28,6 +30,43 @@ export const useUserLocation = (params?: { enabled?: boolean }) => {
     }
   }, []);
 
+  const refreshLocation = useCallback(async () => {
+    if (!enabled) return;
+
+    const hasPermission = await requestPermission();
+    if (!hasPermission) return;
+
+    setIsLocating(true);
+    try {
+      // 1. Fast fetch (cached)
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) {
+        setLocation({
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+          heading: last.coords.heading,
+        });
+      }
+
+      // 2. Accurate fetch (fresh)
+      const fresh = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setLocation({
+        latitude: fresh.coords.latitude,
+        longitude: fresh.coords.longitude,
+        heading: fresh.coords.heading,
+      });
+    } catch (err) {
+      console.warn('Refresh location failed', err);
+    } finally {
+      setIsLocating(false);
+    }
+  }, [enabled, requestPermission]);
+
+  // Wake -> Refresh
+  useOnForeground(refreshLocation);
+
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
 
@@ -42,20 +81,8 @@ export const useUserLocation = (params?: { enabled?: boolean }) => {
       if (!hasPermission) return;
 
       try {
-        // Get an initial fix immediately so UX doesn't depend on watch callbacks timing.
-        // (watchPositionAsync may not emit right away, especially if the user hasn't moved.)
-        try {
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-          setLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            heading: loc.coords.heading,
-          });
-        } catch {
-          // Non-fatal; we'll still try to watch.
-        }
+        // Initial refresh on mount
+        refreshLocation();
 
         subscription = await Location.watchPositionAsync(
           {
@@ -83,7 +110,7 @@ export const useUserLocation = (params?: { enabled?: boolean }) => {
         subscription.remove();
       }
     };
-  }, [enabled, requestPermission]);
+  }, [enabled, requestPermission, refreshLocation]);
 
-  return { location, errorMsg, permissionStatus, requestPermission };
+  return { location, errorMsg, permissionStatus, requestPermission, isLocating, refreshLocation };
 };

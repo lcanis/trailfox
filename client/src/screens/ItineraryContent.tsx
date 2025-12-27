@@ -61,6 +61,7 @@ interface ItineraryContentProps {
   selectedClusterKey?: string | null;
   onSelectClusterKey?: (key: string | null) => void;
   userLocation?: { latitude: number; longitude: number } | null;
+  isLocating?: boolean;
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
 }
@@ -83,6 +84,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   selectedClusterKey,
   onSelectClusterKey,
   userLocation,
+  isLocating,
   isFollowingUser,
   onToggleFollowUser,
 }) => {
@@ -344,9 +346,17 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
         isDeveloperMode={DEVELOPER_MODE}
         onShowDevTags={showDevTags}
         onScheduleHideDevTags={scheduleHideDevTags}
+        isLocating={isLocating}
       />
     ),
-    [displayedClusters, effectiveSelectedKey, setSelectedKey, showDevTags, scheduleHideDevTags]
+    [
+      displayedClusters,
+      effectiveSelectedKey,
+      setSelectedKey,
+      showDevTags,
+      scheduleHideDevTags,
+      isLocating,
+    ]
   );
 
   const lastScrolledIndexRef = React.useRef<number | null>(null);
