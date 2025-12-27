@@ -1,4 +1,4 @@
-trailfox.app {
+trailfox.app, 109.199.108.187 {
 	# Rate-limit API calls at the gateway layer (Caddy), before they hit PostgREST.
 	# Requires Caddy built with github.com/mholt/caddy-ratelimit.
 	rate_limit {

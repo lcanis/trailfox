@@ -1,11 +1,13 @@
-import React, { useEffect, useRef, useMemo, ElementRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useMemo, ElementRef, useState } from 'react';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import MapLibreGL, {
   Camera,
   MapView,
   MapViewRef,
   VectorSource,
   LineLayer,
+  UserLocation as MapUserLocation,
+  UserTrackingMode,
 } from '@maplibre/maplibre-react-native';
 import {
   START_LOCATION_MODE,
@@ -14,9 +16,13 @@ import {
   WEB_BASEMAP_STYLE_URL,
 } from '../config/settings';
 import { RouteService } from '../services/routeService';
+import { ITINERARY_THEME } from '../styles/itineraryTheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Set Access Token to null as we are using self-hosted or keyless tiles (or configured via URL)
 MapLibreGL.setAccessToken(null);
+
+const THEME = ITINERARY_THEME;
 
 interface MapProps {
   onHover: (id: number | null) => void;
@@ -39,7 +45,16 @@ export default function Map({
 }: MapProps) {
   const cameraRef = useRef<ElementRef<typeof Camera>>(null);
   const mapRef = useRef<MapViewRef>(null);
-  // const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [showUserLocation, setShowUserLocation] = useState(false);
+  const [followUserMode, setFollowUserMode] = useState<UserTrackingMode | undefined>(undefined);
+  const insets = useSafeAreaInsets();
+
+  const handleCenterOnUser = async () => {
+    setShowUserLocation(true);
+    setFollowUserMode((prev) =>
+      prev === UserTrackingMode.Follow ? undefined : UserTrackingMode.Follow
+    );
+  };
 
   // Initial Location
   const initialCenter = useMemo(() => {
@@ -160,7 +175,16 @@ export default function Map({
             centerCoordinate: initialCenter,
             zoomLevel: initialZoom,
           }}
+          followUserLocation={!!followUserMode}
+          followUserMode={followUserMode}
+          onUserTrackingModeChange={(e) => {
+            if (!e.nativeEvent.payload.followUserLocation) {
+              setFollowUserMode(undefined);
+            }
+          }}
         />
+
+        {showUserLocation && <MapUserLocation visible={true} />}
 
         {/* Routes Source */}
         <VectorSource id="routes" tileUrlTemplates={[TILES_BASE_URL + '/mvt_routes/{z}/{x}/{y}']}>
@@ -200,6 +224,22 @@ export default function Map({
           />
         </VectorSource>
       </MapView>
+
+      <TouchableOpacity
+        style={[styles.locationButton, { top: insets.top + 16, right: 16 }]}
+        onPress={handleCenterOnUser}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[
+            styles.locationButtonText,
+            styles.locationArrow,
+            !!followUserMode && styles.locationIconActive,
+          ]}
+        >
+          ➤
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -210,5 +250,32 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  locationButton: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: THEME.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    zIndex: 10,
+  },
+  locationButtonText: {
+    fontSize: 20,
+    color: '#666',
+  },
+  locationArrow: {
+    transform: [{ rotate: '-45deg' }],
+  },
+  locationIconActive: {
+    color: THEME.accent,
   },
 });

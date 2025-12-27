@@ -335,7 +335,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const lastScrolledIndexRef = React.useRef<number | null>(null);
   const lastFollowToggleRef = React.useRef<boolean>(false);
   const lastScrollYRef = React.useRef(0);
-  const lastProgrammaticScrollRef = React.useRef<{ ts: number; target: number } | null>(null);
+  const lastProgrammaticScrollRef = React.useRef<{ ts: number; index: number } | null>(null);
 
   const getItemLayout = React.useCallback((data: any, index: number) => {
     const clusters = data as AmenityCluster[];

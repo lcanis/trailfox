@@ -16,7 +16,7 @@ export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number]; zo
 export const DEVELOPER_MODE = true;
 
 // DEBUG: Set this to a route ID to automatically open it on load
-export const DEBUG_ITINERARY_ROUTE_ID = 1717222;
+export const DEBUG_ITINERARY_ROUTE_ID = null;
 
 // Basemap style used by MapLibre on web.
 // Note: Protomaps styles require an API key and may fail (403) if the key is invalid.
@@ -26,9 +26,15 @@ export const WEB_BASEMAP_STYLE_URL = '';
 // API configuration used by the client during development and production.
 // Local dev: use Caddy reverse proxy running on localhost:8090 (see server setup)
 // Production: blank base URL means same-origin (served via reverse proxy)
+// For remote testing, set this to your VPS domain or IP (e.g., 'https://trailfox.app')
+// Note: 8090 is only for local dev proxy; production Caddy uses 80/443.
+export const REMOTE_SERVER_URL: string | null = 'https://trailfox.app';
+
 export let API_BASE_URL = '';
 
-if (Platform.OS === 'web') {
+if (REMOTE_SERVER_URL) {
+  API_BASE_URL = REMOTE_SERVER_URL;
+} else if (Platform.OS === 'web') {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     const port = window.location.port;

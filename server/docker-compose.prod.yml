@@ -12,10 +12,28 @@ services:
       - caddy_config:/config
 
   pgadmin4:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin4
+    restart: unless-stopped
+    profiles:
+      - tools
+    env_file:
+      - ./.env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     ports:
       - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - trailfox_pgadmin_data:/var/lib/pgadmin
 
 volumes:
+  trailfox_pg_data:
+    name: trailfox_pg_data
+    driver: local
+  trailfox_pgadmin_data:
+    name: trailfox_pgadmin_data
+    driver: local
   caddy_data:
     driver: local
   caddy_config:
