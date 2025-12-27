@@ -294,6 +294,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       });
 
       const sortedBase = [...base].sort((a, b) => a.trail_km - b.trail_km);
+      // Find the first cluster that is actually ahead of our current fallback position
       const nextCluster = sortedBase.find((c) => c.trail_km > fallbackTrailKm) || null;
       const metrics = calculateUserMetrics(userLocation, routeGeoJSON, nextCluster);
 

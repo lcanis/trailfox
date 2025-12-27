@@ -36,21 +36,63 @@ export function calculateUserMetrics(
 
     if (!line) return null;
 
-    // 1. Find nearest point on trail and distance from start (km on trail)
-    const snapped = turf.nearestPointOnLine(line, userPoint, { units: 'kilometers' });
-    const kmOnTrail = snapped.properties.dist || 0; // distance from start of line
+    // 1. Find nearest point on trail using planar math on 4326 coordinates.
+    // 1. Find nearest point on trail using planar math on 4326 coordinates.
+    // This matches PostGIS ST_LineLocatePoint(geom, pt) and ensures
+    // consistency between server-calculated amenity KM and client-calculated user KM.
+    // We use a simple planar projection (lon/lat as x/y) for the fraction.
+    // TODO: verify this - using the proper projection
+    const coords = line.geometry.coordinates;
+    const pt = [userLocation.longitude, userLocation.latitude];
 
-    // 2. Distance off-trail
+    let minMag = Infinity;
+    let totalPlanarLength = 0;
+    let bestPlanarLoc = 0;
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const p1 = coords[i];
+      const p2 = coords[i + 1];
+      const dx = p2[0] - p1[0];
+      const dy = p2[1] - p1[1];
+      const segLenSq = dx * dx + dy * dy;
+      const segLen = Math.sqrt(segLenSq);
+
+      let t = 0;
+      if (segLenSq > 0) {
+        t = ((pt[0] - p1[0]) * dx + (pt[1] - p1[1]) * dy) / segLenSq;
+        t = Math.max(0, Math.min(1, t));
+      }
+
+      const px = p1[0] + t * dx;
+      const py = p1[1] + t * dy;
+      const distSq = (pt[0] - px) * (pt[0] - px) + (pt[1] - py) * (pt[1] - py);
+
+      if (distSq < minMag) {
+        minMag = distSq;
+        bestPlanarLoc = totalPlanarLength + t * segLen;
+      }
+      totalPlanarLength += segLen;
+    }
+
+    const progressFraction = totalPlanarLength > 0 ? bestPlanarLoc / totalPlanarLength : 0;
+
+    // 2. Scale the fraction to the official ellipsoidal length
+    const properties = (routeGeoJSON as any).properties || {};
+    const officialTotalLength = (properties.length_m || 0) / 1000;
+    const turfTotalLength = turf.length(line, { units: 'kilometers' });
+    const totalLength = officialTotalLength || turfTotalLength;
+
+    const kmOnTrail = progressFraction * totalLength;
+
+    // 3. Distance off-trail (always use Haversine for real-world meters)
     const distanceOffTrail = turf.pointToLineDistance(userPoint, line, { units: 'kilometers' });
 
-    // 3. Distance to end
-    const totalLength = turf.length(line, { units: 'kilometers' });
+    // 4. Distance to end
     const distanceToEnd = Math.max(0, totalLength - kmOnTrail);
 
-    // 4. Distance to next item
+    // 5. Distance to next item
     let distanceToNext = null;
     if (nextCluster) {
-      // We assume nextCluster.trail_km is accurate and relative to the same start
       distanceToNext = Math.max(0, nextCluster.trail_km - kmOnTrail);
     }
 
