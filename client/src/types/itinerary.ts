@@ -17,9 +17,16 @@ export interface RouteAmenity {
 export interface AmenityCluster {
   key: string;
   trail_km: number;
+  kmFromStart?: number;
   amenities: RouteAmenity[];
   countsByClass: Record<string, number>;
   size: number;
   lon: number;
   lat: number;
+  userMetrics?: {
+    kmOnTrail: number;
+    distanceOffTrail: number;
+    distanceToNext: number | null;
+    distanceToEnd: number;
+  };
 }

@@ -226,7 +226,12 @@ export const getTimelineMarginTop = (params: {
 }) => {
   const { displayedClusters, index, pixelsPerKm } = params;
   if (index === 0) return 0;
-  const prevKm = displayedClusters[index - 1].trail_km;
-  const deltaKm = Math.abs(displayedClusters[index].trail_km - prevKm);
+  const curr = displayedClusters[index];
+  const prev = displayedClusters[index - 1];
+
+  const currKm = curr.kmFromStart ?? curr.trail_km;
+  const prevKm = prev.kmFromStart ?? prev.trail_km;
+
+  const deltaKm = Math.abs(currKm - prevKm);
   return deltaKm * pixelsPerKm;
 };

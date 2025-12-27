@@ -18,6 +18,7 @@ interface TimelineItemProps {
   marginTop: number;
   isSelected: boolean;
   onPress: () => void;
+  onSetStartPoint: (km: number) => void;
   isDeveloperMode: boolean;
   onShowDevTags: (
     key: string,
@@ -37,15 +38,52 @@ export const TimelineItem = React.memo(
     marginTop,
     isSelected,
     onPress,
+    onSetStartPoint,
     isDeveloperMode,
     onShowDevTags,
     onScheduleHideDevTags,
   }: TimelineItemProps) => {
     if (cluster.key === 'user-location') {
+      const metrics = cluster.userMetrics;
       return (
-        <View style={[styles.currentMarker, { marginTop, marginBottom: 12 }]}>
-          <Text style={styles.currentMarkerText}>📍 Current position</Text>
-        </View>
+        <Pressable
+          onLongPress={() => onSetStartPoint(cluster.trail_km)}
+          delayLongPress={500}
+          style={[styles.currentMarker, { marginTop, marginBottom: 12 }]}
+        >
+          <View style={styles.currentMarkerHeader}>
+            <Text style={styles.currentMarkerText}>📍 Current position</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.currentMarkerKm}>{formatKm(cluster.trail_km)}</Text>
+              {cluster.kmFromStart !== undefined &&
+                Math.abs(cluster.kmFromStart - cluster.trail_km) > 0.01 && (
+                  <Text style={[styles.currentMarkerKm, { fontSize: 10, opacity: 0.7 }]}>
+                    🚩 {formatKm(cluster.kmFromStart)}
+                  </Text>
+                )}
+            </View>
+          </View>
+          {metrics && (
+            <View style={styles.metricsRow}>
+              <View style={styles.metric}>
+                <Text style={styles.metricLabel}>Off-trail</Text>
+                <Text style={styles.metricValue}>
+                  {formatMeters(metrics.distanceOffTrail * 1000)}
+                </Text>
+              </View>
+              <View style={styles.metric}>
+                <Text style={styles.metricLabel}>Next item</Text>
+                <Text style={styles.metricValue}>
+                  {metrics.distanceToNext !== null ? formatKm(metrics.distanceToNext) : '--'}
+                </Text>
+              </View>
+              <View style={styles.metric}>
+                <Text style={styles.metricLabel}>To end</Text>
+                <Text style={styles.metricValue}>{formatKm(metrics.distanceToEnd)}</Text>
+              </View>
+            </View>
+          )}
+        </Pressable>
       );
     }
 
@@ -56,6 +94,8 @@ export const TimelineItem = React.memo(
     return (
       <Pressable
         onPress={onPress}
+        onLongPress={() => onSetStartPoint(cluster.trail_km)}
+        delayLongPress={500}
         style={({ pressed }) => [
           { marginTop },
           styles.timelineItem,
@@ -81,6 +121,10 @@ export const TimelineItem = React.memo(
           </Text>
           <View style={styles.stopLocationRow}>
             <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
+            {cluster.kmFromStart !== undefined &&
+              Math.abs(cluster.kmFromStart - cluster.trail_km) > 0.01 && (
+                <Text style={styles.stopMeta}>🚩 {formatKm(cluster.kmFromStart)}</Text>
+              )}
             <Text style={styles.stopMeta}>·</Text>
             <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
             <Text style={styles.stopMeta}>·</Text>
@@ -156,17 +200,53 @@ TimelineItem.displayName = 'TimelineItem';
 
 const styles = StyleSheet.create({
   currentMarker: {
-    padding: 16,
+    padding: 12,
     borderRadius: 10,
     backgroundColor: THEME.accent,
     borderWidth: 1,
     borderColor: THEME.accentDark,
+    marginHorizontal: 12,
+  },
+  currentMarkerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   currentMarkerText: {
     color: THEME.surface,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  currentMarkerKm: {
+    color: THEME.surface,
+    fontWeight: '800',
+    fontSize: 13,
+    opacity: 0.9,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 8,
+    padding: 10,
+  },
+  metric: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricLabel: {
+    color: THEME.surface,
+    fontSize: 10,
+    fontWeight: '600',
+    opacity: 0.8,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  metricValue: {
+    color: THEME.surface,
     fontSize: 12,
+    fontWeight: '800',
   },
   timelineItem: {
     flexDirection: 'row',

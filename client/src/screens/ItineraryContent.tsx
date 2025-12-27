@@ -29,6 +29,13 @@ import {
 } from './itinerary/itineraryModel';
 import { ListContainer } from '../components/ListContainer';
 import { TimelineItem } from '../components/TimelineItem';
+import { RouteService } from '../services/routeService';
+import {
+  calculateUserMetrics,
+  getDistanceInKm,
+  isRouteCircular,
+  calculateKmFromStart,
+} from '../utils/itineraryMetrics';
 
 interface ItineraryContentProps {
   route: Route;
@@ -58,20 +65,6 @@ interface ItineraryContentProps {
   onToggleFollowUser?: () => void;
 }
 
-const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; // Radius of the earth in km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 const THEME = ITINERARY_THEME;
 
 const tagsToList = (tags: Record<string, string> | null | undefined) => {
@@ -98,6 +91,19 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const listRef = React.useRef<FlatList>(null);
   const [radiusKm, setRadiusKm] = React.useState(0.2);
   const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
+  const [routeGeoJSON, setRouteGeoJSON] = React.useState<any>(null);
+  const [customStartKm, setCustomStartKm] = React.useState<number | null>(null);
+
+  const isCircular = React.useMemo(() => isRouteCircular(routeGeoJSON), [routeGeoJSON]);
+  const totalLengthKm = React.useMemo(() => (route.length_m || 0) / 1000, [route.length_m]);
+
+  // Fetch route GeoJSON for accurate metrics
+  React.useEffect(() => {
+    RouteService.fetchGeoJSON(route.osm_id)
+      .then(setRouteGeoJSON)
+      .catch((err) => console.error('Failed to fetch route GeoJSON for metrics:', err));
+  }, [route.osm_id]);
+
   const [filterModalVisible, setFilterModalVisible] = React.useState(false);
   const [selectedClasses, setSelectedClasses] = React.useState<Set<string>>(new Set());
   const [internalSelectedKey, setInternalSelectedKey] = React.useState<string | null>(null);
@@ -271,45 +277,55 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
 
   const displayedClusters = React.useMemo(() => {
     const base = getDisplayedClusters(clustersWithEndpoints, false);
-    if (!userLocation) return base;
 
-    // Find nearest cluster to get an approximate trail_km for the user
-    let minDistance = Infinity;
-    let nearestTrailKm = 0;
-    base.forEach((c) => {
-      if (c.key === 'user-location') return; // Skip if already there (shouldn't happen in base)
-      const d = getDistanceFromLatLonInKm(
-        userLocation.latitude,
-        userLocation.longitude,
-        c.lat,
-        c.lon
-      );
-      if (d < minDistance) {
-        minDistance = d;
-        nearestTrailKm = c.trail_km;
-      }
-    });
+    // 1. Find where the user is on the trail and get metrics
+    let userCluster: AmenityCluster | null = null;
+    if (userLocation) {
+      let fallbackTrailKm = 0;
+      let minDistance = Infinity;
+      base.forEach((c) => {
+        const d = getDistanceInKm(userLocation.latitude, userLocation.longitude, c.lat, c.lon);
+        if (d < minDistance) {
+          minDistance = d;
+          fallbackTrailKm = c.trail_km;
+        }
+      });
 
-    const userCluster: AmenityCluster = {
-      key: 'user-location',
-      trail_km: nearestTrailKm,
-      amenities: [],
-      countsByClass: {},
-      size: 0,
-      lat: userLocation.latitude,
-      lon: userLocation.longitude,
-    };
+      const sortedBase = [...base].sort((a, b) => a.trail_km - b.trail_km);
+      const nextCluster = sortedBase.find((c) => c.trail_km > fallbackTrailKm) || null;
+      const metrics = calculateUserMetrics(userLocation, routeGeoJSON, nextCluster);
 
-    // Insert and sort. We use a stable sort or ensure user-location is distinct.
-    const out = [...base, userCluster];
+      userCluster = {
+        key: 'user-location',
+        trail_km: metrics?.kmOnTrail ?? fallbackTrailKm,
+        amenities: [],
+        countsByClass: {},
+        size: 0,
+        lat: userLocation.latitude,
+        lon: userLocation.longitude,
+        userMetrics: metrics || undefined,
+      };
+    }
+
+    const all = userCluster ? [...base, userCluster] : base;
+
+    // 2. Calculate kmFromStart for all items
+    const startKm = customStartKm ?? 0;
+    const out = all.map((c) => ({
+      ...c,
+      kmFromStart: calculateKmFromStart(c.trail_km, startKm, totalLengthKm, isCircular),
+    }));
+
+    // 3. Sort by kmFromStart
     out.sort((a, b) => {
-      if (a.trail_km !== b.trail_km) return a.trail_km - b.trail_km;
-      if (a.key === 'user-location') return -1; // Put user slightly before amenities at same KM
+      if (a.kmFromStart !== b.kmFromStart) return a.kmFromStart - b.kmFromStart;
+      if (a.key === 'user-location') return -1;
       if (b.key === 'user-location') return 1;
       return 0;
     });
+
     return out;
-  }, [clustersWithEndpoints, userLocation]);
+  }, [clustersWithEndpoints, userLocation, routeGeoJSON, customStartKm, totalLengthKm, isCircular]);
 
   const renderItem = React.useCallback(
     ({ item: cluster, index }: { item: AmenityCluster; index: number }) => (
@@ -324,6 +340,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
         })}
         isSelected={cluster.key === effectiveSelectedKey}
         onPress={() => setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)}
+        onSetStartPoint={setCustomStartKm}
         isDeveloperMode={DEVELOPER_MODE}
         onShowDevTags={showDevTags}
         onScheduleHideDevTags={scheduleHideDevTags}
