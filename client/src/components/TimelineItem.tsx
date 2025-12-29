@@ -124,6 +124,7 @@ export const TimelineItem = React.memo(
             style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
             numberOfLines={1}
           >
+            {cluster.marker ? `${cluster.marker}. ` : ''}
             {title}
           </Text>
           <View style={styles.stopLocationRow}>

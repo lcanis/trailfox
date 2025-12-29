@@ -51,20 +51,41 @@ export default function ItineraryMap({
   } | null>(null);
 
   const amenitiesGeoJSON = useMemo(() => {
-    return {
-      type: 'FeatureCollection',
-      features: clusters.map((c) => ({
+    const features: any[] = [];
+
+    // Clusters
+    clusters.forEach((c) => {
+      features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
         properties: {
+          type: 'cluster',
           key: c.key,
           size: c.size,
+          marker: String(c.marker ?? ''),
           trail_km: c.trail_km,
-          icon: c.amenities[0]?.subclass
-            ? `${c.amenities[0].subclass.replace(/_/g, '-')}-20`
-            : 'marker-20',
         },
-      })),
+      });
+
+      // Individual amenities (for high zoom)
+      c.amenities.forEach((a, i) => {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [a.lon, a.lat] },
+          properties: {
+            type: 'individual',
+            amenityId: `${c.key}-${i}`,
+            key: c.key,
+            icon: a.subclass ? `${a.subclass.replace(/_/g, '-')}-20` : 'marker-20',
+            marker: '',
+          },
+        });
+      });
+    });
+
+    return {
+      type: 'FeatureCollection',
+      features,
     } as const;
   }, [clusters]);
 
@@ -132,6 +153,8 @@ export default function ItineraryMap({
           id: 'itinerary-amenities-circles',
           type: 'circle',
           source: 'itinerary-amenities',
+          maxzoom: 15.9,
+          filter: ['==', ['get', 'type'], 'cluster'],
           paint: {
             'circle-color': '#ffffff',
             'circle-opacity': 0.8,
@@ -142,9 +165,29 @@ export default function ItineraryMap({
         });
 
         m.addLayer({
-          id: 'itinerary-amenities-symbols',
+          id: 'itinerary-amenities-markers',
           type: 'symbol',
           source: 'itinerary-amenities',
+          maxzoom: 15.9,
+          filter: ['==', ['get', 'type'], 'cluster'],
+          layout: {
+            'text-field': ['get', 'marker'],
+            'text-font': ['Noto Sans Regular'],
+            'text-size': 12,
+            'text-allow-overlap': true,
+            'text-anchor': 'center',
+          },
+          paint: {
+            'text-color': THEME.textPrimary,
+          },
+        });
+
+        m.addLayer({
+          id: 'itinerary-amenities-individual',
+          type: 'symbol',
+          source: 'itinerary-amenities',
+          minzoom: 16,
+          filter: ['==', ['get', 'type'], 'individual'],
           layout: {
             'icon-image': ['get', 'icon'],
             'icon-size': 0.8,
@@ -157,22 +200,29 @@ export default function ItineraryMap({
           id: 'itinerary-amenities-selected',
           type: 'circle',
           source: 'itinerary-amenities',
+          filter: ['all', ['==', ['get', 'type'], 'cluster'], ['==', ['get', 'key'], '']],
           paint: {
             'circle-color': 'transparent',
             'circle-radius': 14,
             'circle-stroke-color': THEME.accent,
             'circle-stroke-width': 3,
           },
-          filter: ['==', ['get', 'key'], ''],
         });
 
         m.on('mouseenter', 'itinerary-amenities-circles', () => {
           m.getCanvas().style.setProperty('cursor', 'pointer');
         });
+        m.on('mouseenter', 'itinerary-amenities-individual', () => {
+          m.getCanvas().style.setProperty('cursor', 'pointer');
+        });
 
         m.on('mouseleave', 'itinerary-amenities-circles', () => {
           m.getCanvas().style.removeProperty('cursor');
-
+          hoverKey = null;
+          setDevTagsOverlay(null);
+        });
+        m.on('mouseleave', 'itinerary-amenities-individual', () => {
+          m.getCanvas().style.removeProperty('cursor');
           hoverKey = null;
           setDevTagsOverlay(null);
         });
@@ -199,24 +249,41 @@ export default function ItineraryMap({
           });
         });
 
-        m.on('click', 'itinerary-amenities-circles', (e) => {
+        m.on('mousemove', 'itinerary-amenities-individual', (e) => {
+          if (!DEVELOPER_MODE) return;
           const feature = e.features?.[0];
           const key = feature?.properties?.key;
-          if (typeof key === 'string') {
-            const cluster = clustersRef.current.find((c) => c.key === key);
-            if (cluster) {
-              onSelectClusterKey(key);
-            }
+          if (typeof key !== 'string') return;
+
+          if (key === hoverKey) return;
+          hoverKey = key;
+
+          const cluster = clustersRef.current.find((c) => c.key === key);
+          const a = cluster?.amenities?.[0];
+          if (!a) {
+            setDevTagsOverlay(null);
+            return;
           }
+
+          setDevTagsOverlay({
+            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
+            tags: a.tags,
+          });
         });
 
         m.on('click', (e) => {
           const features = m.queryRenderedFeatures(e.point, {
-            layers: ['itinerary-amenities-circles'],
+            layers: ['itinerary-amenities-circles', 'itinerary-amenities-individual'],
           });
           if (!features || features.length === 0) {
             onSelectClusterKey(null);
             setDevTagsOverlay(null);
+          } else {
+            const feature = features[0];
+            const key = feature.properties?.key;
+            if (typeof key === 'string') {
+              onSelectClusterKey(key);
+            }
           }
         });
 
@@ -280,9 +347,9 @@ export default function ItineraryMap({
     if (!map.current || !isMapLoaded) return;
 
     map.current.setFilter('itinerary-amenities-selected', [
-      '==',
-      ['get', 'key'],
-      selectedClusterKey ?? '',
+      'all',
+      ['==', ['get', 'type'], 'cluster'],
+      ['==', ['get', 'key'], selectedClusterKey ?? ''],
     ]);
 
     if (!selectedClusterKey) return;

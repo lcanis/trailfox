@@ -106,14 +106,31 @@ export default function ItineraryMap({
         properties: {
           key: c.key,
           size: c.size,
+          marker: c.marker ?? '',
           selected: c.key === selectedClusterKey,
-          icon: c.amenities[0]?.subclass
-            ? `${c.amenities[0].subclass.replace(/_/g, '-')}-20`
-            : 'marker-20',
         },
       })),
     };
   }, [clusters, selectedClusterKey]);
+
+  // Individual Amenities GeoJSON (for high zoom)
+  const individualAmenitiesGeoJSON = useMemo(() => {
+    const features: any[] = [];
+    clusters.forEach((c) => {
+      c.amenities.forEach((a, i) => {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [a.lon, a.lat] },
+          properties: {
+            amenityId: `${c.key}-${i}`,
+            key: c.key,
+            icon: a.subclass ? `${a.subclass.replace(/_/g, '-')}-20` : 'marker-20',
+          },
+        });
+      });
+    });
+    return { type: 'FeatureCollection', features };
+  }, [clusters]);
 
   const onClusterPress = (e: any) => {
     if (e.features && e.features.length > 0) {
@@ -181,6 +198,7 @@ export default function ItineraryMap({
         <ShapeSource id="clustersSource" shape={clustersGeoJSON as any} onPress={onClusterPress}>
           <CircleLayer
             id="clustersCircle"
+            maxZoomLevel={15.9}
             style={{
               circleRadius: 12,
               circleColor: ['case', ['get', 'selected'], ITINERARY_THEME.accent, '#ffffff'],
@@ -196,6 +214,27 @@ export default function ItineraryMap({
           />
           <SymbolLayer
             id="clusterSymbols"
+            maxZoomLevel={15.9}
+            style={{
+              textField: ['get', 'marker'],
+              textFont: ['Noto Sans Regular'],
+              textSize: 12,
+              textColor: ['case', ['get', 'selected'], '#ffffff', ITINERARY_THEME.textPrimary],
+              textAllowOverlap: true,
+              textAnchor: 'center',
+            }}
+          />
+        </ShapeSource>
+
+        {/* Individual Amenities (High Zoom) */}
+        <ShapeSource
+          id="individualAmenitiesSource"
+          shape={individualAmenitiesGeoJSON as any}
+          onPress={onClusterPress}
+        >
+          <SymbolLayer
+            id="individualAmenitiesSymbols"
+            minZoomLevel={16}
             style={{
               iconImage: ['get', 'icon'],
               iconSize: 0.8,

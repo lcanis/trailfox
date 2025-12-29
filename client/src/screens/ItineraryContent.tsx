@@ -24,6 +24,7 @@ import {
   addItineraryEndpointClusters,
   getAvailableClasses,
   getDisplayedClusters,
+  getItineraryMarker,
   getTimelineMarginTop,
   normalizeAmenityClassLabel,
   sanitizeSelectedClusterKey,
@@ -360,7 +361,12 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       return 0;
     });
 
-    return out;
+    // 4. Assign markers (excluding user location)
+    let markerIndex = 0;
+    return out.map((c) => {
+      if (c.key === 'user-location') return c;
+      return { ...c, marker: getItineraryMarker(markerIndex++) };
+    });
   }, [clustersWithEndpoints, userLocation, routeGeoJSON, customStartKm, totalLengthKm, isCircular]);
 
   const renderItem = React.useCallback(
@@ -663,7 +669,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   if (renderWrapper) {
     return renderWrapper({
       content,
-      clusters: clustersWithEndpoints,
+      clusters: displayedClusters.filter((c) => c.key !== 'user-location'),
       selectedClusterKey: effectiveSelectedKey,
       setSelectedClusterKey: setSelectedKey,
       route,

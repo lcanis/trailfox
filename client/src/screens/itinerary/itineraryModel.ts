@@ -25,6 +25,22 @@ export const normalizeAmenityClassLabel = (label: string) => {
   return map[label] || label;
 };
 
+export const getItineraryMarker = (index: number): string => {
+  // 0-8 -> "1"-"9"
+  if (index < 9) {
+    return (index + 1).toString();
+  }
+
+  // 9+ -> "A", "B", ..., "Z", "AA", ...
+  let n = index - 9;
+  let res = '';
+  while (n >= 0) {
+    res = String.fromCharCode(65 + (n % 26)) + res;
+    n = Math.floor(n / 26) - 1;
+  }
+  return res;
+};
+
 const roundTo = (value: number, step: number) => Math.round(value / step) * step;
 
 /**
