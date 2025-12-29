@@ -2,6 +2,7 @@ import React from 'react';
 import debounce from 'lodash.debounce';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Platform,
@@ -95,6 +96,38 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
   const [routeGeoJSON, setRouteGeoJSON] = React.useState<any>(null);
   const [customStartKm, setCustomStartKm] = React.useState<number | null>(null);
+
+  const handleSetStartPoint = React.useCallback(
+    (km: number) => {
+      if (Platform.OS === 'web') {
+        setCustomStartKm(km);
+        return;
+      }
+
+      const buttons: any[] = [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Set Start',
+          onPress: () => setCustomStartKm(km),
+        },
+      ];
+
+      if (customStartKm !== null) {
+        buttons.push({
+          text: 'Reset to Original',
+          style: 'destructive',
+          onPress: () => setCustomStartKm(null),
+        });
+      }
+
+      Alert.alert(
+        'Change Start Point',
+        `Do you want to set the start point to ${km.toFixed(1)} km? This will reorder the itinerary from this location.`,
+        buttons
+      );
+    },
+    [customStartKm]
+  );
 
   const isCircular = React.useMemo(() => isRouteCircular(routeGeoJSON), [routeGeoJSON]);
   const totalLengthKm = React.useMemo(() => (route.length_m || 0) / 1000, [route.length_m]);
@@ -343,7 +376,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
         })}
         isSelected={cluster.key === effectiveSelectedKey}
         onPress={() => setSelectedKey(effectiveSelectedKey === cluster.key ? null : cluster.key)}
-        onSetStartPoint={setCustomStartKm}
+        onSetStartPoint={handleSetStartPoint}
         isDeveloperMode={DEVELOPER_MODE}
         onShowDevTags={showDevTags}
         onScheduleHideDevTags={scheduleHideDevTags}
@@ -357,6 +390,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       showDevTags,
       scheduleHideDevTags,
       isLocating,
+      handleSetStartPoint,
     ]
   );
 
