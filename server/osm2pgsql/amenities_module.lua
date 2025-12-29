@@ -175,6 +175,11 @@ local PLACE_ALLOWLIST = {
 
 
 local function get_poi_classification(tags)
+	-- Generally exclude items marked as private access
+	if tags.access and tags.access == "private" then
+		return nil
+	end
+
 	local cls, sub
 
 	-- Special case: some amenities use a `guest_house` tag with value `albergue`
@@ -207,13 +212,6 @@ local function get_poi_classification(tags)
 					if not keep then
 						return nil
 					end
-				end
-			end
-
-			-- Special handling: exclude wilderness huts marked as private access
-			if tag_key == "tourism" and tag_value == "wilderness_hut" then
-				if tags.access and tags.access == "private" then
-					return nil
 				end
 			end
 
