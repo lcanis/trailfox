@@ -7,13 +7,15 @@ import {
   MapViewRef,
   LineLayer,
   CircleLayer,
+  SymbolLayer,
   ShapeSource,
+  Images,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
 import { AmenityCluster } from '../types';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
-import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
+import { WEB_BASEMAP_STYLE_URL, SPRITE_BASE_URL } from '../config/settings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ItineraryMapProps {
@@ -103,6 +105,9 @@ export default function ItineraryMap({
           key: c.key,
           size: c.size,
           selected: c.key === selectedClusterKey,
+          icon: c.amenities[0]?.subclass
+            ? `${c.amenities[0].subclass.replace(/_/g, '-')}-20`
+            : 'marker-20',
         },
       })),
     };
@@ -154,6 +159,8 @@ export default function ItineraryMap({
 
         <UserLocation visible={isFollowingUser} />
 
+        <Images sprite={SPRITE_BASE_URL} />
+
         {/* Route Line */}
         {routeGeoJSON && (
           <ShapeSource id="routeSource" shape={routeGeoJSON}>
@@ -173,15 +180,25 @@ export default function ItineraryMap({
           <CircleLayer
             id="clustersCircle"
             style={{
-              circleRadius: 10,
-              circleColor: [
+              circleRadius: 12,
+              circleColor: ['case', ['get', 'selected'], ITINERARY_THEME.accent, '#ffffff'],
+              circleStrokeWidth: 2,
+              circleStrokeColor: [
                 'case',
                 ['get', 'selected'],
-                ITINERARY_THEME.accent,
+                '#ffffff',
                 ITINERARY_THEME.textSecondary,
               ],
-              circleStrokeWidth: 2,
-              circleStrokeColor: '#fff',
+              circleOpacity: 0.8,
+            }}
+          />
+          <SymbolLayer
+            id="clusterSymbols"
+            style={{
+              iconImage: ['get', 'icon'],
+              iconSize: 0.8,
+              iconAllowOverlap: true,
+              iconAnchor: 'center',
             }}
           />
         </ShapeSource>

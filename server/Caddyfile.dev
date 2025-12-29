@@ -29,6 +29,13 @@
 
 		reverse_proxy martin:3000
 	}
+
+	handle_path /sprites/* {
+		header Access-Control-Allow-Origin "*"
+		root * /app/assets/sprites
+		file_server
+	}
+
 	handle_path /api/* {
 		@options {
 			method OPTIONS

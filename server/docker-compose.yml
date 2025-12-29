@@ -69,6 +69,7 @@ services:
       - postgrest
     volumes:
       - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ../client/assets/sprites:/app/assets/sprites:ro
     ports:
       - "${CADDY_PORT:-8090}:8090"
 

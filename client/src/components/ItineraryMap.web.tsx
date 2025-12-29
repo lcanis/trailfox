@@ -7,7 +7,7 @@ import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { DEVELOPER_MODE } from '../constants';
-import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
+import { WEB_BASEMAP_STYLE_URL, SPRITE_BASE_URL } from '../config/settings';
 
 const THEME = ITINERARY_THEME;
 
@@ -53,6 +53,9 @@ export default function ItineraryMap({
           key: c.key,
           size: c.size,
           trail_km: c.trail_km,
+          icon: c.amenities[0]?.subclass
+            ? `${c.amenities[0].subclass.replace(/_/g, '-')}-20`
+            : 'marker-20',
         },
       })),
     } as const;
@@ -65,137 +68,175 @@ export default function ItineraryMap({
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
 
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: WEB_BASEMAP_STYLE_URL,
-      center: [6.1, 49.7],
-      zoom: 10,
-    });
+    const styleUrl = WEB_BASEMAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty';
+    let resizeObserver: ResizeObserver | undefined;
 
-    // Resize map when container size changes (crucial for flex layouts)
-    const resizeObserver = new ResizeObserver(() => {
-      map.current?.resize();
-    });
-    resizeObserver.observe(mapContainer.current);
+    const initMap = (style: any) => {
+      if (!mapContainer.current) return;
 
-    map.current.on('load', () => {
-      if (!map.current) return;
-
-      let hoverKey: string | null = null;
-
-      map.current.addSource('selected-route', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+      const m = new maplibregl.Map({
+        container: mapContainer.current,
+        style: style,
+        center: [6.1, 49.7],
+        zoom: 10,
       });
+      map.current = m;
 
-      map.current.addLayer({
-        id: 'selected-route-line',
-        type: 'line',
-        source: 'selected-route',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': THEME.accent,
-          'line-width': 5,
-          'line-opacity': 0.8,
-        },
+      // Resize map when container size changes (crucial for flex layouts)
+      resizeObserver = new ResizeObserver(() => {
+        m.resize();
       });
+      resizeObserver.observe(mapContainer.current);
 
-      // Ensure the route line is below the amenities
-      // (amenities layers are added after this, so they will be on top by default)
+      m.on('load', () => {
+        if (!map.current) return;
 
-      map.current.addSource('itinerary-amenities', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      });
+        let hoverKey: string | null = null;
 
-      map.current.addLayer({
-        id: 'itinerary-amenities-circles',
-        type: 'circle',
-        source: 'itinerary-amenities',
-        paint: {
-          'circle-color': THEME.accent,
-          'circle-opacity': 0.6,
-          'circle-radius': ['interpolate', ['linear'], ['get', 'size'], 1, 4, 20, 9, 80, 14],
-          'circle-stroke-color': THEME.accentDark,
-          'circle-stroke-width': 1,
-        },
-      });
-
-      map.current.addLayer({
-        id: 'itinerary-amenities-selected',
-        type: 'circle',
-        source: 'itinerary-amenities',
-        paint: {
-          'circle-color': THEME.accent,
-          'circle-opacity': 0.95,
-          'circle-radius': ['interpolate', ['linear'], ['get', 'size'], 1, 6, 20, 12, 80, 18],
-          'circle-stroke-color': THEME.accentDark,
-          'circle-stroke-width': 2,
-        },
-        filter: ['==', ['get', 'key'], ''],
-      });
-
-      map.current.on('mouseenter', 'itinerary-amenities-circles', () => {
-        map.current?.getCanvas().style.setProperty('cursor', 'pointer');
-      });
-
-      map.current.on('mouseleave', 'itinerary-amenities-circles', () => {
-        map.current?.getCanvas().style.removeProperty('cursor');
-
-        hoverKey = null;
-        setDevTagsOverlay(null);
-      });
-
-      map.current.on('mousemove', 'itinerary-amenities-circles', (e) => {
-        if (!DEVELOPER_MODE) return;
-        const feature = e.features?.[0];
-        const key = feature?.properties?.key;
-        if (typeof key !== 'string') return;
-
-        if (key === hoverKey) return;
-        hoverKey = key;
-
-        const cluster = clustersRef.current.find((c) => c.key === key);
-        const a = cluster?.amenities?.[0];
-        if (!a) {
-          setDevTagsOverlay(null);
-          return;
-        }
-
-        setDevTagsOverlay({
-          title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-          tags: a.tags,
+        m.addSource('selected-route', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
         });
-      });
 
-      map.current.on('click', 'itinerary-amenities-circles', (e) => {
-        const feature = e.features?.[0];
-        const key = feature?.properties?.key;
-        if (typeof key === 'string') {
-          onSelectClusterKey(key);
-        }
-      });
-
-      map.current.on('click', (e) => {
-        const features = map.current?.queryRenderedFeatures(e.point, {
-          layers: ['itinerary-amenities-circles'],
+        m.addLayer({
+          id: 'selected-route-line',
+          type: 'line',
+          source: 'selected-route',
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round',
+          },
+          paint: {
+            'line-color': THEME.accent,
+            'line-width': 5,
+            'line-opacity': 0.8,
+          },
         });
-        if (!features || features.length === 0) {
-          onSelectClusterKey(null);
-          setDevTagsOverlay(null);
-        }
-      });
 
-      setIsMapLoaded(true);
-    });
+        // Ensure the route line is below the amenities
+        // (amenities layers are added after this, so they will be on top by default)
+
+        m.addSource('itinerary-amenities', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
+
+        m.addLayer({
+          id: 'itinerary-amenities-circles',
+          type: 'circle',
+          source: 'itinerary-amenities',
+          paint: {
+            'circle-color': '#ffffff',
+            'circle-opacity': 0.8,
+            'circle-radius': 12,
+            'circle-stroke-color': THEME.accent,
+            'circle-stroke-width': 1,
+          },
+        });
+
+        m.addLayer({
+          id: 'itinerary-amenities-symbols',
+          type: 'symbol',
+          source: 'itinerary-amenities',
+          layout: {
+            'icon-image': ['get', 'icon'],
+            'icon-size': 0.8,
+            'icon-allow-overlap': true,
+            'icon-anchor': 'center',
+          },
+        });
+
+        m.addLayer({
+          id: 'itinerary-amenities-selected',
+          type: 'circle',
+          source: 'itinerary-amenities',
+          paint: {
+            'circle-color': 'transparent',
+            'circle-radius': 14,
+            'circle-stroke-color': THEME.accent,
+            'circle-stroke-width': 3,
+          },
+          filter: ['==', ['get', 'key'], ''],
+        });
+
+        m.on('mouseenter', 'itinerary-amenities-circles', () => {
+          m.getCanvas().style.setProperty('cursor', 'pointer');
+        });
+
+        m.on('mouseleave', 'itinerary-amenities-circles', () => {
+          m.getCanvas().style.removeProperty('cursor');
+
+          hoverKey = null;
+          setDevTagsOverlay(null);
+        });
+
+        m.on('mousemove', 'itinerary-amenities-circles', (e) => {
+          if (!DEVELOPER_MODE) return;
+          const feature = e.features?.[0];
+          const key = feature?.properties?.key;
+          if (typeof key !== 'string') return;
+
+          if (key === hoverKey) return;
+          hoverKey = key;
+
+          const cluster = clustersRef.current.find((c) => c.key === key);
+          const a = cluster?.amenities?.[0];
+          if (!a) {
+            setDevTagsOverlay(null);
+            return;
+          }
+
+          setDevTagsOverlay({
+            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
+            tags: a.tags,
+          });
+        });
+
+        m.on('click', 'itinerary-amenities-circles', (e) => {
+          const feature = e.features?.[0];
+          const key = feature?.properties?.key;
+          if (typeof key === 'string') {
+            const cluster = clustersRef.current.find((c) => c.key === key);
+            if (cluster) {
+              onSelectClusterKey(key);
+            }
+          }
+        });
+
+        m.on('click', (e) => {
+          const features = m.queryRenderedFeatures(e.point, {
+            layers: ['itinerary-amenities-circles'],
+          });
+          if (!features || features.length === 0) {
+            onSelectClusterKey(null);
+            setDevTagsOverlay(null);
+          }
+        });
+
+        setIsMapLoaded(true);
+        setTimeout(() => m.resize(), 100);
+      });
+    };
+
+    if (typeof styleUrl === 'string' && styleUrl.startsWith('http')) {
+      fetch(styleUrl)
+        .then((r) => r.json())
+        .then((style) => {
+          style.sprite = SPRITE_BASE_URL;
+          initMap(style);
+        })
+        .catch(() => {
+          initMap(styleUrl);
+        });
+    } else {
+      initMap(styleUrl);
+    }
 
     return () => {
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
       map.current?.remove();
       map.current = null;
+      setIsMapLoaded(false);
     };
   }, [onSelectClusterKey]);
 
@@ -250,7 +291,14 @@ export default function ItineraryMap({
 
   return (
     <View style={styles.container}>
-      <div ref={mapContainer} style={{ height: '100%', width: '100%' }} />
+      <div
+        ref={mapContainer}
+        style={{
+          width: '100%',
+          height: '100%',
+          backgroundColor: '#f3f4f6',
+        }}
+      />
       {DEVELOPER_MODE && devTagsOverlay ? (
         <View style={styles.devOverlayBackdrop}>
           <View style={styles.devOverlayCard}>

@@ -8,6 +8,7 @@ services:
     volumes:
       - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
       - /var/www/trailfox.app:/var/www/trailfox.app:ro
+      - ../client/assets/sprites:/var/www/trailfox.app/sprites:ro
       - caddy_data:/data
       - caddy_config:/config
 

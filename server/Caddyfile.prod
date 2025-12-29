@@ -37,6 +37,11 @@ trailfox.app, 109.199.108.187 {
 
 	root * /var/www/trailfox.app/main/html
 	file_server
+	handle_path /sprites/* {
+		header Access-Control-Allow-Origin "*"
+		root * /var/www/trailfox.app/sprites
+		file_server
+	}
 	handle_path /tiles/* {
 		# Allow cross-origin tile fetches from dev servers.
 		# Martin does not handle OPTIONS, so respond to preflights here.
@@ -100,6 +105,12 @@ poc.trailfox.app {
 		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
 		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Prefer"
 		respond "" 204
+	}
+
+	handle_path /sprites/* {
+		header Access-Control-Allow-Origin "*"
+		root * /var/www/trailfox.app/sprites
+		file_server
 	}
 
 	handle_path /tiles/* {
