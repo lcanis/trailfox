@@ -25,6 +25,29 @@ export const normalizeAmenityClassLabel = (label: string) => {
   return map[label] || label;
 };
 
+export const getAmenityIconName = (cls: string, subclass: string | null): string => {
+  const categoryMap: Record<string, string> = {
+    accom: 'accommodation',
+    tourism: 'tourism',
+    other: 'tourism',
+    shelter: 'outdoor',
+    food: 'eat-drink',
+    water: 'outdoor',
+    hygiene: 'amenity',
+    resupply: 'shop',
+    bike: 'transport',
+    cash: 'money',
+    transport: 'transport',
+    street: 'outdoor',
+    medical: 'health',
+    place: 'administration',
+  };
+
+  const category = categoryMap[cls] || 'amenity';
+  const name = subclass ? subclass.replace(/_/g, '-') : 'generic';
+  return `${category}_${name}`;
+};
+
 export const getItineraryMarker = (index: number): string => {
   // 0-8 -> "1"-"9"
   if (index < 9) {
@@ -65,6 +88,7 @@ export const buildAmenityClusters = (
         trail_km: bucket,
         amenities: [],
         countsByClass: {},
+        countsByIcon: {},
         size: 0,
         lon: 0,
         lat: 0,
@@ -74,6 +98,9 @@ export const buildAmenityClusters = (
 
     cluster.amenities.push(amenity);
     cluster.countsByClass[amenity.class] = (cluster.countsByClass[amenity.class] ?? 0) + 1;
+
+    const iconName = getAmenityIconName(amenity.class, amenity.subclass);
+    cluster.countsByIcon[iconName] = (cluster.countsByIcon[iconName] ?? 0) + 1;
   }
 
   for (const cluster of map.values()) {
@@ -177,6 +204,7 @@ export const addItineraryEndpointClusters = (params: {
       trail_km: 0,
       amenities: [startAmenity],
       countsByClass: { Place: 1 },
+      countsByIcon: { [getAmenityIconName('Place', null)]: 1 },
       size: 1,
       lon: startAmenity.lon,
       lat: startAmenity.lat,
@@ -208,6 +236,7 @@ export const addItineraryEndpointClusters = (params: {
         trail_km: routeKm,
         amenities: [endAmenity],
         countsByClass: { Place: 1 },
+        countsByIcon: { [getAmenityIconName('Place', null)]: 1 },
         size: 1,
         lon: endAmenity.lon,
         lat: endAmenity.lat,

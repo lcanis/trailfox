@@ -26,6 +26,17 @@ jest.mock('react-native-worklets', () => ({
   createSerializable: jest.fn(),
 }));
 
+// Mock react-native-svg
+jest.mock('react-native-svg', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    SvgUri: jest.fn(() => React.createElement(View)),
+    SvgXml: jest.fn(() => React.createElement(View)),
+    default: jest.fn(() => React.createElement(View)),
+  };
+});
+
 // Mock SafeAreaContext
 jest.mock('react-native-safe-area-context', () => {
   const inset = { top: 0, right: 0, bottom: 0, left: 0 };

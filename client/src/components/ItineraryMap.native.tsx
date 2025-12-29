@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, ElementRef } from 'react';
 import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
+import MapLibreGL, {
   Camera,
   MapView,
   MapViewRef,
@@ -9,7 +9,6 @@ import {
   CircleLayer,
   SymbolLayer,
   ShapeSource,
-  Images,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
 import { AmenityCluster } from '../types';
@@ -17,6 +16,9 @@ import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Set Access Token to null as we are using self-hosted or keyless tiles
+MapLibreGL.setAccessToken(null);
 
 interface ItineraryMapProps {
   routeOsmId: number;
@@ -124,7 +126,7 @@ export default function ItineraryMap({
           properties: {
             amenityId: `${c.key}-${i}`,
             key: c.key,
-            icon: a.subclass ? `${a.subclass.replace(/_/g, '-')}-20` : 'marker-20',
+            icon: a.subclass || a.class || 'marker',
           },
         });
       });
@@ -164,7 +166,7 @@ export default function ItineraryMap({
       <MapView
         ref={mapRef}
         style={styles.map}
-        mapStyle={WEB_BASEMAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'}
+        mapStyle={WEB_BASEMAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/bright'}
         logoEnabled={false}
         attributionEnabled={false}
         onPress={handleMapPress}
@@ -177,8 +179,6 @@ export default function ItineraryMap({
         />
 
         <UserLocation visible={showsUserLocation} />
-
-        <Images />
 
         {/* Route Line */}
         {routeGeoJSON && (
@@ -217,9 +217,11 @@ export default function ItineraryMap({
             maxZoomLevel={15.9}
             style={{
               textField: ['get', 'marker'],
-              textFont: ['Noto Sans Regular'],
-              textSize: 12,
+              textFont: ['Noto Sans Bold'],
+              textSize: 13,
               textColor: ['case', ['get', 'selected'], '#ffffff', ITINERARY_THEME.textPrimary],
+              textHaloColor: '#ffffff',
+              textHaloWidth: 2,
               textAllowOverlap: true,
               textAnchor: 'center',
             }}
@@ -237,7 +239,7 @@ export default function ItineraryMap({
             minZoomLevel={16}
             style={{
               iconImage: ['get', 'icon'],
-              iconSize: 0.8,
+              iconSize: 1.2,
               iconAllowOverlap: true,
               iconAnchor: 'center',
             }}

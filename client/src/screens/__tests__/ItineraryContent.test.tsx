@@ -109,6 +109,7 @@ describe('ItineraryContent', () => {
           },
         ],
         countsByClass: { sustenance: 1 },
+        countsByIcon: { amenity_restaurant: 1 },
       },
     ];
 

@@ -21,6 +21,7 @@ export interface AmenityCluster {
   marker?: string;
   amenities: RouteAmenity[];
   countsByClass: Record<string, number>;
+  countsByIcon: Record<string, number>;
   size: number;
   lon: number;
   lat: number;

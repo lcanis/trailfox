@@ -70,6 +70,7 @@ const mockClusters = [
     trail_km: 1.5,
     amenities: [],
     countsByClass: {},
+    countsByIcon: {},
     size: 1,
   },
   {
@@ -79,6 +80,7 @@ const mockClusters = [
     trail_km: 5.0,
     amenities: [],
     countsByClass: {},
+    countsByIcon: {},
     size: 1,
   },
 ];

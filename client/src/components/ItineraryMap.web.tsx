@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, Text } from 'react-native';
+import { Pressable, StyleSheet, View, Text, Image } from 'react-native';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { AmenityCluster } from '../types';
@@ -7,7 +7,9 @@ import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { DEVELOPER_MODE } from '../constants';
-import { WEB_BASEMAP_STYLE_URL, SPRITE_BASE_URL } from '../config/settings';
+import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
+import { getAmenityIconName } from '../screens/itinerary/itineraryModel';
+import { ICON_REGISTRY } from '../assets/iconRegistry';
 
 const THEME = ITINERARY_THEME;
 
@@ -76,7 +78,7 @@ export default function ItineraryMap({
             type: 'individual',
             amenityId: `${c.key}-${i}`,
             key: c.key,
-            icon: a.subclass ? `${a.subclass.replace(/_/g, '-')}-20` : 'marker-20',
+            icon: getAmenityIconName(a.class, a.subclass),
             marker: '',
           },
         });
@@ -118,6 +120,32 @@ export default function ItineraryMap({
 
       m.on('load', () => {
         if (!map.current) return;
+
+        // Load individual SVG icons in the background
+        const uniqueIcons = new Set<string>();
+        clustersRef.current.forEach((c) => {
+          c.amenities.forEach((a) => {
+            uniqueIcons.add(getAmenityIconName(a.class, a.subclass));
+          });
+        });
+
+        uniqueIcons.forEach(async (iconName) => {
+          const iconSource = ICON_REGISTRY[iconName];
+          if (!iconSource) return;
+
+          const asset = Image.resolveAssetSource(iconSource);
+          const url = asset?.uri;
+          if (!url) return;
+
+          try {
+            const image = await m.loadImage(url);
+            if (map.current && !map.current.hasImage(iconName)) {
+              map.current.addImage(iconName, image.data);
+            }
+          } catch (err) {
+            console.warn(`Failed to load icon: ${iconName} from ${url}`, err);
+          }
+        });
 
         let hoverKey: string | null = null;
 
@@ -172,13 +200,15 @@ export default function ItineraryMap({
           filter: ['==', ['get', 'type'], 'cluster'],
           layout: {
             'text-field': ['get', 'marker'],
-            'text-font': ['Noto Sans Regular'],
-            'text-size': 12,
+            'text-font': ['Noto Sans Bold'],
+            'text-size': 14,
             'text-allow-overlap': true,
             'text-anchor': 'center',
           },
           paint: {
             'text-color': THEME.textPrimary,
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 2,
           },
         });
 
@@ -190,7 +220,7 @@ export default function ItineraryMap({
           filter: ['==', ['get', 'type'], 'individual'],
           layout: {
             'icon-image': ['get', 'icon'],
-            'icon-size': 0.8,
+            'icon-size': 1.2,
             'icon-allow-overlap': true,
             'icon-anchor': 'center',
           },
@@ -296,7 +326,6 @@ export default function ItineraryMap({
       fetch(styleUrl)
         .then((r) => r.json())
         .then((style) => {
-          style.sprite = SPRITE_BASE_URL;
           initMap(style);
         })
         .catch(() => {

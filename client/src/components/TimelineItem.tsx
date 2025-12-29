@@ -1,15 +1,46 @@
 import React from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  Image,
+} from 'react-native';
 import { AmenityCluster, RouteAmenity } from '../types';
+import { SvgUri } from 'react-native-svg';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import {
+  getAmenityIconName,
   getClusterDisplayTitle,
   getClusterMinDistanceM,
   normalizeAmenityClassLabel,
   titleize,
 } from '../screens/itinerary/itineraryModel';
+import { ICON_REGISTRY } from '../assets/iconRegistry';
 
 const THEME = ITINERARY_THEME;
+
+const SmartIcon = ({ source, size, style }: { source: any; size: number; style?: any }) => {
+  if (!source) return null;
+
+  if (Platform.OS === 'web') {
+    return (
+      <Image source={source} style={[{ width: size, height: size }, style]} resizeMode="contain" />
+    );
+  }
+
+  // On native, use SvgUri for SVGs
+  const uri = Image.resolveAssetSource(source)?.uri;
+  if (uri) {
+    return <SvgUri uri={uri} width={size} height={size} style={style} />;
+  }
+
+  return (
+    <Image source={source} style={[{ width: size, height: size }, style]} resizeMode="contain" />
+  );
+};
 
 interface TimelineItemProps {
   cluster: AmenityCluster;
@@ -140,16 +171,21 @@ export const TimelineItem = React.memo(
           </View>
 
           <View style={styles.amenityTagsRow}>
-            {Object.entries(cluster.countsByClass)
+            {Object.entries(cluster.countsByIcon || {})
               .sort((a, b) => b[1] - a[1])
-              .slice(0, 6)
-              .map(([cls, count]: [string, number]) => (
-                <View key={cls} style={styles.amenityTag}>
-                  <Text style={styles.amenityTagText}>
-                    {normalizeAmenityClassLabel(cls)} ×{count}
-                  </Text>
-                </View>
-              ))}
+              .slice(0, 8)
+              .map(([iconName, count]: [string, number]) => {
+                const iconSource = ICON_REGISTRY[iconName];
+                if (!iconSource) return null;
+                return (
+                  <View key={iconName} style={styles.amenityTag}>
+                    <SmartIcon source={iconSource} size={18} />
+                    {count > 1 && (
+                      <Text style={[styles.amenityTagText, { marginLeft: 2 }]}>×{count}</Text>
+                    )}
+                  </View>
+                );
+              })}
           </View>
 
           {isSelected && cluster.size > 1 && (
@@ -183,11 +219,19 @@ export const TimelineItem = React.memo(
                     }
                     style={styles.detailsLineRow}
                   >
-                    <Text style={styles.detailsLine}>• </Text>
-                    <Text style={styles.detailsLine}>
-                      {a.name ? a.name : a.subclass ? titleize(a.subclass) : 'Unnamed'}
-                      {a.subclass && a.name ? ` — ${titleize(a.subclass)}` : ''}{' '}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      {ICON_REGISTRY[getAmenityIconName(a.class, a.subclass)] && (
+                        <SmartIcon
+                          source={ICON_REGISTRY[getAmenityIconName(a.class, a.subclass)]}
+                          size={20}
+                          style={{ marginRight: 8 }}
+                        />
+                      )}
+                      <Text style={styles.detailsLine} numberOfLines={1}>
+                        {a.name ? a.name : a.subclass ? titleize(a.subclass) : 'Unnamed'}
+                        {a.subclass && a.name ? ` — ${titleize(a.subclass)}` : ''}{' '}
+                      </Text>
+                    </View>
                     <Text style={styles.detailsLine}>
                       ({formatMeters(a.distance_from_trail_m)})
                     </Text>
@@ -346,8 +390,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: THEME.border,
     borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   amenityTagText: {
     fontSize: 12,
@@ -367,8 +413,8 @@ const styles = StyleSheet.create({
   },
   detailsLineRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 6,
   },
   detailsMore: {

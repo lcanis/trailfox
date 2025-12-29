@@ -73,6 +73,7 @@ describe('ItineraryScreen', () => {
           },
         ],
         countsByClass: { amenity: 1 },
+        countsByIcon: { amenity_cafe: 1 },
         size: 1,
       },
     ];
