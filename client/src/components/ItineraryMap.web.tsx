@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, Text, Image } from 'react-native';
+import { Pressable, StyleSheet, View, Text, Image, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { AmenityCluster } from '../types';
@@ -10,6 +11,7 @@ import { DEVELOPER_MODE } from '../constants';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
 import { getAmenityIconName } from '../screens/itinerary/itineraryModel';
 import { ICON_REGISTRY } from '../assets/iconRegistry';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const THEME = ITINERARY_THEME;
 
@@ -47,6 +49,7 @@ export default function ItineraryMap({
   const map = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const clustersRef = useRef<AmenityCluster[]>(clusters);
+  const insets = useSafeAreaInsets();
   const [devTagsOverlay, setDevTagsOverlay] = useState<{
     title: string;
     tags: Record<string, string> | null;
@@ -429,6 +432,17 @@ export default function ItineraryMap({
           </View>
         </View>
       ) : null}
+
+      {/* Filter Button */}
+      {onOpenFilters && (
+        <TouchableOpacity
+          style={[styles.mapButton, { top: insets.top + 16, right: 72 }]}
+          onPress={onOpenFilters}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="filter" size={20} color="#666" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -443,6 +457,29 @@ const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   } as any,
+
+  mapButton: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    backgroundColor: 'white',
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 10,
+  },
+  mapButtonIcon: {
+    fontSize: 20,
+    color: '#666',
+  },
 
   devOverlayBackdrop: {
     position: 'absolute',

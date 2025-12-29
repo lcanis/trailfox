@@ -51,6 +51,7 @@ interface ItineraryContentProps {
     allowedClasses: string[] | undefined;
     selectedClusterKey: string | null;
     setSelectedClusterKey: (key: string | null) => void;
+    onOpenFilters: () => void;
   }) => React.ReactNode;
   renderWrapper?: (ctx: {
     content: React.ReactNode;
@@ -522,6 +523,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       allowedClasses,
       selectedClusterKey: effectiveSelectedKey,
       setSelectedClusterKey: setSelectedKey,
+      onOpenFilters: () => setFilterModalVisible(true),
     });
   }, [
     renderRightPane,

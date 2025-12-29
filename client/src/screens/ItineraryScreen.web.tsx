@@ -13,12 +13,19 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
         split
         selectedClusterKey={selectedClusterKey}
         onSelectClusterKey={setSelectedClusterKey}
-        renderRightPane={({ route, clusters, selectedClusterKey, setSelectedClusterKey }) => (
+        renderRightPane={({
+          route,
+          clusters,
+          selectedClusterKey,
+          setSelectedClusterKey,
+          onOpenFilters,
+        }) => (
           <ItineraryMap
             routeOsmId={route.osm_id}
             clusters={clusters}
             selectedClusterKey={selectedClusterKey}
             onSelectClusterKey={setSelectedClusterKey}
+            onOpenFilters={onOpenFilters}
           />
         )}
       />

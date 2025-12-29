@@ -127,6 +127,16 @@ export default function Map({
     onBboxChange(bbox);
   };
 
+  const onSourcePress = (e: any) => {
+    if (e.features && e.features.length > 0) {
+      const feature = e.features[0];
+      const osmId = feature.properties?.osm_id;
+      if (osmId) {
+        onSelect(Number(osmId));
+      }
+    }
+  };
+
   // Filter for Highlight Layer
   const highlightFilter = useMemo(() => {
     const id = selectedId || highlightedId || -1;
@@ -158,6 +168,11 @@ export default function Map({
     lineOpacity: 0.6,
   };
 
+  const hitAreaStyle = {
+    lineWidth: 20,
+    lineOpacity: 0,
+  };
+
   return (
     <View style={styles.container}>
       <MapView
@@ -165,6 +180,7 @@ export default function Map({
         style={styles.map}
         mapStyle={styleURL}
         onRegionDidChange={onRegionDidChange}
+        onPress={() => onSelect(null)}
         // onDidFinishLoadingMap={() => setIsMapLoaded(true)}
         logoEnabled={false}
         attributionEnabled={false} // Or true if you want attribution
@@ -187,7 +203,14 @@ export default function Map({
         {showUserLocation && <MapUserLocation visible={true} />}
 
         {/* Routes Source */}
-        <VectorSource id="routes" tileUrlTemplates={[TILES_BASE_URL + '/mvt_routes/{z}/{x}/{y}']}>
+        <VectorSource
+          id="routes"
+          tileUrlTemplates={[TILES_BASE_URL + '/mvt_routes/{z}/{x}/{y}']}
+          onPress={onSourcePress}
+        >
+          {/* Hit Area Layer (Top for interaction) */}
+          <LineLayer id="routes-hit-area" sourceLayerID="routes" style={hitAreaStyle} />
+
           {/* Highlight Layer (Bottom) */}
           <LineLayer
             id="routes-highlight"
