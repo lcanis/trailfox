@@ -106,8 +106,8 @@ DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 -- Index for faster 3857 lookups on amenities
 
 -- subdivided version of routes_info 
-DROP TABLE IF EXISTS routes_subdivide CASCADE;
-CREATE TABLE routes_subdivide AS
+DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
+CREATE TABLE itinerarius.routes_subdivide AS
 WITH segments AS (
     SELECT 
         osm_id,
@@ -121,8 +121,8 @@ SELECT
     ST_Transform(seg_m, 3857) AS geom_3857
 FROM segments;
 
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON routes_subdivide (osm_id);
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON routes_subdivide USING GIST (geom_3857);
+CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON itinerarius.routes_subdivide (osm_id);
+CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON itinerarius.routes_subdivide USING GIST (geom_3857);
 
 DROP VIEW IF EXISTS api.route_amenities;
 CREATE OR REPLACE VIEW api.route_amenities AS
@@ -137,7 +137,7 @@ WITH candidates_all AS (
         ST_Distance(r.geom_3857, a.geom) as dist_from_route_m,
         a.name, a.class, a.subclass, a.tags, a.geom AS amenity_geom,
         r.geom_m AS segment_m
-    FROM routes_subdivide r
+    FROM itinerarius.routes_subdivide r
     JOIN itinerarius.amenities a
       ON ST_DWithin(r.geom_3857, a.geom, 1000)
 ),

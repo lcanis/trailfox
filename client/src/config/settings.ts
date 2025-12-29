@@ -21,14 +21,14 @@ export const DEBUG_ITINERARY_ROUTE_ID = null;
 // Basemap style used by MapLibre on web.
 // Note: Protomaps styles require an API key and may fail (403) if the key is invalid.
 //export const WEB_BASEMAP_STYLE_URL = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-export const WEB_BASEMAP_STYLE_URL = '';
+export const WEB_BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
 
 // API configuration used by the client during development and production.
 // Local dev: use Caddy reverse proxy running on localhost:8090 (see server setup)
 // Production: blank base URL means same-origin (served via reverse proxy)
 // For remote testing, set this to your VPS domain or IP (e.g., 'https://trailfox.app')
 // Note: 8090 is only for local dev proxy; production Caddy uses 80/443.
-export const REMOTE_SERVER_URL: string | null = 'https://trailfox.app';
+export const REMOTE_SERVER_URL: string | null = null;
 
 export let API_BASE_URL = '';
 
@@ -70,6 +70,7 @@ if (REMOTE_SERVER_URL) {
 export const API_ROOT = `${API_BASE_URL}/api`;
 export const API_URL = `${API_ROOT}/routes`;
 export const TILES_BASE_URL = `${API_BASE_URL}/tiles`;
+export const SPRITE_BASE_URL = `${API_BASE_URL}/sprites/itinerarius`;
 
 // Whether the app should allow itineraries for MultiLineString routes.
 // Default false until bifurcations/superroutes are handled.
