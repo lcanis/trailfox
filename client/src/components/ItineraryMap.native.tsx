@@ -11,7 +11,7 @@ import MapLibreGL, {
   ShapeSource,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
-import { AmenityCluster } from '../types';
+import { AmenityCluster, getMapIconName } from '../screens/itinerary/itineraryModel';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
@@ -126,7 +126,7 @@ export default function ItineraryMap({
           properties: {
             amenityId: `${c.key}-${i}`,
             key: c.key,
-            icon: a.subclass || a.class || 'marker',
+            icon: getMapIconName(a.class, a.subclass),
           },
         });
       });

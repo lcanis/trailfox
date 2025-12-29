@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, Text, Image, TouchableOpacity } from 'react-native';
+import { Pressable, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -9,8 +9,7 @@ import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { DEVELOPER_MODE } from '../constants';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
-import { getAmenityIconName } from '../screens/itinerary/itineraryModel';
-import { ICON_REGISTRY } from '../assets/iconRegistry';
+import { getMapIconName } from '../screens/itinerary/itineraryModel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const THEME = ITINERARY_THEME;
@@ -81,7 +80,7 @@ export default function ItineraryMap({
             type: 'individual',
             amenityId: `${c.key}-${i}`,
             key: c.key,
-            icon: getAmenityIconName(a.class, a.subclass),
+            icon: getMapIconName(a.class, a.subclass),
             marker: '',
           },
         });
@@ -123,32 +122,6 @@ export default function ItineraryMap({
 
       m.on('load', () => {
         if (!map.current) return;
-
-        // Load individual SVG icons in the background
-        const uniqueIcons = new Set<string>();
-        clustersRef.current.forEach((c) => {
-          c.amenities.forEach((a) => {
-            uniqueIcons.add(getAmenityIconName(a.class, a.subclass));
-          });
-        });
-
-        uniqueIcons.forEach(async (iconName) => {
-          const iconSource = ICON_REGISTRY[iconName];
-          if (!iconSource) return;
-
-          const asset = Image.resolveAssetSource(iconSource);
-          const url = asset?.uri;
-          if (!url) return;
-
-          try {
-            const image = await m.loadImage(url);
-            if (map.current && !map.current.hasImage(iconName)) {
-              map.current.addImage(iconName, image.data);
-            }
-          } catch (err) {
-            console.warn(`Failed to load icon: ${iconName} from ${url}`, err);
-          }
-        });
 
         let hoverKey: string | null = null;
 

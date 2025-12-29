@@ -78,6 +78,15 @@ const tagsToList = (tags: Record<string, string> | null | undefined) => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+const RADIUS_STEPS = [0.02, 0.05, 0.1, 0.3, 0.5, 1.0];
+
+const formatRadius = (km: number) => {
+  if (km < 1) {
+    return `${Math.round(km * 1000)} m`;
+  }
+  return `${km.toFixed(1)} km`;
+};
+
 export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   route,
   onClose,
@@ -94,7 +103,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const listRef = React.useRef<FlatList>(null);
-  const [radiusKm, setRadiusKm] = React.useState(0.2);
+  const [radiusKm, setRadiusKm] = React.useState(0.1);
   const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
   const [routeGeoJSON, setRouteGeoJSON] = React.useState<any>(null);
   const [customStartKm, setCustomStartKm] = React.useState<number | null>(null);
@@ -246,18 +255,21 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
           <ScrollView style={styles.modalBody}>
             <View style={styles.radiusRow}>
               <Text style={styles.controlLabel}>📏 Radius</Text>
-              <Text style={styles.radiusValue}>{tempRadiusKm.toFixed(1)} km</Text>
+              <Text style={styles.radiusValue}>{formatRadius(tempRadiusKm)}</Text>
             </View>
             <RadiusSlider
-              value={tempRadiusKm}
+              value={
+                RADIUS_STEPS.indexOf(tempRadiusKm) !== -1 ? RADIUS_STEPS.indexOf(tempRadiusKm) : 2
+              }
               onValueChange={(v: number) => {
-                const newV = clamp(Math.round(v * 10) / 10, 0.1, 1);
+                const index = clamp(Math.round(v), 0, RADIUS_STEPS.length - 1);
+                const newV = RADIUS_STEPS[index];
                 setTempRadiusKm(newV);
                 debouncedSetRadius(newV);
               }}
-              minimumValue={0.1}
-              maximumValue={1}
-              step={0.1}
+              minimumValue={0}
+              maximumValue={RADIUS_STEPS.length - 1}
+              step={1}
               minimumTrackTintColor={THEME.accent}
               maximumTrackTintColor={THEME.border}
               thumbTintColor={THEME.accent}

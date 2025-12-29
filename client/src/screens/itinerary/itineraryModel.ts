@@ -48,6 +48,59 @@ export const getAmenityIconName = (cls: string, subclass: string | null): string
   return `${category}_${name}`;
 };
 
+export const getMapIconName = (cls: string, subclass: string | null): string => {
+  // Map to OpenFreeMap / Maki / Liberty sprite names
+  const subclassMap: Record<string, string> = {
+    hotel: 'lodging',
+    hostel: 'lodging',
+    motel: 'lodging',
+    guest_house: 'lodging',
+    alpine_hut: 'lodging',
+    camp_site: 'campsite',
+    shelter: 'campsite',
+    restaurant: 'restaurant',
+    cafe: 'cafe',
+    fast_food: 'fast_food',
+    pub: 'pub',
+    bar: 'bar',
+    supermarket: 'shop',
+    convenience: 'shop',
+    bakery: 'bakery',
+    pharmacy: 'pharmacy',
+    hospital: 'hospital',
+    doctors: 'hospital',
+    bank: 'bank',
+    atm: 'bank',
+    bus_stop: 'bus',
+    railway_station: 'railway',
+    bench: 'park',
+    drinking_water: 'drinking_water',
+    toilets: 'toilets',
+    viewpoint: 'attraction',
+    picnic_site: 'park',
+  };
+
+  if (subclass && subclassMap[subclass]) {
+    return subclassMap[subclass];
+  }
+
+  const classMap: Record<string, string> = {
+    accom: 'lodging',
+    food: 'restaurant',
+    resupply: 'shop',
+    medical: 'hospital',
+    transport: 'bus',
+    cash: 'bank',
+    water: 'drinking_water',
+    hygiene: 'toilets',
+    tourism: 'attraction',
+    place: 'town_hall',
+    shelter: 'campsite',
+  };
+
+  return classMap[cls] || 'marker';
+};
+
 export const getItineraryMarker = (index: number): string => {
   // 0-8 -> "1"-"9"
   if (index < 9) {
