@@ -8,12 +8,16 @@ import { useUserLocation } from '../hooks/useUserLocation';
 export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryContent>) => {
   const [selectedClusterKey, setSelectedClusterKey] = React.useState<string | null>(null);
   const [isFollowingUser, setIsFollowingUser] = React.useState(false);
-  const { location: userLocation, isLocating } = useUserLocation({ enabled: isFollowingUser });
+  const [showsUserLocation, setShowsUserLocation] = React.useState(false);
+  const { location: userLocation, isLocating } = useUserLocation({
+    enabled: isFollowingUser || showsUserLocation,
+  });
   const followDisableGuardUntilRef = React.useRef(0);
 
   const snapPoints = React.useMemo(() => ['8%', '50%', '85%'], []);
 
   const handleToggleFollowUser = () => {
+    setShowsUserLocation(true);
     setIsFollowingUser((prev) => {
       const next = !prev;
       if (next) {
@@ -59,6 +63,7 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
                 selectedClusterKey={selectedClusterKey}
                 onSelectClusterKey={handleSelectClusterKey}
                 userLocation={userLocation}
+                showsUserLocation={showsUserLocation}
                 isFollowingUser={isFollowingUser}
                 onToggleFollowUser={handleToggleFollowUser}
                 followDisableGuardUntil={followDisableGuardUntilRef.current}

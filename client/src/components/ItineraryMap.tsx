@@ -8,6 +8,7 @@ interface ItineraryMapProps {
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
   userLocation?: { latitude: number; longitude: number } | null;
+  showsUserLocation?: boolean;
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
   followDisableGuardUntil?: number;

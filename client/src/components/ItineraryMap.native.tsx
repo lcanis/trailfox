@@ -15,7 +15,7 @@ import {
 import { AmenityCluster } from '../types';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
-import { WEB_BASEMAP_STYLE_URL, SPRITE_BASE_URL } from '../config/settings';
+import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ItineraryMapProps {
@@ -24,6 +24,7 @@ interface ItineraryMapProps {
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
   userLocation?: { latitude: number; longitude: number } | null;
+  showsUserLocation?: boolean;
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
   followDisableGuardUntil?: number;
@@ -36,6 +37,7 @@ export default function ItineraryMap({
   selectedClusterKey,
   onSelectClusterKey,
   userLocation,
+  showsUserLocation,
   isFollowingUser,
   onToggleFollowUser,
   followDisableGuardUntil,
@@ -157,9 +159,9 @@ export default function ItineraryMap({
           }}
         />
 
-        <UserLocation visible={isFollowingUser} />
+        <UserLocation visible={showsUserLocation} />
 
-        <Images sprite={SPRITE_BASE_URL} />
+        <Images />
 
         {/* Route Line */}
         {routeGeoJSON && (

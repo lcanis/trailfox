@@ -22,6 +22,7 @@ interface ItineraryMapProps {
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
   userLocation?: { latitude: number; longitude: number } | null;
+  showsUserLocation?: boolean;
   isFollowingUser?: boolean;
   onToggleFollowUser?: () => void;
   followDisableGuardUntil?: number;
@@ -33,6 +34,12 @@ export default function ItineraryMap({
   clusters,
   selectedClusterKey,
   onSelectClusterKey,
+  userLocation,
+  showsUserLocation,
+  isFollowingUser,
+  onToggleFollowUser,
+  followDisableGuardUntil,
+  onOpenFilters,
 }: ItineraryMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
