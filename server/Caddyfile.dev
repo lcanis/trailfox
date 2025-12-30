@@ -1,63 +1,16 @@
 :8090 {
-	# Rate-limit API calls at the gateway layer (Caddy), before they hit PostgREST.
-	# Requires Caddy built with github.com/mholt/caddy-ratelimit.
-	rate_limit {
-		zone api {
-			match {
-				path /api/*
-				method GET POST PATCH PUT DELETE
-			}
-			key {remote_host}
-			window 10s
-			events 100
-		}
-	}
 
 	handle_path /tiles/* {
-		# Allow cross-origin tile fetches from dev servers (e.g., Expo web on :8081).
-		# Martin does not handle OPTIONS, so respond to preflights here.
-
-		@options {
-			method OPTIONS
-		}
-		handle @options {
-			header Access-Control-Allow-Origin "*"
-			header Access-Control-Allow-Methods "GET, OPTIONS"
-			header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
-			respond "" 204
-		}
-
 		reverse_proxy martin:3000
 	}
 
-	handle_path /sprites/* {
-		header Access-Control-Allow-Origin "*"
-		root * /app/assets/sprites
-		file_server
-	}
-
 	handle_path /api/* {
-		@options {
-			method OPTIONS
-		}
-		handle @options {
-			header Access-Control-Allow-Origin "*"
-			header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-			header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Authorization, Prefer"
-			respond "" 204
-		}
-
 		reverse_proxy postgrest:3000 {
 			header_down -Access-Control-Allow-Origin
 			header_down -Access-Control-Allow-Methods
 			header_down -Access-Control-Allow-Headers
 			header_down -Access-Control-Expose-Headers
 		}
-
-		header Access-Control-Allow-Origin "*"
-		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Authorization, Prefer"
-		header Access-Control-Expose-Headers "Content-Encoding, Content-Location, Content-Range, Content-Type, Date, Location, Server, Transfer-Encoding, Range-Unit, Preference-Applied"
 	}
 
 	respond / "Trailfox API Gateway" 200
