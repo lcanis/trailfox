@@ -11,7 +11,8 @@ import MapLibreGL, {
   ShapeSource,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
-import { AmenityCluster, getMapIconName } from '../screens/itinerary/itineraryModel';
+import type { AmenityCluster, RouteAmenity } from '../types';
+import { getMapIconName } from '../screens/itinerary/itineraryModel';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
@@ -119,7 +120,7 @@ export default function ItineraryMap({
   const individualAmenitiesGeoJSON = useMemo(() => {
     const features: any[] = [];
     clusters.forEach((c) => {
-      c.amenities.forEach((a, i) => {
+      c.amenities.forEach((a: RouteAmenity, i: number) => {
         features.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [a.lon, a.lat] },

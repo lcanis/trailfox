@@ -136,7 +136,7 @@ export function isRouteCircular(routeGeoJSON: any): boolean {
 
     const distance = turf.distance(firstPoint, lastPoint, { units: 'kilometers' });
     return distance <= 0.2; // 200m
-  } catch (e) {
+  } catch {
     return false;
   }
 }

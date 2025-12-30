@@ -350,6 +350,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
         trail_km: metrics?.kmOnTrail ?? fallbackTrailKm,
         amenities: [],
         countsByClass: {},
+        countsByIcon: {},
         size: 0,
         lat: userLocation.latitude,
         lon: userLocation.longitude,

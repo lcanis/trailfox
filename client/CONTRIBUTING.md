@@ -6,21 +6,21 @@ This is the React Native / Expo client for Itinerarius.
 
 1. Install dependencies:
 
-    ```bash
-    npm install
-    ```
+   ```bash
+   npm install
+   ```
 
 2. Run for web:
 
-    ```bash
-    npx expo start --web
-    ```
+   ```bash
+   npx expo start --web
+   ```
 
 3. Build for web:
 
-    ```bash
-    npx expo export -p web
-    ```
+   ```bash
+   npx expo export -p web
+   ```
 
 ## Deployment
 

@@ -6,17 +6,20 @@ import { useItinerary } from '../../hooks/useItinerary';
 import { useUserLocation } from '../../hooks/useUserLocation';
 
 // Mock dependencies
+/* eslint-disable @typescript-eslint/no-require-imports */
 jest.mock('../../components/ItineraryMap', () => {
   const React = require('react');
   const { View, Button } = require('react-native');
-  const MockItineraryMap = (props: any) => (
-    <View testID="itinerary-map">
-      {props.isFollowingUser ? <View testID="map-following-user" /> : null}
-      <Button title="Toggle Follow" onPress={props.onToggleFollowUser} />
-    </View>
-  );
+  const MockItineraryMap = (props: any) =>
+    React.createElement(
+      View,
+      { testID: 'itinerary-map' },
+      props.isFollowingUser ? React.createElement(View, { testID: 'map-following-user' }) : null,
+      React.createElement(Button, { title: 'Toggle Follow', onPress: props.onToggleFollowUser })
+    );
   return MockItineraryMap;
 });
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 jest.mock('../../hooks/useItinerary');
 jest.mock('../../hooks/useUserLocation');
@@ -24,6 +27,7 @@ jest.mock('../../hooks/useUserLocation');
 // Mock ListContainer to spy on scrollToIndex
 const mockScrollToIndex = jest.fn();
 const mockScrollToOffset = jest.fn();
+/* eslint-disable @typescript-eslint/no-require-imports */
 jest.mock('../../components/ListContainer', () => {
   const React = require('react');
   const { View } = require('react-native');
@@ -32,13 +36,18 @@ jest.mock('../../components/ListContainer', () => {
       scrollToIndex: mockScrollToIndex,
       scrollToOffset: mockScrollToOffset,
     }));
-    return (
-      <View testID="list-container" onLayout={props.onLayout}>
-        {props.renderItem &&
-          props.data.map((item: any, index: number) => (
-            <React.Fragment key={index}>{props.renderItem({ item, index })}</React.Fragment>
-          ))}
-      </View>
+    const children: React.ReactNode[] = [];
+    if (props.renderItem) {
+      props.data.forEach((item: any, index: number) => {
+        children.push(
+          React.createElement(React.Fragment, { key: index }, props.renderItem({ item, index }))
+        );
+      });
+    }
+    return React.createElement(
+      View,
+      { testID: 'list-container', onLayout: props.onLayout },
+      ...children
     );
   });
   MockListContainer.displayName = 'ListContainer';
@@ -46,6 +55,7 @@ jest.mock('../../components/ListContainer', () => {
     ListContainer: MockListContainer,
   };
 });
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const mockUseItinerary = useItinerary as jest.Mock;
 const mockUseUserLocation = useUserLocation as jest.Mock;

@@ -72,7 +72,7 @@ export default function ItineraryMap({
       });
 
       // Individual amenities (for high zoom)
-      c.amenities.forEach((a, i) => {
+      c.amenities.forEach((a: any, i: number) => {
         features.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [a.lon, a.lat] },

@@ -13,24 +13,29 @@ jest.mock('../itinerary/itineraryModel', () => ({
   ...jest.requireActual('../itinerary/itineraryModel'),
   addItineraryEndpointClusters: jest.fn(),
 }));
-jest.mock('../../components/ListContainer', () => ({
-  ListContainer: (props: any) => {
-    const React = require('react');
-    const { View } = require('react-native');
+/* eslint-disable @typescript-eslint/no-require-imports */
+jest.mock('../../components/ListContainer', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const ListContainer = (props: any) => {
     const { ListHeaderComponent, ListEmptyComponent, data, renderItem, keyExtractor } = props;
-    return (
-      <View testID="mock-ListContainer">
-        {ListHeaderComponent}
-        {data.length === 0 && ListEmptyComponent}
-        {data.map((item: any, index: number) => (
-          <React.Fragment key={keyExtractor(item, index)}>
-            {renderItem({ item, index })}
-          </React.Fragment>
-        ))}
-      </View>
-    );
-  },
-}));
+    const children = [];
+    if (ListHeaderComponent) children.push(ListHeaderComponent);
+    if (data.length === 0 && ListEmptyComponent) children.push(ListEmptyComponent);
+    data.forEach((item: any, index: number) => {
+      children.push(
+        React.createElement(
+          React.Fragment,
+          { key: keyExtractor(item, index) },
+          renderItem({ item, index })
+        )
+      );
+    });
+    return React.createElement(View, { testID: 'mock-ListContainer' }, ...children);
+  };
+  return { ListContainer };
+});
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const mockUseItinerary = useItinerary as jest.Mock;
 const mockAddItineraryEndpointClusters = addItineraryEndpointClusters as jest.Mock;

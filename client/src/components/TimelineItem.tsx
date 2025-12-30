@@ -15,7 +15,6 @@ import {
   getAmenityIconName,
   getClusterDisplayTitle,
   getClusterMinDistanceM,
-  normalizeAmenityClassLabel,
   titleize,
 } from '../screens/itinerary/itineraryModel';
 import { ICON_REGISTRY } from '../assets/iconRegistry';

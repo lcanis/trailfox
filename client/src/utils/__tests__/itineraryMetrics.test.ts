@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf';
-import { calculateUserMetrics } from '../itineraryMetrics';
+import { calculateUserMetrics, isRouteCircular } from '../itineraryMetrics';
 
 describe('itineraryMetrics', () => {
   const line = turf.lineString([
@@ -44,8 +44,6 @@ describe('itineraryMetrics', () => {
   });
 
   describe('isRouteCircular', () => {
-    const { isRouteCircular } = require('../itineraryMetrics');
-
     it('returns true for circular routes', () => {
       const circular = turf.lineString([
         [0, 0],
