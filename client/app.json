@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Trailfox Discovery",
-    "slug": "trailfox-discovery",
+    "name": "Trailfox",
+    "slug": "trailfox",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.trailfox-discovery"
+      "bundleIdentifier": "com.anonymous.trailfox"
     },
     "android": {
       "adaptiveIcon": {
