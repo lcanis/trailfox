@@ -19,6 +19,7 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
           selectedClusterKey,
           setSelectedClusterKey,
           onOpenFilters,
+          discoveryMapCenter,
         }) => (
           <ItineraryMap
             routeOsmId={route.osm_id}
@@ -26,6 +27,7 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
             selectedClusterKey={selectedClusterKey}
             onSelectClusterKey={setSelectedClusterKey}
             onOpenFilters={onOpenFilters}
+            initialCenter={discoveryMapCenter}
           />
         )}
       />

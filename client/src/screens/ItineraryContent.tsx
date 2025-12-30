@@ -43,6 +43,8 @@ interface ItineraryContentProps {
   route: Route;
   onClose: () => void;
   split?: boolean;
+  // Optional discovery map center (lon, lat) from parent screen (web)
+  mapCenter?: [number, number] | undefined;
   renderRightPane?: (ctx: {
     route: Route;
     clusters: AmenityCluster[];
@@ -52,6 +54,7 @@ interface ItineraryContentProps {
     selectedClusterKey: string | null;
     setSelectedClusterKey: (key: string | null) => void;
     onOpenFilters: () => void;
+    discoveryMapCenter?: [number, number] | undefined;
   }) => React.ReactNode;
   renderWrapper?: (ctx: {
     content: React.ReactNode;
@@ -80,6 +83,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const RADIUS_STEPS = [0.02, 0.05, 0.1, 0.3, 0.5, 1.0];
 
+const ITINERARY_LEFT_PANE_MIN_WIDTH_PX = 450;
+
 const formatRadius = (km: number) => {
   if (km < 1) {
     return `${Math.round(km * 1000)} m`;
@@ -91,6 +96,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   route,
   onClose,
   split,
+  mapCenter,
   renderRightPane,
   renderWrapper,
   selectedClusterKey,
@@ -526,6 +532,101 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     if (next !== effectiveSelectedKey) setSelectedKey(next);
   }, [clusters, effectiveSelectedKey, setSelectedKey]);
 
+  const [leftPaneWidthPx, setLeftPaneWidthPx] = React.useState<number | null>(null);
+  const leftPaneRef = React.useRef<any>(null);
+
+  // Once the user drags the splitter, stop auto-resizing based on content.
+  const hasUserResizedRef = React.useRef(false);
+
+  // --- Web: drag-to-resize and measurement (moved after displayedClusters to avoid TDZ)
+  const splitterDragStateRef = React.useRef<{
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const startDrag = (e: MouseEvent | any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+
+    hasUserResizedRef.current = true;
+
+    splitterDragStateRef.current = {
+      startX: e.clientX,
+      startWidth: leftPaneWidthPx ?? leftPaneRef.current?.clientWidth ?? 0,
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    // Prevent text selection
+    if (typeof document !== 'undefined' && document.body) {
+      (document.body as any).style.userSelect = 'none';
+    }
+  };
+
+  const onMouseMove = React.useCallback((e: MouseEvent | any) => {
+    if (!splitterDragStateRef.current) return;
+    const dx = e.clientX - splitterDragStateRef.current.startX;
+    const newW = splitterDragStateRef.current.startWidth + dx;
+    const parentWidth = leftPaneRef.current?.parentElement?.clientWidth || window.innerWidth;
+    // Minimum width enforced while dragging
+    const minW = ITINERARY_LEFT_PANE_MIN_WIDTH_PX;
+    const maxW = Math.max(420, Math.floor(parentWidth * 0.95));
+    const clamped = clamp(newW, minW, maxW);
+    setLeftPaneWidthPx(clamped);
+  }, []);
+
+  const onMouseUp = React.useCallback(() => {
+    splitterDragStateRef.current = null;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    if (typeof document !== 'undefined' && document.body) {
+      (document.body as any).style.userSelect = '';
+    }
+  }, [onMouseMove]);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (hasUserResizedRef.current) return;
+    const node = leftPaneRef.current as HTMLElement | null;
+    if (!node) return;
+
+    const measure = () => {
+      const listNode = node.querySelector('[data-testid="itinerary-list"]') as HTMLElement | null;
+      if (!listNode) return;
+      const contentWidth = listNode.scrollWidth || 0;
+      const parentWidth = node.parentElement?.clientWidth || window.innerWidth;
+      // Add some breathing room for padding and borders; ensure a sensible minimum so the pane
+      // doesn't start too narrow on wide screens.
+      const minTarget = ITINERARY_LEFT_PANE_MIN_WIDTH_PX;
+      // Target is clamped between minTarget and 90% of parent width.
+      const target = Math.min(
+        Math.max(contentWidth + 32, minTarget),
+        Math.floor(parentWidth * 0.9)
+      );
+      setLeftPaneWidthPx((prev) => {
+        // only update if value differs meaningfully to avoid reflows
+        if (!prev || Math.abs(prev - target) > 8) return target;
+        return prev;
+      });
+    };
+
+    // Measure after a small timeout to allow layout to settle
+    const t = setTimeout(measure, 60);
+    // Re-measure on window resize
+    window.addEventListener('resize', measure);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', measure);
+    };
+  }, [displayedClusters]);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [onMouseMove, onMouseUp]);
+
   const rightPaneNode = React.useMemo(() => {
     if (!renderRightPane) return null;
     return renderRightPane({
@@ -537,6 +638,8 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       selectedClusterKey: effectiveSelectedKey,
       setSelectedClusterKey: setSelectedKey,
       onOpenFilters: () => setFilterModalVisible(true),
+      // discovery map center passed from parent screen
+      discoveryMapCenter: mapCenter,
     });
   }, [
     renderRightPane,
@@ -547,6 +650,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     allowedClasses,
     effectiveSelectedKey,
     setSelectedKey,
+    mapCenter,
   ]);
 
   const totalAmenities = React.useMemo(
@@ -607,7 +711,21 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
 
         {!loading && !error && (
           <View style={[styles.splitRow, !split && styles.splitRowSingle]}>
-            <View style={styles.leftPane}>
+            <View
+              ref={leftPaneRef}
+              style={[
+                styles.leftPane,
+                Platform.OS === 'web' && split && rightPaneNode
+                  ? {
+                      flex: 0,
+                      flexGrow: 0,
+                      flexShrink: 0,
+                      flexBasis: 'auto',
+                      ...(leftPaneWidthPx ? { width: leftPaneWidthPx } : {}),
+                    }
+                  : null,
+              ]}
+            >
               {split ? controlsNode : null}
               <ListContainer<AmenityCluster>
                 ref={listRef}
@@ -645,6 +763,17 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                 renderItem={renderItem}
               />
             </View>
+
+            {split && Platform.OS === 'web' && rightPaneNode ? (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                onMouseDown={(e: any) => startDrag(e)}
+                style={styles.splitter as any}
+              >
+                <div style={{ width: 2, backgroundColor: THEME.border, height: '40%' }} />
+              </div>
+            ) : null}
 
             {split && rightPaneNode ? <View style={styles.mapPane}>{rightPaneNode}</View> : null}
           </View>
@@ -857,7 +986,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapPane: {
-    width: Platform.OS === 'web' ? '45%' : '100%',
+    flex: 1,
     // Make the mobile map view very small (20) for now so the timeline/list is more prominent on start.
     height: Platform.OS === 'web' ? '100%' : 20,
     borderLeftWidth: Platform.OS === 'web' ? 2 : 0,
@@ -865,6 +994,14 @@ const styles = StyleSheet.create({
     borderLeftColor: THEME.border,
     borderBottomColor: THEME.border,
     backgroundColor: THEME.background,
+  },
+  splitter: {
+    width: Platform.OS === 'web' ? 12 : 0,
+    cursor: Platform.OS === 'web' ? ('col-resize' as any) : ('default' as any),
+    alignSelf: 'stretch',
+    display: Platform.OS === 'web' ? 'flex' : 'none',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   center: {
     flex: 1,

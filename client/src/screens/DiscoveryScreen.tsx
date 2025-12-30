@@ -25,6 +25,7 @@ export const DiscoveryScreen = () => {
     itineraryRoute,
     displayedRoutes,
     handleViewChange,
+    bbox,
     handleBboxChange,
     handleSelect,
     handleMapSelect,
@@ -96,7 +97,16 @@ export const DiscoveryScreen = () => {
         {ContentComponent}
       </NativeBottomSheet>
 
-      {itineraryRoute && <ItineraryScreen route={itineraryRoute} onClose={handleCloseItinerary} />}
+      {itineraryRoute && (
+        <ItineraryScreen
+          route={itineraryRoute}
+          onClose={handleCloseItinerary}
+          mapCenter={
+            // Derive center from bbox if available
+            bbox ? [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2] : undefined
+          }
+        />
+      )}
     </View>
   );
 };

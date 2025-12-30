@@ -30,6 +30,8 @@ interface ItineraryMapProps {
   onToggleFollowUser?: () => void;
   followDisableGuardUntil?: number;
   onOpenFilters?: () => void;
+  // Optional initial center (lon, lat) from the discovery map
+  initialCenter?: [number, number] | null;
 }
 
 export default function ItineraryMap({
@@ -43,6 +45,7 @@ export default function ItineraryMap({
   onToggleFollowUser,
   followDisableGuardUntil,
   onOpenFilters,
+  initialCenter,
 }: ItineraryMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -106,11 +109,38 @@ export default function ItineraryMap({
     const initMap = (style: any) => {
       if (!mapContainer.current) return;
 
+      // Determine initial center: prefer explicit initialCenter (discovery map center) if available,
+      // otherwise fall back to cluster centroid or a reasonable default.
+      let center: [number, number] = [6.1, 49.7];
+      let zoom = 10;
+
+      try {
+        // Prefer an explicit initial center when provided (discovery map center)
+        if (initialCenter && initialCenter.length === 2) {
+          center = initialCenter;
+          zoom = 12;
+        } else if (clusters && clusters.length > 0) {
+          // average cluster centroid as reasonable fallback
+          const sum = clusters.reduce(
+            (acc, cur) => {
+              acc[0] += cur.lon;
+              acc[1] += cur.lat;
+              return acc;
+            },
+            [0, 0]
+          );
+          center = [sum[0] / clusters.length, sum[1] / clusters.length];
+          zoom = 12;
+        }
+      } catch {
+        // ignore and use defaults
+      }
+
       const m = new maplibregl.Map({
         container: mapContainer.current,
         style: style,
-        center: [6.1, 49.7],
-        zoom: 10,
+        center,
+        zoom,
       });
       map.current = m;
 
@@ -317,7 +347,7 @@ export default function ItineraryMap({
       map.current = null;
       setIsMapLoaded(false);
     };
-  }, [onSelectClusterKey]);
+  }, [onSelectClusterKey, clusters, initialCenter]);
 
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
