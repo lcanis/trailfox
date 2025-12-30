@@ -1,0 +1,7 @@
+[build]
+  base = "client"
+  command = "npm run build:web"
+  publish = "dist"
+
+[dev]
+  command = "npm run web"
