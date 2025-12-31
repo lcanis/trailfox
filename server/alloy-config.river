@@ -1,0 +1,21 @@
+prometheus.exporter.postgres "postgis" {
+  datasource_url = "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}?sslmode=disable"
+  forward_to     = [prometheus.remote_write.grafana.receiver]
+}
+
+prometheus.exporter.unix "node" {
+  path_procfs = "/host/proc"
+  path_sysfs  = "/host/sys"
+  path_rootfs = "/rootfs"
+  forward_to  = [prometheus.remote_write.grafana.receiver]
+}
+
+prometheus.remote_write "grafana" {
+  endpoint {
+    url     = env("ALLOY_PROMETHEUS_URL")
+    basic_auth {
+      username = env("ALLOY_PROMETHEUS_USER")
+      password = env("ALLOY_PROMETHEUS_TOKEN")
+    }
+  }
+}

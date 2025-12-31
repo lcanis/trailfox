@@ -28,55 +28,16 @@ services:
     volumes:
       - trailfox_pgadmin_data:/var/lib/pgadmin
 
-  node_exporter:
-    image: prom/node-exporter:latest
+  grafana-alloy:
+    image: grafana/alloy:latest
     restart: unless-stopped
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - --path.procfs=/host/proc
-      - --path.rootfs=/rootfs
-      - --path.sysfs=/host/sys
-      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)$
+      - ./alloy-config.river:/etc/alloy/config.river:ro
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.river
     ports:
-      - "127.0.0.1:9100:9100"
-
-  postgres_exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:latest
-    restart: unless-stopped
-    environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}?sslmode=disable"
-    ports:
-      - "127.0.0.1:9187:9187"
+      - "127.0.0.1:12345:12345"  # Optional UI
     depends_on:
       - postgis
-    command:
-      - --extend.query-path=https://raw.githubusercontent.com/prometheus-community/postgres_exporter/master/queries.yaml
-
-  prometheus:
-    image: prom/prometheus:latest
-    restart: unless-stopped
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    ports:
-      - "127.0.0.1:9090:9090"
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --web.enable-lifecycle
-
-  grafana:
-    image: grafana/grafana:latest
-    restart: unless-stopped
-    volumes:
-      - grafana_data:/var/lib/grafana
-    ports:
-      - "127.0.0.1:3000:3000"
-    depends_on:
-      - prometheus
 
 volumes:
   trailfox_pg_data:
@@ -88,8 +49,4 @@ volumes:
   caddy_data:
     driver: local
   caddy_config:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
     driver: local
