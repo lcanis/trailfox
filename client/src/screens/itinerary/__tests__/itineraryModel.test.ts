@@ -24,36 +24,27 @@ const makeAmenity = (partial: Partial<RouteAmenity>): RouteAmenity => ({
 });
 
 describe('itineraryModel', () => {
-  test('buildAmenityClusters groups by rounded trail bucket and computes counts/centroid', () => {
+  test('buildAmenityClusters groups by spatial proximity using DBSCAN', () => {
     const amenities: RouteAmenity[] = [
-      makeAmenity({ trail_km: 1.24, lon: 10, lat: 20, class: 'food' }),
-      makeAmenity({ trail_km: 1.26, lon: 30, lat: 40, class: 'water' }),
-      makeAmenity({ trail_km: 1.49, lon: 50, lat: 60, class: 'food' }),
+      // Cluster 1: two points very close to each other
+      makeAmenity({ trail_km: 1.0, lon: 6.1234, lat: 49.5678, class: 'food' }),
+      makeAmenity({ trail_km: 1.1, lon: 6.1235, lat: 49.5679, class: 'water' }),
+      // Cluster 2: one point far away
+      makeAmenity({ trail_km: 5.0, lon: 6.2, lat: 49.6, class: 'food' }),
     ];
 
     const clusters = buildAmenityClusters(amenities, 0.5);
 
-    // 1.24 rounds to 1.0; 1.26 and 1.49 round to 1.5
-    expect(clusters.map((c) => c.trail_km)).toEqual([1.0, 1.5]);
+    expect(clusters).toHaveLength(2);
 
-    const c10 = clusters[0];
-    expect(c10.key).toBe('1.000');
-    expect(c10.size).toBe(1);
-    expect(c10.countsByClass).toEqual({ food: 1 });
+    // First cluster should have 2 items
+    expect(clusters[0].size).toBe(2);
+    expect(clusters[0].trail_km).toBeCloseTo(1.05);
+    expect(clusters[0].countsByClass).toEqual({ food: 1, water: 1 });
 
-    const c15 = clusters[1];
-    expect(c15.key).toBe('1.500');
-    expect(c15.size).toBe(2);
-    expect(c15.countsByClass).toEqual({ water: 1, food: 1 });
-    expect(c15.lon).toBe((30 + 50) / 2);
-    expect(c15.lat).toBe((40 + 60) / 2);
-  });
-
-  test('buildAmenityClusters rounds half-up at exact midpoints', () => {
-    const amenities: RouteAmenity[] = [makeAmenity({ trail_km: 1.25 })];
-    const clusters = buildAmenityClusters(amenities, 0.5);
-    expect(clusters).toHaveLength(1);
-    expect(clusters[0].trail_km).toBe(1.5);
+    // Second cluster should have 1 item
+    expect(clusters[1].size).toBe(1);
+    expect(clusters[1].trail_km).toBe(5.0);
   });
 
   test('addItineraryEndpointClusters injects start/end Place clusters when missing', () => {

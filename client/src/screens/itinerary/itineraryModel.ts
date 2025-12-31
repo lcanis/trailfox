@@ -1,4 +1,5 @@
 import { AmenityCluster, Route, RouteAmenity } from '../../types';
+import * as turf from '@turf/turf';
 
 export const PLACE_HEADER_MAX_DISTANCE_M = 1000;
 
@@ -118,10 +119,8 @@ export const getItineraryMarker = (index: number): string => {
   return res;
 };
 
-const roundTo = (value: number, step: number) => Math.round(value / step) * step;
-
 /**
- * Groups amenities into trail-distance buckets.
+ * Groups amenities into clusters using DBSCAN.
  *
  * This is the core “grouping” behavior for the itinerary timeline.
  */
@@ -129,43 +128,72 @@ export const buildAmenityClusters = (
   amenities: RouteAmenity[],
   bucketKm: number
 ): AmenityCluster[] => {
-  const map = new Map<string, AmenityCluster>();
+  if (amenities.length === 0) return [];
 
-  for (const amenity of amenities) {
-    const bucket = roundTo(amenity.trail_km, bucketKm);
-    const key = `${bucket.toFixed(3)}`;
+  // 1. Convert to GeoJSON
+  const points = amenities.map((a, i) => turf.point([a.lon, a.lat], { index: i }));
+  const collection = turf.featureCollection(points);
 
-    let cluster = map.get(key);
-    if (!cluster) {
-      cluster = {
-        key,
-        trail_km: bucket,
-        amenities: [],
-        countsByClass: {},
-        countsByIcon: {},
-        size: 0,
-        lon: 0,
-        lat: 0,
-      };
-      map.set(key, cluster);
+  // 2. Run DBSCAN
+  // minPoints: 1 ensures every point is part of a cluster (even if it's a cluster of 1)
+  const clustered = turf.clustersDbscan(collection, bucketKm, {
+    units: 'kilometers',
+    minPoints: 1,
+  });
+
+  // 3. Group by cluster ID
+  const clusterGroups = new Map<number, RouteAmenity[]>();
+  clustered.features.forEach((f) => {
+    const clusterId = f.properties.cluster as number;
+    const amenityIndex = f.properties.index as number;
+    const amenity = amenities[amenityIndex];
+
+    if (clusterId === undefined) {
+      // This shouldn't happen with minPoints: 1, but for safety:
+      // Treat noise as its own unique cluster
+      const noiseId = -1 - amenityIndex;
+      clusterGroups.set(noiseId, [amenity]);
+    } else {
+      if (!clusterGroups.has(clusterId)) {
+        clusterGroups.set(clusterId, []);
+      }
+      clusterGroups.get(clusterId)!.push(amenity);
+    }
+  });
+
+  // 4. Build AmenityCluster objects
+  const result: AmenityCluster[] = [];
+  for (const [id, clusterAmenities] of clusterGroups.entries()) {
+    const size = clusterAmenities.length;
+    const lonSum = clusterAmenities.reduce((sum, a) => sum + a.lon, 0);
+    const latSum = clusterAmenities.reduce((sum, a) => sum + a.lat, 0);
+    const trailKmSum = clusterAmenities.reduce((sum, a) => sum + a.trail_km, 0);
+
+    const avgTrailKm = trailKmSum / size;
+
+    const countsByClass: Record<string, number> = {};
+    const countsByIcon: Record<string, number> = {};
+
+    for (const a of clusterAmenities) {
+      countsByClass[a.class] = (countsByClass[a.class] ?? 0) + 1;
+      const iconName = getAmenityIconName(a.class, a.subclass);
+      countsByIcon[iconName] = (countsByIcon[iconName] ?? 0) + 1;
     }
 
-    cluster.amenities.push(amenity);
-    cluster.countsByClass[amenity.class] = (cluster.countsByClass[amenity.class] ?? 0) + 1;
-
-    const iconName = getAmenityIconName(amenity.class, amenity.subclass);
-    cluster.countsByIcon[iconName] = (cluster.countsByIcon[iconName] ?? 0) + 1;
+    result.push({
+      key: `cluster-${id}-${avgTrailKm.toFixed(3)}`,
+      trail_km: avgTrailKm,
+      amenities: clusterAmenities,
+      countsByClass,
+      countsByIcon,
+      size,
+      lon: lonSum / size,
+      lat: latSum / size,
+    });
   }
 
-  for (const cluster of map.values()) {
-    cluster.size = cluster.amenities.length;
-    const lonSum = cluster.amenities.reduce((sum, a) => sum + a.lon, 0);
-    const latSum = cluster.amenities.reduce((sum, a) => sum + a.lat, 0);
-    cluster.lon = lonSum / cluster.size;
-    cluster.lat = latSum / cluster.size;
-  }
-
-  return [...map.values()].sort((a, b) => a.trail_km - b.trail_km);
+  // 5. Sort by trail_km
+  return result.sort((a, b) => a.trail_km - b.trail_km);
 };
 
 export const getAvailableClasses = (rawAmenities: RouteAmenity[]) => {

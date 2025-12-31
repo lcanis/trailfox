@@ -37,7 +37,6 @@ export function calculateUserMetrics(
     if (!line) return null;
 
     // 1. Find nearest point on trail using planar math on 4326 coordinates.
-    // 1. Find nearest point on trail using planar math on 4326 coordinates.
     // This matches PostGIS ST_LineLocatePoint(geom, pt) and ensures
     // consistency between server-calculated amenity KM and client-calculated user KM.
     // We use a simple planar projection (lon/lat as x/y) for the fraction.

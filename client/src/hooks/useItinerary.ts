@@ -13,7 +13,7 @@ export const useItinerary = (params: {
   const {
     routeOsmId,
     maxDistanceFromTrailM = 1000,
-    clusterBucketKm = 0.5,
+    clusterBucketKm = 0.05,
     timeoutMs = 8000,
     allowedClasses,
   } = params;

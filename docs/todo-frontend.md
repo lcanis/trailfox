@@ -3,19 +3,19 @@
 * be consistent in coordinate handling. e.g. ItineraryMapProps is userLocation?: { latitude[!!!!SIC first]: number; longitude: number } | null; VS   initialCenter?: [number, number] | null;
 * standardize on geojson [lon lat]
 
-
 ## Discovery
 
 * add search for places - maputnik has a nice implementation
 * add zoom and compass buttons
 * route sidebar: "Hiking Trails" instead of "routes"
-* review and update symbol generation (should it be done in the backend maybe?)
+* review and update symbol/icon generation (should it be done in the backend maybe?)
 * filter routes by Network/pilgrimage=yes/Length/arbitrary OSM tag (dev mode)/
-* add: offer order by distance from current location
-* color scheme
+* add: offer 'order by distance from current location'
+* color scheme consistency
 
 ## Itinerary
 
+* map: DRY - clusters to geojson repeated in itinerarymap.web and .native
 * icons need to be fixed!
 * calculate trail_km client-side for consistency and scalable performance
 * use DB-SCAN based clustering
