@@ -16,7 +16,7 @@ export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number]; zo
 export const DEVELOPER_MODE = true;
 
 // DEBUG: Set this to a route ID to automatically open it on load
-export const DEBUG_ITINERARY_ROUTE_ID = null;
+export const DEBUG_ITINERARY_ROUTE_ID = 1717222;
 
 // Basemap style used by MapLibre on web.
 // Note: Protomaps styles require an API key and may fail (403) if the key is invalid.
@@ -79,5 +79,12 @@ export const allowMultistring = true;
 // Log config values during development so the dev console helps debugging network errors
 if (DEVELOPER_MODE) {
   // eslint-disable-next-line no-console
-  console.log('Trailfox settings:', { API_URL, TILES_BASE_URL, START_LOCATION_MODE });
+  console.log('Trailfox settings:', {
+    API_URL,
+    TILES_BASE_URL,
+    START_LOCATION_MODE,
+    DEVELOPER_MODE,
+    DEBUG_ITINERARY_ROUTE_ID,
+    allowMultistring,
+  });
 }

@@ -11,8 +11,8 @@ import MapLibreGL, {
   ShapeSource,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
-import type { AmenityCluster, RouteAmenity } from '../types';
-import { getMapIconName } from '../screens/itinerary/itineraryModel';
+import type { AmenityCluster } from '../types';
+import { getAmenitiesGeoJSON } from '../utils/itineraryGeoJSON';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
@@ -99,41 +99,10 @@ export default function ItineraryMap({
     });
   }, [routeOsmId]);
 
-  // Clusters GeoJSON
-  const clustersGeoJSON = useMemo(() => {
-    return {
-      type: 'FeatureCollection',
-      features: clusters.map((c) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
-        properties: {
-          key: c.key,
-          size: c.size,
-          marker: c.marker ?? '',
-          selected: c.key === selectedClusterKey,
-        },
-      })),
-    };
+  // Amenities GeoJSON (Combined Clusters + Individual)
+  const amenitiesGeoJSON = useMemo(() => {
+    return getAmenitiesGeoJSON(clusters, selectedClusterKey);
   }, [clusters, selectedClusterKey]);
-
-  // Individual Amenities GeoJSON (for high zoom)
-  const individualAmenitiesGeoJSON = useMemo(() => {
-    const features: any[] = [];
-    clusters.forEach((c) => {
-      c.amenities.forEach((a: RouteAmenity, i: number) => {
-        features.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [a.lon, a.lat] },
-          properties: {
-            amenityId: `${c.key}-${i}`,
-            key: c.key,
-            icon: getMapIconName(a.class, a.subclass),
-          },
-        });
-      });
-    });
-    return { type: 'FeatureCollection', features };
-  }, [clusters]);
 
   const onClusterPress = (e: any) => {
     if (e.features && e.features.length > 0) {
@@ -195,11 +164,12 @@ export default function ItineraryMap({
           </ShapeSource>
         )}
 
-        {/* Clusters */}
-        <ShapeSource id="clustersSource" shape={clustersGeoJSON as any} onPress={onClusterPress}>
+        {/* Amenities (Clusters & Individual) */}
+        <ShapeSource id="amenitiesSource" shape={amenitiesGeoJSON as any} onPress={onClusterPress}>
           <CircleLayer
             id="clustersCircle"
             maxZoomLevel={15.9}
+            filter={['==', ['get', 'type'], 'cluster']}
             style={{
               circleRadius: 12,
               circleColor: ['case', ['get', 'selected'], ITINERARY_THEME.accent, '#ffffff'],
@@ -216,6 +186,7 @@ export default function ItineraryMap({
           <SymbolLayer
             id="clusterSymbols"
             maxZoomLevel={15.9}
+            filter={['==', ['get', 'type'], 'cluster']}
             style={{
               textField: ['get', 'marker'],
               textFont: ['Noto Sans Bold'],
@@ -227,17 +198,10 @@ export default function ItineraryMap({
               textAnchor: 'center',
             }}
           />
-        </ShapeSource>
-
-        {/* Individual Amenities (High Zoom) */}
-        <ShapeSource
-          id="individualAmenitiesSource"
-          shape={individualAmenitiesGeoJSON as any}
-          onPress={onClusterPress}
-        >
           <SymbolLayer
             id="individualAmenitiesSymbols"
             minZoomLevel={16}
+            filter={['==', ['get', 'type'], 'individual']}
             style={{
               iconImage: ['get', 'icon'],
               iconSize: 1.2,

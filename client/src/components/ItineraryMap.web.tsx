@@ -9,8 +9,8 @@ import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { DEVELOPER_MODE } from '../constants';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
-import { getMapIconName } from '../screens/itinerary/itineraryModel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAmenitiesGeoJSON } from '../utils/itineraryGeoJSON';
 
 const THEME = ITINERARY_THEME;
 
@@ -58,43 +58,8 @@ export default function ItineraryMap({
   } | null>(null);
 
   const amenitiesGeoJSON = useMemo(() => {
-    const features: any[] = [];
-
-    // Clusters
-    clusters.forEach((c) => {
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
-        properties: {
-          type: 'cluster',
-          key: c.key,
-          size: c.size,
-          marker: String(c.marker ?? ''),
-          trail_km: c.trail_km,
-        },
-      });
-
-      // Individual amenities (for high zoom)
-      c.amenities.forEach((a: any, i: number) => {
-        features.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [a.lon, a.lat] },
-          properties: {
-            type: 'individual',
-            amenityId: `${c.key}-${i}`,
-            key: c.key,
-            icon: getMapIconName(a.class, a.subclass),
-            marker: '',
-          },
-        });
-      });
-    });
-
-    return {
-      type: 'FeatureCollection',
-      features,
-    } as const;
-  }, [clusters]);
+    return getAmenitiesGeoJSON(clusters, selectedClusterKey);
+  }, [clusters, selectedClusterKey]);
 
   useEffect(() => {
     clustersRef.current = clusters;

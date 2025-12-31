@@ -2,32 +2,36 @@
 
 ## first priority - smaller tasks
 
-- see review.md
-- add start and end in the db, not in frontend (doesn't know the full route - revert 00e344a1cc184bb81bae948b5af18195a26dd979)
+- consistent api.trailfox.app/tiles vs. trailfox.app/api/tiles (what is best practice?)
+- review import and table geom vs. geog (again)
+- merge post-import and api-setup scripts 
+- call wmt routebuilder
+- revamp route with amenities: trail_km shall be done on client for scalability using turf-js
+- ?add start and end in the db, not in frontend (doesn't know the full route - revert 00e344a1cc184bb81bae948b5af18195a26dd979)
 - review and optimize the route_amenities view - can be simplifies since corner cases need a routebuilder
 - prepare schema for incremental update of OSM data - https://docs.osmcode.org/pyosmium/latest/user_manual/10-Replication-Tools/
 - Ensure route relations expose both `ref` and `name` consistently in API/tiles.
-- add elevation gain support
 
 ## keep for later, do not work on this for now
-
-- download GeoPackage for offline use
-- research SRTM data
 
 - research and experiment with LOD (level of detail) for zooming in to routes - but martin might have implemented this already:
   - LOD1: geom_search -> 50m (for sidebar, search)
   - LOD2: geom_vector_tile -> 10m (for overview map)
   - LOD3: geom -> for route details
 
+- add elevation gain support
+- research SRTM data
+- download GeoPackage for offline use
 - parse wikidata or otherwise search for logos with better quality than osmc:symbol
-
+- implement/reuse osmc:symbol parser
 - check details of <https://wiki.openstreetmap.org/wiki/Ideas_for_a_new_Hiking_Map>, although it is not that recent so most items have already been implemented
 
 Routes:
 
 - superroutes - this means that E1, via alpina and Trail du Mont Blanc (TMB) hikers should wait a bit
-- knotennetzwerk ()
+- knotennetzwerk () / alpine ways != circular trails
 - in case of a relation:route the code of the path should be rendered in text, this code is normally in ref=*. When name=* is present it should be displayed as well.
+- in addition to ST_Linemerge and wmt routebuilder, add third-stage routebuilding with heuristics (and differentiate with legitimate networks: GAP / Hildelang / Bayrische Jakobswege)
 
 - add `landuse_areas` tables and implement algorithm from town-location.md
 
