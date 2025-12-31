@@ -132,7 +132,7 @@ WITH candidates_all AS (
     SELECT
         r.osm_id AS route_id,
         a.osm_id AS amenity_id,
-        a.osm_type AS amenity_type,
+        a.osm_type AS amenity_type, -- osm_type is 'node', 'way', or 'relation' - required because osm_id is not globally unique
         -- Calculate distance here to pick the closest segment later
         ST_Distance(r.geom_3857, a.geom) as dist_from_route_m,
         a.name, a.class, a.subclass, a.tags, a.geom AS amenity_geom,

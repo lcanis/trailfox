@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DB management script. Does NOT touch roles. 
+# DB management script. 
 # Use --create to
 # drop & recreate the DB; when --create is used the one-time `init-user`
 # script will be invoked to (re)create users.
@@ -81,6 +81,9 @@ PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 -h "${POSTGRES_HOST}" 
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS postgis_topology;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+SELECT pg_reload_conf();
 
 CREATE SCHEMA IF NOT EXISTS itinerarius AUTHORIZATION "$DB_ADMIN_USER";
 CREATE SCHEMA IF NOT EXISTS api AUTHORIZATION "$DB_ADMIN_USER";

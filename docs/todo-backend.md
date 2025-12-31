@@ -4,7 +4,8 @@
 
 - consistent api.trailfox.app/tiles vs. trailfox.app/api/tiles (what is best practice?)
 - review import and table geom vs. geog (again), amenity class/subclass to align with icons? (see itinerarymodel.ts)
-- merge post-import and api-setup scripts 
+- merge post-import and api-setup scripts
+- return geojson directly
 - call wmt routebuilder
 - revamp route with amenities: trail_km shall be done on client for scalability using turf-js
 - ?add start and end in the db, not in frontend (doesn't know the full route - revert 00e344a1cc184bb81bae948b5af18195a26dd979)

@@ -667,7 +667,14 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title}>{route.name || 'Itinerary'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+            <Text style={styles.title}>{route.name || 'Itinerary'}</Text>
+            {DEVELOPER_MODE && (
+              <Text style={{ fontSize: 10, color: THEME.textTertiary, fontWeight: '600' }}>
+                #{route.osm_id}
+              </Text>
+            )}
+          </View>
           <View style={styles.subtitleRow}>
             {fromLoc && toLoc ? (
               <Text style={styles.subtitleText}>{`${fromLoc} → ${toLoc}`}</Text>
