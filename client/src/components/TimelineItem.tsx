@@ -195,7 +195,7 @@ export const TimelineItem = React.memo(
                   (a: RouteAmenity, b: RouteAmenity) =>
                     a.distance_from_trail_m - b.distance_from_trail_m
                 )
-                .slice(0, 10)
+                .slice(0, 100)
                 .map((a: RouteAmenity, amenityIndex: number) => (
                   <Pressable
                     key={`${a.osm_type}-${a.osm_id}-${amenityIndex}`}
@@ -236,8 +236,8 @@ export const TimelineItem = React.memo(
                     </Text>
                   </Pressable>
                 ))}
-              {cluster.amenities.length > 10 && (
-                <Text style={styles.detailsMore}>+{cluster.amenities.length - 10} more</Text>
+              {cluster.amenities.length > 100 && (
+                <Text style={styles.detailsMore}>+{cluster.amenities.length - 100} more</Text>
               )}
             </View>
           )}
@@ -404,7 +404,10 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: THEME.border,
-    gap: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 16,
+    rowGap: 6,
   },
   detailsLine: {
     fontSize: 12,
@@ -414,9 +417,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minWidth: 180,
+    flex: 1,
     gap: 6,
   },
   detailsMore: {
+    width: '100%',
     fontSize: 12,
     color: THEME.textTertiary,
     marginTop: 4,

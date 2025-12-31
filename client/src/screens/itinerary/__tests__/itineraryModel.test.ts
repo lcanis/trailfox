@@ -150,7 +150,7 @@ describe('itineraryModel', () => {
     expect(getClusterPlaceTitle(cluster, 1000)).toBe('Village');
   });
 
-  test('getClusterDisplayTitle formats single item as "subclass: name" when available', () => {
+  test('getClusterDisplayTitle formats single item as name when available', () => {
     const cluster: AmenityCluster = {
       key: 'x',
       trail_km: 1,
@@ -163,7 +163,49 @@ describe('itineraryModel', () => {
     };
 
     expect(getClusterDisplayTitle(cluster)).toEqual({
-      title: 'Cafe: Cafe Central',
+      title: 'Cafe Central',
+      isPlaceHeader: false,
+    });
+  });
+
+  test('getClusterDisplayTitle prefers Place even if multiple items exist', () => {
+    const cluster: AmenityCluster = {
+      key: 'x',
+      trail_km: 1,
+      amenities: [
+        makeAmenity({ class: 'food', name: 'Cafe Central', subclass: 'cafe' }),
+        makeAmenity({ class: 'Place', name: 'Village', subclass: 'village' }),
+      ],
+      countsByClass: { food: 1, Place: 1 },
+      countsByIcon: {},
+      size: 2,
+      lon: 0,
+      lat: 0,
+    };
+
+    expect(getClusterDisplayTitle(cluster)).toEqual({
+      title: 'Village',
+      isPlaceHeader: true,
+    });
+  });
+
+  test('getClusterDisplayTitle prefers subclass over class for multiple items', () => {
+    const cluster: AmenityCluster = {
+      key: 'x',
+      trail_km: 1,
+      amenities: [
+        makeAmenity({ class: 'tourism', subclass: 'bench' }),
+        makeAmenity({ class: 'tourism', subclass: 'bench' }),
+      ],
+      countsByClass: { tourism: 2 },
+      countsByIcon: {},
+      size: 2,
+      lon: 0,
+      lat: 0,
+    };
+
+    expect(getClusterDisplayTitle(cluster)).toEqual({
+      title: 'Bench',
       isPlaceHeader: false,
     });
   });

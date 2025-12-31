@@ -167,12 +167,6 @@ export const buildAmenityClusters = (
   return [...map.values()].sort((a, b) => a.trail_km - b.trail_km);
 };
 
-export const pickClusterTitle = (countsByClass: Record<string, number>) => {
-  const top = Object.entries(countsByClass).sort((a, b) => b[1] - a[1])[0];
-  if (!top) return 'Amenities';
-  return top[0];
-};
-
 export const getAvailableClasses = (rawAmenities: RouteAmenity[]) => {
   const counts = new Map<string, number>();
   for (const a of rawAmenities) {
@@ -204,25 +198,44 @@ export const getClusterPlaceTitle = (
 };
 
 export const getClusterDisplayTitle = (cluster: AmenityCluster) => {
-  // Special case: for single-item clusters show subclass: name (when available)
-  // as a concise header. This prevents duplicating the same label in the details list.
-  if (cluster.amenities.length === 1) {
-    const a = cluster.amenities[0];
-    if (a.name && a.subclass) {
-      return { title: `${titleize(a.subclass)}: ${a.name}`, isPlaceHeader: false };
-    }
-    if (a.name) {
-      return { title: a.name, isPlaceHeader: false };
-    }
-    if (a.subclass) {
-      return { title: titleize(a.subclass), isPlaceHeader: false };
-    }
+  // 1. Prefer 'Place' title if any amenity is a Place
+  const placeTitle = getClusterPlaceTitle(cluster);
+  if (placeTitle) {
+    return { title: placeTitle, isPlaceHeader: true };
   }
 
-  const placeTitle = getClusterPlaceTitle(cluster);
+  // 2. If single item, use name or subclass
+  if (cluster.amenities.length === 1) {
+    const a = cluster.amenities[0];
+    if (a.name) return { title: a.name, isPlaceHeader: false };
+    if (a.subclass) return { title: titleize(a.subclass), isPlaceHeader: false };
+  }
+
+  // 3. Multiple items: prefer first named item
   const firstNamed = cluster.amenities.find((a) => a.name)?.name;
-  const title = placeTitle || firstNamed || pickClusterTitle(cluster.countsByClass);
-  return { title, isPlaceHeader: Boolean(placeTitle) };
+  if (firstNamed) return { title: firstNamed, isPlaceHeader: false };
+
+  // 4. Fallback: most common subclass
+  const subclassCounts = new Map<string, number>();
+  for (const a of cluster.amenities) {
+    if (a.subclass) {
+      subclassCounts.set(a.subclass, (subclassCounts.get(a.subclass) ?? 0) + 1);
+    }
+  }
+  const sortedSubclasses = [...subclassCounts.entries()].sort((a, b) => b[1] - a[1]);
+  if (sortedSubclasses.length > 0) {
+    return { title: titleize(sortedSubclasses[0][0]), isPlaceHeader: false };
+  }
+
+  // 5. Final fallback: most common class (normalized)
+  const className = mostUsedAmenityClassName(cluster.countsByClass);
+  return { title: normalizeAmenityClassLabel(className), isPlaceHeader: false };
+};
+
+export const mostUsedAmenityClassName = (countsByClass: Record<string, number>) => {
+  const top = Object.entries(countsByClass).sort((a, b) => b[1] - a[1])[0];
+  if (!top) return 'Amenities';
+  return top[0];
 };
 
 export const addItineraryEndpointClusters = (params: {
