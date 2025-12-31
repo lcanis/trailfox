@@ -95,10 +95,9 @@ local CATEGORY_BY_TAG = {
 		lounger = CATEGORY_CODE.STREET_FURNITURE,
 		picnic_table = CATEGORY_CODE.STREET_FURNITURE,
 		pharmacy = CATEGORY_CODE.MEDICAL,
-		hospital = CATEGORY_CODE.MEDICAL,
-		clinic = CATEGORY_CODE.MEDICAL,
-		doctors = CATEGORY_CODE.MEDICAL,
-		dentist = CATEGORY_CODE.MEDICAL,
+	},
+	healthcare = {
+		pharmacy = CATEGORY_CODE.MEDICAL,
 	},
 	natural = {
 		hot_spring = CATEGORY_CODE.HYGIENE,
@@ -143,6 +142,7 @@ local CATEGORY_BY_TAG = {
 local TAG_FAMILY_PRIORITY = {
 	"tourism",
 	"amenity",
+	"healthcare",
 	"shop",
 	"natural",
 	"leisure",
@@ -180,9 +180,28 @@ local function get_poi_classification(tags)
 		return nil
 	end
 
+	-- 1. Emergency Medical Logic (High Priority)
+	-- Focus on hospitals and facilities with emergency/trauma capabilities.
+	-- Exclude routine care like dentists and general doctors.
+	local is_emergency = (tags.emergency == "yes") or
+		(tags["healthcare:speciality"] and (tags["healthcare:speciality"]:find("emergency") or tags["healthcare:speciality"]:find("trauma")))
+
+	if tags.amenity == "hospital" or tags.healthcare == "hospital" then
+		return CATEGORY_CODE.MEDICAL, "hospital"
+	end
+
+	if is_emergency then
+		-- Include clinics or other healthcare facilities if they have emergency capability.
+		-- Exclude routine care (doctors, dentists) even if they have emergency tags (rare).
+		if tags.amenity ~= "doctors" and tags.amenity ~= "dentist" and
+			tags.healthcare ~= "doctor" and tags.healthcare ~= "dentist" then
+			return CATEGORY_CODE.MEDICAL, tags.amenity or tags.healthcare or "emergency"
+		end
+	end
+
 	local cls, sub
 
-	-- Special case: some amenities use a `guest_house` tag with value `albergue`
+	-- some amenities use a `guest_house` tag with value `albergue`
 	-- (regional tagging). Prefer treating them as accommodation.
 	if tags.guest_house and tags.guest_house == "albergue" then
 		return CATEGORY_CODE.ACCOMMODATION, "guest_house"
@@ -194,7 +213,6 @@ local function get_poi_classification(tags)
 		local tag_values = CATEGORY_BY_TAG[tag_key]
 		local tag_value = tags[tag_key]
 		if tag_value and tag_values[tag_value] then
-			-- Special handling: exclude vending_machine with excrement_bags
 			if tag_key == "amenity" and tag_value == "vending_machine" then
 				-- vending inclusion list: if `vending` tag exists, require at least
 				-- one allowed vending item; if `vending` is missing, accept the
