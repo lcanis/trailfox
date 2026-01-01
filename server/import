@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/bootstrap-common.sh"
 usage() {
   cat <<'EOF' >&2
 Usage:
-  import [--bbox minlon,minlat,maxlon,maxlat] create|append|incremental /path/to/file.osm.pbf
+  import [--bbox minlon,minlat,maxlon,maxlat] create|append|incremental /path/to/file.osm.pbf [/path/to/file2.osm.pbf ...]
 
 Modes:
   create        Drop and recreate OSM-derived tables (osm2pgsql --create --drop).
@@ -32,6 +32,7 @@ EOF
 }
 
 BBOX=""
+STYLE="itinerarius"
 SLIM=true
 FLAT_NODES="/tmp/nodes.flat"
 POSITIONAL_ARGS=()
@@ -80,9 +81,10 @@ if [ ${#POSITIONAL_ARGS[@]} -lt 2 ]; then
 fi
 
 MODE="${1:-}"
-PBF_FILE="${2:-}"
+shift
+PBF_FILES=("$@")
 
-if [ -z "$MODE" ] || [ -z "$PBF_FILE" ]; then
+if [ -z "$MODE" ] || [ ${#PBF_FILES[@]} -eq 0 ]; then
   usage
   exit 2
 fi
@@ -96,12 +98,6 @@ case "$MODE" in
     ;;
 esac
 
-if [ "$#" -ne 2 ]; then
-  echo "Unexpected arguments" >&2
-  usage
-  exit 2
-fi
-
 ensure_command psql
 ensure_env_set DB_ADMIN_USER
 ensure_env_set DB_ADMIN_PASSWORD
@@ -113,9 +109,19 @@ ensure_env_set TRAILFOX_DB
 
 ensure_command docker
 
-if [ ! -f "$PBF_FILE" ]; then
-  echo "Missing PBF file: $PBF_FILE" >&2
-  exit 1
+for PBF_FILE in "${PBF_FILES[@]}"; do
+  if [ ! -f "$PBF_FILE" ]; then
+    echo "Missing PBF file: $PBF_FILE" >&2
+    exit 1
+  fi
+done
+
+# Default FLAT_NODES only for large files (> 1GB)
+FIRST_PBF="${PBF_FILES[0]}"
+PBF_SIZE_KB=$(du -k "$FIRST_PBF" | cut -f1)
+if [ "$SLIM" = true ] && [ -n "$FLAT_NODES" ] && [ "$PBF_SIZE_KB" -lt 1048576 ]; then
+  echo "-- small PBF detected ($(du -h "$FIRST_PBF" | cut -f1)), disabling flat-nodes for speed"
+  FLAT_NODES=""
 fi
 
 if ! wait_for_postgres; then
@@ -126,135 +132,170 @@ fi
 echo "-- running osm2pgsql import"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 
-# When running osm2pgsql inside Docker, the PBF path must be inside the container.
-if [[ "$PBF_FILE" = /* ]]; then
-  case "$PBF_FILE" in
-    "$SCRIPT_DIR"/*)
-      PBF_FILE_IN_CONTAINER="/data/${PBF_FILE#"$SCRIPT_DIR"/}"
-      ;;
-    *)
-      echo "PBF file must be inside $SCRIPT_DIR when using dockerized osm2pgsql (got: $PBF_FILE)" >&2
-      exit 1
-      ;;
-  esac
+# Map style name to file path
+if [[ "$STYLE" == *.lua ]]; then
+  STYLE_FILE="$STYLE"
 else
-  PBF_FILE_IN_CONTAINER="/data/$PBF_FILE"
+  STYLE_FILE="${STYLE}.lua"
 fi
-STYLE_IN_CONTAINER="/data/osm2pgsql/itinerarius.lua"
+STYLE_IN_CONTAINER="/data/osm2pgsql/$STYLE_FILE"
 
 OSM2PGSQL_PERF_ARGS=(--number-processes "$OSM2PGSQL_PROCESSES")
 if [ -n "$BBOX" ]; then
   OSM2PGSQL_PERF_ARGS+=(--bbox "$BBOX")
 fi
 
-case "$MODE" in
-  create)
-    OSM2PGSQL_MODE_ARGS=( --create --drop )
-    ;;
-  append)
-    HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
-      "SELECT CASE WHEN COUNT(*) = 2 THEN 1 ELSE 0 END\
-       FROM pg_class c\
-       JOIN pg_namespace n ON n.oid = c.relnamespace\
-       WHERE n.nspname = 'itinerarius'\
-         AND c.relname IN ('routes','amenities');")
-    if [ "$HAS_OUTPUT_TABLES" != "1" ]; then
-      echo "ERROR: append requires existing output tables (itinerarius.routes and itinerarius.amenities)." >&2
-      echo "Run: import create <pbf>" >&2
-      exit 1
-    fi
-    OSM2PGSQL_MODE_ARGS=( --append )
-    ;;
-  incremental)
-    SLIM=true
-    HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
-      "SELECT CASE WHEN COUNT(*) = 2 THEN 1 ELSE 0 END\
-       FROM pg_class c\
-       JOIN pg_namespace n ON n.oid = c.relnamespace\
-       WHERE n.nspname = 'itinerarius'\
-         AND c.relname IN ('routes','amenities');")
+# Loop through PBF files
+for i in "${!PBF_FILES[@]}"; do
+  PBF_FILE="${PBF_FILES[$i]}"
+  IS_LAST=false
+  if [ "$i" -eq "$((${#PBF_FILES[@]} - 1))" ]; then
+    IS_LAST=true
+  fi
 
-    HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
-      "SELECT CASE WHEN COUNT(*) = 3 THEN 1 ELSE 0 END\
-       FROM pg_class c\
-       JOIN pg_namespace n ON n.oid = c.relnamespace\
-       WHERE n.nspname = 'public'\
-         AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels');")
-
-    if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
-      echo "ERROR: incremental requested but database is not initialized in osm2pgsql --slim mode." >&2
-      exit 1
-    fi
-
-    if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
-      OSM2PGSQL_MODE_ARGS=( --append )
-    else
-      OSM2PGSQL_MODE_ARGS=( --create )
-    fi
-    ;;
-esac
-
-if [ "$SLIM" = true ]; then
-  OSM2PGSQL_MODE_ARGS+=( --slim )
-  if [ -n "$FLAT_NODES" ]; then
-    # Map flat-nodes path for Docker
-    if [[ "$FLAT_NODES" = /* ]]; then
-      if [[ "$FLAT_NODES" == "$SCRIPT_DIR"* ]]; then
-        FLAT_NODES_IN_CONTAINER="/data/${FLAT_NODES#"$SCRIPT_DIR"/}"
-      else
-        FLAT_NODES_IN_CONTAINER="$FLAT_NODES"
-      fi
-    else
-      FLAT_NODES_IN_CONTAINER="/data/$FLAT_NODES"
-    fi
-    OSM2PGSQL_MODE_ARGS+=( --flat-nodes "$FLAT_NODES_IN_CONTAINER" )
-    OSM2PGSQL_PERF_ARGS+=( --cache 0 )
+  # When running osm2pgsql inside Docker, the PBF path must be inside the container.
+  if [[ "$PBF_FILE" = /* ]]; then
+    case "$PBF_FILE" in
+      "$SCRIPT_DIR"/*)
+        PBF_FILE_IN_CONTAINER="/data/${PBF_FILE#"$SCRIPT_DIR"/}"
+        ;;
+      *)
+        echo "PBF file must be inside $SCRIPT_DIR when using dockerized osm2pgsql (got: $PBF_FILE)" >&2
+        exit 1
+        ;;
+    esac
   else
-    OSM2PGSQL_PERF_ARGS+=( --cache "$OSM2PGSQL_CACHE_MB" )
-  fi
-fi
-
-IS_LOOPBACK_DB=false
-if [ "$POSTGRES_HOST" = "127.0.0.1" ] || [ "$POSTGRES_HOST" = "localhost" ]; then
-  IS_LOOPBACK_DB=true
-fi
-
-if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Darwin" ]; then
-  POSTGRES_HOST="host.docker.internal"  # macOS Docker host access
-fi
-
-if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Linux" ]; then
-  # Linux: use host network (127.0.0.1 works directly)
-  DOCKER_OPTS=(--rm --network host)
-  DOCKER_OPTS+=(-e PGPASSWORD="${DB_ADMIN_PASSWORD:-}")
-  DOCKER_OPTS+=(-e LUA_PATH="$OSM2PGSQL_LUA_PATH")
-  DOCKER_OPTS+=(-v "$SCRIPT_DIR:/data:delegated")
-  
-  # If flat-nodes is used, ensure it's mounted if it's a host path
-  if [ -n "$FLAT_NODES" ] && [[ "$FLAT_NODES" != "$SCRIPT_DIR"* ]]; then
-     # If it's an absolute path outside SCRIPT_DIR, mount its directory
-     FLAT_NODES_DIR=$(dirname "$FLAT_NODES")
-     DOCKER_OPTS+=(-v "$FLAT_NODES_DIR:$FLAT_NODES_DIR")
+    PBF_FILE_IN_CONTAINER="/data/$PBF_FILE"
   fi
 
-  docker run "${DOCKER_OPTS[@]}" \
-    -w /data \
-    iboates/osm2pgsql:latest \
-    -H 127.0.0.1 -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
-    "${OSM2PGSQL_PERF_ARGS[@]}" \
-    -O flex -S "$STYLE_IN_CONTAINER" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
-else
-  # macOS loopback OR normal compose network
-  docker compose -f "$SCRIPT_DIR/docker-compose.yml" --project-directory "$SCRIPT_DIR" \
-    --profile import run --rm --no-deps \
-    -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
-    -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
-    -w /data \
-    osm2pgsql \
-    -H "$POSTGRES_HOST" -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
-    "${OSM2PGSQL_PERF_ARGS[@]}" \
-    -O flex -S "$STYLE_IN_CONTAINER" "${OSM2PGSQL_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
-fi
+  CURRENT_MODE="$MODE"
+  if [ "$i" -gt 0 ]; then
+    CURRENT_MODE="append"
+  fi
+
+  OSM2PGSQL_MODE_ARGS=()
+  case "$CURRENT_MODE" in
+    create)
+      OSM2PGSQL_MODE_ARGS+=( --create )
+      if [ "$IS_LAST" = true ]; then
+        OSM2PGSQL_MODE_ARGS+=( --drop )
+      fi
+      ;;
+    append)
+      HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+        "SELECT CASE WHEN COUNT(*) >= 1 THEN 1 ELSE 0 END\
+         FROM pg_class c\
+         JOIN pg_namespace n ON n.oid = c.relnamespace\
+         WHERE n.nspname = 'itinerarius'\
+           AND c.relname IN ('routes','amenities');")
+      if [ "$HAS_OUTPUT_TABLES" != "1" ] && [ "$i" -eq 0 ]; then
+        echo "ERROR: append requires at least one existing output table (itinerarius.routes or itinerarius.amenities)." >&2
+        echo "Run: import create <pbf>" >&2
+        exit 1
+      fi
+      OSM2PGSQL_MODE_ARGS+=( --append )
+      if [ "$IS_LAST" = true ] && [ "$MODE" = "create" ]; then
+         # If we started with create, we should drop at the end
+         OSM2PGSQL_MODE_ARGS+=( --drop )
+      fi
+      ;;
+    incremental)
+      SLIM=true
+      HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+        "SELECT CASE WHEN COUNT(*) >= 1 THEN 1 ELSE 0 END\
+         FROM pg_class c\
+         JOIN pg_namespace n ON n.oid = c.relnamespace\
+         WHERE n.nspname = 'itinerarius'\
+           AND c.relname IN ('routes','amenities');")
+
+      HAS_SLIM_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
+        "SELECT CASE WHEN COUNT(*) = 3 THEN 1 ELSE 0 END\
+         FROM pg_class c\
+         JOIN pg_namespace n ON n.oid = c.relnamespace\
+         WHERE n.nspname = 'public'\
+           AND c.relname IN ('osm2pgsql_nodes','osm2pgsql_ways','osm2pgsql_rels');")
+
+      if [ "$HAS_OUTPUT_TABLES" = "1" ] && [ "$HAS_SLIM_TABLES" != "1" ]; then
+        echo "ERROR: incremental requested but database is not initialized in osm2pgsql --slim mode." >&2
+        exit 1
+      fi
+
+      if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
+        OSM2PGSQL_MODE_ARGS+=( --append )
+      else
+        OSM2PGSQL_MODE_ARGS+=( --create )
+      fi
+      ;;
+  esac
+
+  # Apply slim/flat-nodes/cache settings
+  CURRENT_PERF_ARGS=("${OSM2PGSQL_PERF_ARGS[@]}")
+  CURRENT_MODE_ARGS=("${OSM2PGSQL_MODE_ARGS[@]}")
+
+  if [ "$SLIM" = true ]; then
+    CURRENT_MODE_ARGS+=( --slim )
+    if [ -n "$FLAT_NODES" ]; then
+      # Map flat-nodes path for Docker
+      if [[ "$FLAT_NODES" = /* ]]; then
+        if [[ "$FLAT_NODES" == "$SCRIPT_DIR"* ]]; then
+          FLAT_NODES_IN_CONTAINER="/data/${FLAT_NODES#"$SCRIPT_DIR"/}"
+        else
+          FLAT_NODES_IN_CONTAINER="$FLAT_NODES"
+        fi
+      else
+        FLAT_NODES_IN_CONTAINER="/data/$FLAT_NODES"
+      fi
+      CURRENT_MODE_ARGS+=( --flat-nodes "$FLAT_NODES_IN_CONTAINER" )
+      CURRENT_PERF_ARGS+=( --cache 0 )
+    else
+      CURRENT_PERF_ARGS+=( --cache "$OSM2PGSQL_CACHE_MB" )
+    fi
+  fi
+
+  echo "--- Processing PBF ($((i+1))/${#PBF_FILES[@]}): $PBF_FILE ---"
+
+  IS_LOOPBACK_DB=false
+  if [ "$POSTGRES_HOST" = "127.0.0.1" ] || [ "$POSTGRES_HOST" = "localhost" ]; then
+    IS_LOOPBACK_DB=true
+  fi
+
+  if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Darwin" ]; then
+    POSTGRES_HOST="host.docker.internal"  # macOS Docker host access
+  fi
+
+  if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Linux" ]; then
+    # Linux: use host network (127.0.0.1 works directly)
+    DOCKER_OPTS=(--rm --network host)
+    DOCKER_OPTS+=(-e PGPASSWORD="${DB_ADMIN_PASSWORD:-}")
+    DOCKER_OPTS+=(-e LUA_PATH="$OSM2PGSQL_LUA_PATH")
+    DOCKER_OPTS+=(-v "$SCRIPT_DIR:/data:delegated")
+    
+    # If flat-nodes is used, ensure it's mounted if it's a host path
+    if [ -n "$FLAT_NODES" ] && [[ "$FLAT_NODES" != "$SCRIPT_DIR"* ]]; then
+       # If it's an absolute path outside SCRIPT_DIR, mount its directory
+       FLAT_NODES_DIR=$(dirname "$FLAT_NODES")
+       DOCKER_OPTS+=(-v "$FLAT_NODES_DIR:$FLAT_NODES_DIR")
+    fi
+
+    docker run "${DOCKER_OPTS[@]}" \
+      -w /data \
+      iboates/osm2pgsql:latest \
+      -H 127.0.0.1 -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
+      "${CURRENT_PERF_ARGS[@]}" \
+      -O flex -S "$STYLE_IN_CONTAINER" "${CURRENT_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
+  else
+    # macOS loopback OR normal compose network
+    docker compose -f "$SCRIPT_DIR/docker-compose.yml" --project-directory "$SCRIPT_DIR" \
+      --profile import run --rm --no-deps \
+      -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
+      -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
+      -w /data \
+      osm2pgsql \
+      -H "$POSTGRES_HOST" -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
+      "${CURRENT_PERF_ARGS[@]}" \
+      -O flex -S "$STYLE_IN_CONTAINER" "${CURRENT_MODE_ARGS[@]}" "$PBF_FILE_IN_CONTAINER"
+  fi
+done
 
 echo "-- post-import maintenance (indices, analysis)"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"

@@ -20,23 +20,21 @@ if [ "$#" -ge 1 ] && ( [ "$1" = "-h" ] || [ "$1" = "--help" ] ); then
 fi
 
 IMPORT_VERB="${1:-}"
-PBF_FILE="${2:-}"
+shift 1
+PBF_FILES=()
 
-if [ -z "$IMPORT_VERB" ] || [ -z "$PBF_FILE" ]; then
+# Collect PBF files (all arguments that don't start with -- and are not the verb)
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --*) break ;; # Stop at first option
+        *) PBF_FILES+=("$1"); shift ;;
+    esac
+done
+
+if [ -z "$IMPORT_VERB" ] || [ ${#PBF_FILES[@]} -eq 0 ]; then
     usage
     exit 2
 fi
-
-case "$IMPORT_VERB" in
-    create|append|incremental) ;;
-    *)
-        echo "Invalid verb: $IMPORT_VERB" >&2
-        usage
-        exit 2
-        ;;
-esac
-
-shift 2
 
 BBOX=""
 SLIM=true
@@ -84,7 +82,7 @@ else
   IMPORT_ARGS+=(--no-slim)
 fi
 
-"$SCRIPT_DIR/import" "${IMPORT_ARGS[@]}" "$IMPORT_VERB" "$PBF_FILE"
+"$SCRIPT_DIR/import" "${IMPORT_ARGS[@]}" "$IMPORT_VERB" "${PBF_FILES[@]}"
 
 echo "-- apply API/tiles schemas"
 "$SCRIPT_DIR/apply-schemas"

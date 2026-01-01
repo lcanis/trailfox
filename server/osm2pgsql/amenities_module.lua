@@ -313,4 +313,19 @@ function module.process_relation(object)
 end
 module.process_relation = maybe_wrap(module.process_relation, "process_relation")
 
+-- ----------------------------------------------------------------------------
+-- OSM2PGSQL Callbacks (Standalone support)
+-- ----------------------------------------------------------------------------
+function osm2pgsql.process_node(object)
+	module.process_node(object)
+end
+
+function osm2pgsql.process_way(object)
+	module.process_way(object)
+end
+
+function osm2pgsql.process_relation(object)
+	module.process_relation(object)
+end
+
 return module

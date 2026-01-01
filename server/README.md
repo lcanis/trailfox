@@ -41,10 +41,25 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 The `bootstrap` script handles database creation, user setup, and data import.
 
+### Large Datasets (e.g., Europe)
+For very large datasets, it is highly recommended to pre-filter the OSM data using `osmium`. This reduces the import time and disk space significantly by focusing only on hiking-relevant data.
+
+```bash
+# 1. Extract hiking routes and POIs (requires osmium-tool)
+./extract_osm.sh /path/to/europe-latest.osm.pbf
+
+# 2. Bootstrap using the filtered file
+./bootstrap create europe-filtered.osm.pbf
+```
+
+### Standard Import
 ```bash
 # Full bootstrap (Create DB, Users, Import Data)
 ./bootstrap create /path/to/region.osm.pbf
 ```
+
+**Memory Optimization:**
+The import script automatically detects large files and enables `osm2pgsql` slim mode and flat-nodes to prevent memory crashes. For small extracts (<1GB), it uses RAM cache for maximum speed.
 
 **Incremental imports:**
 -   `./bootstrap incremental ...` uses `osm2pgsql --slim`.

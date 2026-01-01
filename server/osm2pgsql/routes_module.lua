@@ -160,6 +160,13 @@ process_relation = maybe_wrap(process_relation, "process_relation")
 
 module.process_relation = process_relation
 
+-- ----------------------------------------------------------------------------
+-- OSM2PGSQL Callbacks (Standalone support)
+-- ----------------------------------------------------------------------------
+function osm2pgsql.process_relation(object)
+	module.process_relation(object)
+end
+
 -- Expose internal helpers for unit testing
 module._get_route_type = get_route_type
 module._is_valid_route = is_valid_route
