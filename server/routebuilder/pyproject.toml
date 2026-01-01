@@ -10,7 +10,7 @@ dependencies = [
     "python-dotenv",
 ]
 
-[tool.uv]
-dev-dependencies = [
-    "pytest",
+[dependency-groups]
+dev = [
+	"pytest",
 ]

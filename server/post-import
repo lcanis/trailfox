@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/bootstrap-common.sh"
 
 ensure_command psql
+ensure_command uv
 
 if ! wait_for_postgres; then
   echo "Postgres unreachable" >&2
@@ -16,8 +17,14 @@ fi
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 
 echo "-- running post-import maintenance (indices, analysis, materialization)"
-PGOPTIONS="-c statement_timeout=${DB_STATEMENT_TIMEOUT_MS:-0}" \
+PGOPTIONS="-c statement_timeout=0" \
   "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import.sql"
+
+echo "-- running routebuilder (WMT logic)"
+(cd "$SCRIPT_DIR" && uv run --project routebuilder -m routebuilder.build_routes)
+
+echo "-- finalizing post-import (materialization, indices)"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import_finalize.sql"
 
 echo "-- applying api schema"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v DB_ADMIN_USER="$DB_ADMIN_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
@@ -27,13 +34,6 @@ echo "-- applying tiles schema"
 
 echo "-- ensuring app user can read itinerarius tables"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -c "GRANT USAGE ON SCHEMA itinerarius TO \"$APP_USER\"; GRANT SELECT ON ALL TABLES IN SCHEMA itinerarius TO \"$APP_USER\"; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA itinerarius TO \"$APP_USER\";"
-
-if command -v uv &> /dev/null; then
-  echo "-- running routebuilder (WMT logic)"
-  (cd "$SCRIPT_DIR" && uv run python -m routebuilder.build_routes)
-else
-  echo "WARNING: uv not found, skipping routebuilder"
-fi
 
 echo "-- results"
 AMENITIES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")

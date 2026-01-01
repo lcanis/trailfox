@@ -5,14 +5,14 @@ set -euo pipefail
 # This reduces the data size significantly before importing with osm2pgsql.
 
 INPUT_PBF="$1"
-OUTPUT_PREFIX="${2:-europe}"
+OUTPUT_PREFIX="${2:-extracted}"
 
 if [ -z "$INPUT_PBF" ]; then
     echo "Usage: $0 <input.osm.pbf> [output_prefix]"
     exit 1
 fi
 
-echo "--- Extracting Hiking Routes and POIs (one pass) ---"
+echo "--- Extracting Hiking Routes and POIs ---"
 # Combined filter for routes and amenities
 osmium tags-filter "$INPUT_PBF" \
     r/type=route,superroute/route=hiking,foot,walking \

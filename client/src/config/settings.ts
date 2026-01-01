@@ -16,7 +16,7 @@ export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number]; zo
 export const DEVELOPER_MODE = true;
 
 // DEBUG: Set this to a route ID to automatically open it on load
-export const DEBUG_ITINERARY_ROUTE_ID = 1717222;
+export const DEBUG_ITINERARY_ROUTE_ID = null;;
 
 // Basemap style used by MapLibre on web.
 // Note: Protomaps styles require an API key and may fail (403) if the key is invalid.

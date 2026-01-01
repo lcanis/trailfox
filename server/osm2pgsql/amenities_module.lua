@@ -22,7 +22,7 @@ local pois = osm2pgsql.define_table({
 		{ column = "name" },
 		{ column = "class", not_null = true },
 		{ column = "subclass" },
-		-- Store amenities in Web Mercator (3857) for faster spatial joins with routes
+		-- TODO FIXME Do not store amenities in Web Mercator (3857) - use constants.GEOMETRY_PROJECTION
 		{ column = "geom", type = "point", projection = 3857, not_null = true },
 		{ column = "tags", type = "jsonb" },
 	},

@@ -124,6 +124,9 @@ FROM segments;
 CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON itinerarius.routes_subdivide (osm_id);
 CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON itinerarius.routes_subdivide USING GIST (geom_3857);
 
+GRANT USAGE ON SCHEMA api TO calixtinus;
+GRANT USAGE ON SCHEMA itinerarius TO calixtinus;
+
 DROP VIEW IF EXISTS api.route_amenities;
 CREATE OR REPLACE VIEW api.route_amenities AS
 WITH candidates_all AS (
@@ -171,4 +174,5 @@ GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision,
 GRANT SELECT ON api.route_amenities TO calixtinus;
 
 -- Reload PostgREST schema cache to pick up changes immediately
+NOTIFY pgrst, 'reload schema';
 NOTIFY pgrst, 'reload config';
