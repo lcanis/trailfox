@@ -84,7 +84,7 @@ fi
 
 "$SCRIPT_DIR/import" "${IMPORT_ARGS[@]}" "$IMPORT_VERB" "${PBF_FILES[@]}"
 
-echo "-- apply API/tiles schemas"
-"$SCRIPT_DIR/apply-schemas"
+echo "-- post-import maintenance and schema application"
+"$SCRIPT_DIR/post-import"
 
 echo "done"

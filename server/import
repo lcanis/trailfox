@@ -297,11 +297,6 @@ for i in "${!PBF_FILES[@]}"; do
   fi
 done
 
-echo "-- post-import maintenance (indices, analysis)"
-export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
-PGOPTIONS="-c statement_timeout=$DB_STATEMENT_TIMEOUT_MS" \
-  "${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -f "$SCRIPT_DIR/sql/post_import.sql"
-
 if [ -n "$FLAT_NODES" ] && [ "$MODE" = "create" ]; then
   echo "-- cleaning up flat-nodes file ($FLAT_NODES)"
   rm -f "$FLAT_NODES"

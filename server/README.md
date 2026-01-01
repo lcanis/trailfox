@@ -69,7 +69,7 @@ You can also run steps individually:
 ```bash
 ./init-db        # Create DB (use --force-reset to drop/recreate)
 ./import create <pbf>   # Import OSM data
-./apply-schemas  # Apply API and tiles schemas
+./post-import    # Run maintenance and apply schemas
 ```
 
 ## Deployment
