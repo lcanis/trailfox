@@ -28,6 +28,13 @@ echo "-- applying tiles schema"
 echo "-- ensuring app user can read itinerarius tables"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -c "GRANT USAGE ON SCHEMA itinerarius TO \"$APP_USER\"; GRANT SELECT ON ALL TABLES IN SCHEMA itinerarius TO \"$APP_USER\"; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA itinerarius TO \"$APP_USER\";"
 
+if command -v uv &> /dev/null; then
+  echo "-- running routebuilder (WMT logic)"
+  (cd "$SCRIPT_DIR" && uv run python -m routebuilder.build_routes)
+else
+  echo "WARNING: uv not found, skipping routebuilder"
+fi
+
 echo "-- results"
 AMENITIES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")
 ROUTES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.routes")

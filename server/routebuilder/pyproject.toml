@@ -1,0 +1,16 @@
+[project]
+name = "routebuilder"
+version = "0.1.0"
+description = "Waymarked Trails route builder for Itinerarius"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "psycopg2-binary",
+    "shapely",
+    "python-dotenv",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+]
