@@ -78,6 +78,7 @@ fi
 echo "-- ensuring PostGIS is installed in $TRAILFOX_DB (public schema) as superuser"
 
 PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT:-5432}" -U "${POSTGRES_USER}" -d "${TRAILFOX_DB}" <<EOSQL
+ALTER DATABASE "${TRAILFOX_DB}" SET default_toast_compression = 'lz4';
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS postgis_topology;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

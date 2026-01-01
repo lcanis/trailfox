@@ -27,10 +27,13 @@ Modes:
 
 Options:
   --bbox        Import only data within the bounding box (minlon,minlat,maxlon,maxlat).
+  --no-slim     Disable slim mode (not recommended for large files).
 EOF
 }
 
 BBOX=""
+SLIM=true
+FLAT_NODES="/tmp/nodes.flat"
 POSITIONAL_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -39,6 +42,20 @@ while [[ $# -gt 0 ]]; do
       BBOX="$2"
       shift # past argument
       shift # past value
+      ;;
+    --no-slim)
+      SLIM=false
+      FLAT_NODES=""
+      shift
+      ;;
+    --slim)
+      SLIM=true
+      shift
+      ;;
+    --flat-nodes)
+      FLAT_NODES="$2"
+      shift
+      shift
       ;;
     -h|--help)
       usage
@@ -130,11 +147,6 @@ if [ -n "$BBOX" ]; then
   OSM2PGSQL_PERF_ARGS+=(--bbox "$BBOX")
 fi
 
-if [ "$MODE" = "incremental" ]; then
-  # NOTE: In osm2pgsql 2.x, --cache only applies in --slim mode.
-  OSM2PGSQL_PERF_ARGS+=(--cache "$OSM2PGSQL_CACHE_MB")
-fi
-
 case "$MODE" in
   create)
     OSM2PGSQL_MODE_ARGS=( --create --drop )
@@ -154,7 +166,7 @@ case "$MODE" in
     OSM2PGSQL_MODE_ARGS=( --append )
     ;;
   incremental)
-    OSM2PGSQL_MODE_ARGS=( --slim )
+    SLIM=true
     HAS_OUTPUT_TABLES=$("${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -tAc \
       "SELECT CASE WHEN COUNT(*) = 2 THEN 1 ELSE 0 END\
        FROM pg_class c\
@@ -175,12 +187,32 @@ case "$MODE" in
     fi
 
     if [ "$HAS_OUTPUT_TABLES" = "1" ]; then
-      OSM2PGSQL_MODE_ARGS+=( --append )
+      OSM2PGSQL_MODE_ARGS=( --append )
     else
-      OSM2PGSQL_MODE_ARGS+=( --create )
+      OSM2PGSQL_MODE_ARGS=( --create )
     fi
     ;;
 esac
+
+if [ "$SLIM" = true ]; then
+  OSM2PGSQL_MODE_ARGS+=( --slim )
+  if [ -n "$FLAT_NODES" ]; then
+    # Map flat-nodes path for Docker
+    if [[ "$FLAT_NODES" = /* ]]; then
+      if [[ "$FLAT_NODES" == "$SCRIPT_DIR"* ]]; then
+        FLAT_NODES_IN_CONTAINER="/data/${FLAT_NODES#"$SCRIPT_DIR"/}"
+      else
+        FLAT_NODES_IN_CONTAINER="$FLAT_NODES"
+      fi
+    else
+      FLAT_NODES_IN_CONTAINER="/data/$FLAT_NODES"
+    fi
+    OSM2PGSQL_MODE_ARGS+=( --flat-nodes "$FLAT_NODES_IN_CONTAINER" )
+    OSM2PGSQL_PERF_ARGS+=( --cache 0 )
+  else
+    OSM2PGSQL_PERF_ARGS+=( --cache "$OSM2PGSQL_CACHE_MB" )
+  fi
+fi
 
 IS_LOOPBACK_DB=false
 if [ "$POSTGRES_HOST" = "127.0.0.1" ] || [ "$POSTGRES_HOST" = "localhost" ]; then
@@ -193,10 +225,19 @@ fi
 
 if $IS_LOOPBACK_DB && [ "$(uname -s)" = "Linux" ]; then
   # Linux: use host network (127.0.0.1 works directly)
-  docker run --rm --network host \
-    -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
-    -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
-    -v "$SCRIPT_DIR:/data:delegated" \
+  DOCKER_OPTS=(--rm --network host)
+  DOCKER_OPTS+=(-e PGPASSWORD="${DB_ADMIN_PASSWORD:-}")
+  DOCKER_OPTS+=(-e LUA_PATH="$OSM2PGSQL_LUA_PATH")
+  DOCKER_OPTS+=(-v "$SCRIPT_DIR:/data:delegated")
+  
+  # If flat-nodes is used, ensure it's mounted if it's a host path
+  if [ -n "$FLAT_NODES" ] && [[ "$FLAT_NODES" != "$SCRIPT_DIR"* ]]; then
+     # If it's an absolute path outside SCRIPT_DIR, mount its directory
+     FLAT_NODES_DIR=$(dirname "$FLAT_NODES")
+     DOCKER_OPTS+=(-v "$FLAT_NODES_DIR:$FLAT_NODES_DIR")
+  fi
+
+  docker run "${DOCKER_OPTS[@]}" \
     -w /data \
     iboates/osm2pgsql:latest \
     -H 127.0.0.1 -P "${POSTGRES_PORT}" -d "$TRAILFOX_DB" -U "$DB_ADMIN_USER" \
@@ -219,3 +260,8 @@ echo "-- post-import maintenance (indices, analysis)"
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 PGOPTIONS="-c statement_timeout=$DB_STATEMENT_TIMEOUT_MS" \
   "${PSQL_DB[@]}" -U "$DB_ADMIN_USER" -f "$SCRIPT_DIR/sql/post_import.sql"
+
+if [ -n "$FLAT_NODES" ] && [ "$MODE" = "create" ]; then
+  echo "-- cleaning up flat-nodes file ($FLAT_NODES)"
+  rm -f "$FLAT_NODES"
+fi

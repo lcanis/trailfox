@@ -39,6 +39,8 @@ esac
 shift 2
 
 BBOX=""
+SLIM=true
+FLAT_NODES="/tmp/nodes.flat"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -46,6 +48,12 @@ while [ "$#" -gt 0 ]; do
             ENV_FILE="$2"; shift 2;;
         --bbox)
             BBOX="$2"; shift 2;;
+        --no-slim)
+            SLIM=false; FLAT_NODES=""; shift;;
+        --slim)
+            SLIM=true; shift;;
+        --flat-nodes)
+            FLAT_NODES="$2"; shift 2;;
         -h|--help)
             usage; exit 0;;
         *)
@@ -63,11 +71,20 @@ echo "-- create DB"
 "$SCRIPT_DIR/init-db" $([ "$IMPORT_VERB" = "create" ] && echo "--force-reset")
 
 echo "-- import OSM data and run post-import maintenance"
+IMPORT_ARGS=()
 if [ -n "$BBOX" ]; then
-  "$SCRIPT_DIR/import" --bbox "$BBOX" "$IMPORT_VERB" "$PBF_FILE"
-else
-  "$SCRIPT_DIR/import" "$IMPORT_VERB" "$PBF_FILE"
+  IMPORT_ARGS+=(--bbox "$BBOX")
 fi
+if [ "$SLIM" = true ]; then
+  IMPORT_ARGS+=(--slim)
+  if [ -n "$FLAT_NODES" ]; then
+    IMPORT_ARGS+=(--flat-nodes "$FLAT_NODES")
+  fi
+else
+  IMPORT_ARGS+=(--no-slim)
+fi
+
+"$SCRIPT_DIR/import" "${IMPORT_ARGS[@]}" "$IMPORT_VERB" "$PBF_FILE"
 
 echo "-- apply API/tiles schemas"
 "$SCRIPT_DIR/apply-schemas"

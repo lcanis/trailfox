@@ -155,3 +155,10 @@ BEGIN
     RAISE EXCEPTION 'itinerarius.routes_info contains % routes with NULL geom; fix the import before proceeding', (SELECT count(*) FROM itinerarius.routes_info WHERE geom IS NULL);
   END IF;
 END $$;
+
+-- Cleanup: drop raw tables to save space (we have everything in routes_info)
+-- DO $$ BEGIN RAISE NOTICE 'Cleaning up raw tables...'; END $$;
+-- DROP TABLE IF EXISTS itinerarius.ri;
+-- Note: we keep itinerarius.routes for now as it contains the full tags jsonb 
+-- which might be useful for debugging, but you can drop it if space is critical.
+-- DROP TABLE itinerarius.routes;
