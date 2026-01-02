@@ -119,15 +119,14 @@ $$ LANGUAGE plpgsql STABLE;
 -- amenities taken from itinerarius.amenities (using functional index on 3857 for speed)
 DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 
--- Index for faster 3857 lookups on amenities
-
 -- subdivided version of routes_info 
 DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
-CREATE TABLE itinerarius.routes_subdivide AS
+
+CREATE TABLE IF NOT EXISTS itinerarius.routes_subdivide AS
 WITH segments AS (
     SELECT 
         osm_id,
-        (ST_DumpSegments(ST_Segmentize(geom, 1000))).geom AS seg_m
+        ST_Subdivide(geom, 255) AS seg_m
     FROM itinerarius.routes_info
     WHERE geom IS NOT NULL
 )
@@ -137,25 +136,28 @@ SELECT
     ST_Transform(seg_m, 3857) AS geom_3857
 FROM segments;
 
+ALTER TABLE itinerarius.routes_subdivide ADD COLUMN IF NOT EXISTS id SERIAL PRIMARY KEY;
+
 CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON itinerarius.routes_subdivide (osm_id);
 CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON itinerarius.routes_subdivide USING GIST (geom_3857);
+ANALYZE itinerarius.routes_subdivide;
 
 GRANT USAGE ON SCHEMA api TO calixtinus;
 GRANT USAGE ON SCHEMA itinerarius TO calixtinus;
 
--- Materialized view for route amenities to improve performance
+-- Route amenities view
 DROP VIEW IF EXISTS api.route_amenities CASCADE;
-CREATE VIEW api.route_amenities_mat AS
+
+CREATE VIEW api.route_amenities AS
 WITH candidates_all AS (
     -- Find amenities within 1km of the route using subdivided geometries for speed
     -- Using 3857 for ST_DWithin is faster than geography
     SELECT
         r.osm_id AS route_id,
+        r.id AS segment_id,
         a.osm_id AS amenity_id,
         a.osm_type AS amenity_type,
-        ST_Distance(r.geom_3857, a.geom) as dist_from_route_m,
-        a.name, a.class, a.subclass, a.tags, a.geom AS amenity_geom,
-        r.geom_m AS segment_m
+        ST_Distance(r.geom_3857, a.geom) as dist_from_route_m
     FROM itinerarius.routes_subdivide r
     JOIN itinerarius.amenities a
       ON ST_DWithin(r.geom_3857, a.geom, 1000)
@@ -163,8 +165,7 @@ WITH candidates_all AS (
 candidates AS (
     -- Pick the closest segment for each amenity
     SELECT DISTINCT ON (route_id, amenity_id, amenity_type)
-        route_id, amenity_id, amenity_type, dist_from_route_m,
-        name, class, subclass, tags, amenity_geom, segment_m
+        route_id, amenity_id, amenity_type, dist_from_route_m, segment_id
     FROM candidates_all
     ORDER BY route_id, amenity_id, amenity_type, dist_from_route_m ASC
 )
@@ -172,22 +173,27 @@ SELECT
     c.route_id AS route_osm_id,
     c.amenity_type AS osm_type,
     c.amenity_id AS osm_id,
-    c.name,
-    c.class,
-    c.subclass,
-    ST_X(ST_Transform(c.amenity_geom, 4326)) AS lon,
-    ST_Y(ST_Transform(c.amenity_geom, 4326)) AS lat,
+    a.name,
+    a.class,
+    a.subclass,
+    ST_X(ST_Transform(a.geom, 4326)) AS lon,
+    ST_Y(ST_Transform(a.geom, 4326)) AS lat,
     c.dist_from_route_m AS distance_from_trail_m,
-    ST_M(ST_LineInterpolatePoint(c.segment_m, ST_LineLocatePoint(c.segment_m, c.amenity_geom))) / 1000.0 AS trail_km,
-    c.tags
+    ST_M(ST_LineInterpolatePoint(r.geom_m, ST_LineLocatePoint(r.geom_m, a.geom))) / 1000.0 AS trail_km,
+    a.tags
 FROM candidates c
+CROSS JOIN LATERAL (
+    SELECT * FROM itinerarius.amenities a 
+    WHERE c.amenity_id = a.osm_id AND c.amenity_type = a.osm_type
+    OFFSET 0
+) a
+CROSS JOIN LATERAL (
+    SELECT * FROM itinerarius.routes_subdivide r
+    WHERE c.segment_id = r.id
+    OFFSET 0
+) r
 ORDER BY c.route_id, trail_km;
-
-CREATE INDEX idx_route_amenities_mat_route_id ON api.route_amenities (route_osm_id);
-CREATE INDEX idx_route_amenities_mat_amenity_id ON api.route_amenities (osm_id);
-
-GRANT SELECT ON api.route_amenities TO calixtinus;
-
+ANALYZE api.route_amenities;
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text) TO calixtinus;

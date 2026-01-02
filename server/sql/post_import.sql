@@ -23,8 +23,6 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 DO $$ BEGIN RAISE NOTICE 'Starting amenities optimization...'; END $$;
--- Create indexes on amenities for fast spatial lookups
--- Amenities are now stored in 3857, so we index geom directly
 CREATE INDEX IF NOT EXISTS idx_amenities_geom ON itinerarius.amenities USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_amenities_class ON itinerarius.amenities (class);
 CREATE INDEX IF NOT EXISTS idx_amenities_subclass ON itinerarius.amenities (subclass);
