@@ -43,11 +43,12 @@ export const useItinerary = (params: {
           timeoutMs,
         });
         if (cancelled) return;
-        setRawAmenities(data);
+        const features = data.features;
+        setRawAmenities(features);
         const filtered =
           allowedClasses && allowedClasses.length > 0
-            ? data.filter((a) => allowedClasses.includes(a.class))
-            : data;
+            ? features.filter((a) => allowedClasses.includes(a.properties.class))
+            : features;
         setClusters(buildAmenityClusters(filtered, clusterBucketKm));
       } catch (e) {
         if (cancelled) return;

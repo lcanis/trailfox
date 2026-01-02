@@ -244,9 +244,10 @@ export default function ItineraryMap({
             return;
           }
 
+          const { name, class: cls, subclass, tags } = a.properties;
           setDevTagsOverlay({
-            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-            tags: a.tags,
+            title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+            tags: tags,
           });
         });
 
@@ -266,9 +267,10 @@ export default function ItineraryMap({
             return;
           }
 
+          const { name, class: cls, subclass, tags } = a.properties;
           setDevTagsOverlay({
-            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-            tags: a.tags,
+            title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+            tags: tags,
           });
         });
 

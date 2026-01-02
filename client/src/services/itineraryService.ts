@@ -1,5 +1,6 @@
+import type { FeatureCollection, Point } from 'geojson';
 import { API_BASE_URL } from '../config/settings';
-import { RouteAmenity } from '../types';
+import { RouteAmenity, RouteAmenityProperties } from '../types';
 import { fetchJsonWithTimeout } from './http';
 
 const ITINERARY_URL = `${API_BASE_URL}/api/route_amenities`;
@@ -23,22 +24,34 @@ export const ItineraryService = {
     routeOsmId: number;
     maxDistanceFromTrailM?: number;
     timeoutMs?: number;
-  }): Promise<RouteAmenity[]> {
+  }): Promise<FeatureCollection<Point, RouteAmenityProperties>> {
     const { routeOsmId, maxDistanceFromTrailM = 1000, timeoutMs = 8000 } = params;
 
-    // Use relative URLs on web (same-origin) and absolute URLs on native.
-    // Avoid `new URL('/path')` which throws without a base URL in browsers.
     const search = new URLSearchParams({
       select: SELECT_FIELDS,
       route_osm_id: `eq.${routeOsmId}`,
       distance_from_trail_m: `lte.${maxDistanceFromTrailM}`,
     });
 
-    const { data } = await fetchJsonWithTimeout<RouteAmenity[]>(
-      `${ITINERARY_URL}?${search.toString()}`,
-      undefined,
-      timeoutMs
-    );
-    return data;
+    const { data } = await fetchJsonWithTimeout<
+      (RouteAmenityProperties & { lon: number; lat: number })[]
+    >(`${ITINERARY_URL}?${search.toString()}`, undefined, timeoutMs);
+
+    const features: RouteAmenity[] = data.map((item) => {
+      const { lon, lat, ...properties } = item;
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [lon, lat],
+        },
+        properties,
+      };
+    });
+
+    return {
+      type: 'FeatureCollection',
+      features,
+    };
   },
 };

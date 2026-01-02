@@ -49,20 +49,18 @@ export const createIndividualAmenityFeature = (
   a: RouteAmenity,
   index: number
 ) => {
+  const { class: cls, subclass } = a.properties;
   const properties: IndividualAmenityProperties = {
     type: 'individual',
     amenityId: `${c.key}-${index}`,
     key: c.key,
-    icon: getMapIconName(a.class, a.subclass),
+    icon: getMapIconName(cls, subclass),
     marker: '',
   };
 
   return {
     type: 'Feature' as const,
-    geometry: {
-      type: 'Point' as const,
-      coordinates: [a.lon, a.lat] as [number, number],
-    },
+    geometry: a.geometry,
     properties,
   };
 };
