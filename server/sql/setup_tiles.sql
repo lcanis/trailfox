@@ -15,7 +15,7 @@ BEGIN
             osm_id,
             network,
             ST_AsMVTGeom(
-                geom,
+                COALESCE(simple_geom, geom),
                 ST_TileEnvelope(z, x, y),
                 4096,
                 256,
@@ -24,9 +24,8 @@ BEGIN
         FROM itinerarius.routes_info
         WHERE
             -- Spatial Index Filter: Check if route intersects the tile
-            geom && ST_TileEnvelope(z, x, y)
-            -- FIXME: Filter out "spiderweb" trails (poor quality geometry) to avoid visual artifacts
-            AND geom_quality != 'ok_wmt_no'
+            -- Use simple_geom for filtering as well since that's what we display
+            COALESCE(simple_geom, geom) && ST_TileEnvelope(z, x, y)
             AND (
                 -- Zoom Level Filtering Logic (Server-Side)
                 -- Matches client/src/components/Map.web.tsx logic
@@ -41,4 +40,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
 
-GRANT EXECUTE ON FUNCTION api.mvt_routes(integer, integer, integer) TO :APP_USER;
+GRANT EXECUTE ON FUNCTION api.mvt_routes(integer, integer, integer) TO calixtinus;

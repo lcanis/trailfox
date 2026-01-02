@@ -24,9 +24,15 @@ SELECT
     ri.merged_geom_type,
     ri.geom_build_case,
     ri.geom_quality,
-    ri.geom_parts
+    ri.geom_parts,
+    sg.simple_geom
 FROM itinerarius.routes r
-JOIN itinerarius.ri ri ON r.osm_id = ri.osm_id;
+JOIN itinerarius.ri ri ON r.osm_id = ri.osm_id
+LEFT JOIN LATERAL (
+    SELECT ST_Collect(geom) AS simple_geom
+    FROM itinerarius.route_segments s
+    WHERE s.osm_id = r.osm_id
+) sg ON true;
 REFRESH MATERIALIZED VIEW itinerarius.routes_info;
 
 DO $$ BEGIN RAISE NOTICE 'Creating indexes...'; END $$;
@@ -39,6 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_routes_name_trgm ON itinerarius.routes_info USING
 CREATE INDEX IF NOT EXISTS idx_routes_network_trgm ON itinerarius.routes_info USING GIN (network gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_route_info_length_m ON itinerarius.routes_info (length_m);
 CREATE INDEX IF NOT EXISTS idx_route_info_geom ON itinerarius.routes_info USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_route_info_simple_geom ON itinerarius.routes_info USING GIST (simple_geom);
 ANALYZE itinerarius.routes_info;
 
 -- raw_geom is kept only as importer output/debugging. Avoid indexing it.

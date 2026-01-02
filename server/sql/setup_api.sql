@@ -193,7 +193,6 @@ CROSS JOIN LATERAL (
     OFFSET 0
 ) r
 ORDER BY c.route_id, trail_km;
-ANALYZE api.route_amenities;
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text) TO calixtinus;
