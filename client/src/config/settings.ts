@@ -28,7 +28,8 @@ export const WEB_BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/brigh
 // Production: blank base URL means same-origin (served via reverse proxy)
 // For remote testing, set this to your VPS domain or IP (e.g., 'https://trailfox.app')
 // Note: 8090 is only for local dev proxy; production Caddy uses 80/443.
-export const REMOTE_SERVER_URL: string | null = 'https://trailfox.app';
+// export const REMOTE_SERVER_URL: string | null = 'https://trailfox.app';
+export const REMOTE_SERVER_URL: string | null = null;
 
 export let API_BASE_URL = '';
 

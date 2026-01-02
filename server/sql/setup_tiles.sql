@@ -15,7 +15,7 @@ BEGIN
             osm_id,
             network,
             ST_AsMVTGeom(
-                geom_3857,
+                geom,
                 ST_TileEnvelope(z, x, y),
                 4096,
                 256,
@@ -24,7 +24,9 @@ BEGIN
         FROM itinerarius.routes_info
         WHERE
             -- Spatial Index Filter: Check if route intersects the tile
-            geom_3857 && ST_TileEnvelope(z, x, y)
+            geom && ST_TileEnvelope(z, x, y)
+            -- FIXME: Filter out "spiderweb" trails (poor quality geometry) to avoid visual artifacts
+            AND geom_quality != 'ok_wmt_no'
             AND (
                 -- Zoom Level Filtering Logic (Server-Side)
                 -- Matches client/src/components/Map.web.tsx logic

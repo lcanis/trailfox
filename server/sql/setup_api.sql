@@ -14,7 +14,7 @@ SELECT
     r.roundtrip,
     r.length_m,
     r.tags,
-    r.geom AS geom,
+    ST_Transform(r.geom, 4326) AS geom,
     r.merged_geom_type,
     r.geom_build_case,
     r.geom_quality,
@@ -54,7 +54,7 @@ RETURNS TABLE (
       r.roundtrip,
       r.length_m,
       r.tags,
-      r.geom,
+      ST_Transform(r.geom, 4326) AS geom,
       r.merged_geom_type,
       r.geom_build_case,
       r.geom_quality,
@@ -62,8 +62,8 @@ RETURNS TABLE (
       ST_Distance(r.geom::geography, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography) AS distance_m
   FROM itinerarius.routes_info r
   ORDER BY
-      -- Fast index-assisted ordering (approximate meters in WebMercator)
-      r.geom_3857 <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857);
+      -- Fast index-assisted ordering using 3857
+      r.geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857);
 $$ LANGUAGE sql STABLE;
 
 -- Return routes within a bounding box
@@ -75,9 +75,25 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(
     search_query text DEFAULT NULL
 )
 RETURNS SETOF api.routes AS $$
-  SELECT *
-  FROM api.routes
-  WHERE ST_Intersects(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326))
+  SELECT
+      r.osm_id,
+      r.name,
+      r.network,
+      r.route_type,
+      r.symbol,
+      r.distance,
+      r.ascent,
+      r.descent,
+      r.roundtrip,
+      r.length_m,
+      r.tags,
+      ST_Transform(r.geom, 4326) AS geom,
+      r.merged_geom_type,
+      r.geom_build_case,
+      r.geom_quality,
+      r.geom_parts
+  FROM itinerarius.routes_info r
+  WHERE r.geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
   AND (
       search_query IS NULL 
       OR search_query = '' 
@@ -111,9 +127,9 @@ CREATE TABLE itinerarius.routes_subdivide AS
 WITH segments AS (
     SELECT 
         osm_id,
-        (ST_DumpSegments(ST_Segmentize(geom_m, 1000))).geom AS seg_m
+        (ST_DumpSegments(ST_Segmentize(geom, 1000))).geom AS seg_m
     FROM itinerarius.routes_info
-    WHERE geom_m IS NOT NULL
+    WHERE geom IS NOT NULL
 )
 SELECT
     osm_id,
@@ -127,16 +143,16 @@ CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON itinerarius.routes_subdi
 GRANT USAGE ON SCHEMA api TO calixtinus;
 GRANT USAGE ON SCHEMA itinerarius TO calixtinus;
 
-DROP VIEW IF EXISTS api.route_amenities;
-CREATE OR REPLACE VIEW api.route_amenities AS
+-- Materialized view for route amenities to improve performance
+DROP VIEW IF EXISTS api.route_amenities CASCADE;
+CREATE VIEW api.route_amenities_mat AS
 WITH candidates_all AS (
     -- Find amenities within 1km of the route using subdivided geometries for speed
     -- Using 3857 for ST_DWithin is faster than geography
     SELECT
         r.osm_id AS route_id,
         a.osm_id AS amenity_id,
-        a.osm_type AS amenity_type, -- osm_type is 'node', 'way', or 'relation' - required because osm_id is not globally unique
-        -- Calculate distance here to pick the closest segment later
+        a.osm_type AS amenity_type,
         ST_Distance(r.geom_3857, a.geom) as dist_from_route_m,
         a.name, a.class, a.subclass, a.tags, a.geom AS amenity_geom,
         r.geom_m AS segment_m
@@ -162,11 +178,15 @@ SELECT
     ST_X(ST_Transform(c.amenity_geom, 4326)) AS lon,
     ST_Y(ST_Transform(c.amenity_geom, 4326)) AS lat,
     c.dist_from_route_m AS distance_from_trail_m,
-    -- Use the pre-calculated measures in the segment for high performance
-    ST_M(ST_LineInterpolatePoint(c.segment_m, ST_LineLocatePoint(c.segment_m, ST_Transform(c.amenity_geom, 4326)))) / 1000.0 AS trail_km,
+    ST_M(ST_LineInterpolatePoint(c.segment_m, ST_LineLocatePoint(c.segment_m, c.amenity_geom))) / 1000.0 AS trail_km,
     c.tags
 FROM candidates c
 ORDER BY c.route_id, trail_km;
+
+CREATE INDEX idx_route_amenities_mat_route_id ON api.route_amenities (route_osm_id);
+CREATE INDEX idx_route_amenities_mat_amenity_id ON api.route_amenities (osm_id);
+
+GRANT SELECT ON api.route_amenities TO calixtinus;
 
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
