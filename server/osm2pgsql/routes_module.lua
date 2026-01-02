@@ -12,7 +12,6 @@ end
 -- ----------------------------------------------------------------------------
 -- Table Definition
 -- ----------------------------------------------------------------------------
-local constants = require("constants")
 
 local ways = osm2pgsql.define_table({
 	schema = "itinerarius",
