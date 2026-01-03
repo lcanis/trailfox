@@ -17,7 +17,7 @@ DO $$ BEGIN RAISE NOTICE 'Creating itinerarius.ri and itinerarius.route_segments
 DROP TABLE IF EXISTS itinerarius.ri CASCADE;
 CREATE TABLE itinerarius.ri (
     osm_id bigint PRIMARY KEY,
-    geom geometry(MultiLineStringM, 3857),
+    geom_m geometry(MultiLineStringM, 3857),
     length_m numeric,
     merged_geom_type text,
     geom_build_case text,
@@ -30,7 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_ri_osm_id ON itinerarius.ri (osm_id);
 
 INSERT INTO itinerarius.ri (
     osm_id,
-    geom,
+    geom_m,
     length_m,
     merged_geom_type,
     geom_build_case,

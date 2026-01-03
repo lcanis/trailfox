@@ -21,8 +21,6 @@ SELECT
     r.tags,
     ri.length_m,
     ri.geom,
-    ri.geom_m,
-    (ST_Transform(ri.geom, 3857)) AS geom_3857,
     ri.merged_geom_type,
     ri.geom_build_case,
     ri.geom_quality,
@@ -41,7 +39,6 @@ CREATE INDEX IF NOT EXISTS idx_routes_name_trgm ON itinerarius.routes_info USING
 CREATE INDEX IF NOT EXISTS idx_routes_network_trgm ON itinerarius.routes_info USING GIN (network gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_route_info_length_m ON itinerarius.routes_info (length_m);
 CREATE INDEX IF NOT EXISTS idx_route_info_geom ON itinerarius.routes_info USING GIST (geom);
-CREATE INDEX IF NOT EXISTS idx_route_info_geom_3857 ON itinerarius.routes_info USING GIST (geom_3857);
 ANALYZE itinerarius.routes_info;
 
 -- raw_geom is kept only as importer output/debugging. Avoid indexing it.

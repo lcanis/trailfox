@@ -23,47 +23,12 @@ FROM itinerarius.routes_info r;
 
 -- Return routes ordered by distance to a given lon/lat, i.e. which routes are closest to that point.
 CREATE OR REPLACE FUNCTION api.routes_by_distance(lon double precision, lat double precision)
-RETURNS TABLE (
-    osm_id bigint,
-    name text,
-    network text,
-    route_type text,
-    symbol text,
-    distance numeric,
-    ascent numeric,
-    descent numeric,
-    roundtrip boolean,
-    length_m numeric,
-    tags jsonb,
-    geom geometry,
-    merged_geom_type text,
-    geom_build_case text,
-    geom_quality text,
-    geom_parts integer,
-    distance_m double precision
-) AS $$
-  SELECT
-      r.osm_id,
-      r.name,
-      r.network,
-      r.route_type,
-      r.symbol,
-      r.distance,
-      r.ascent,
-      r.descent,
-      r.roundtrip,
-      r.length_m,
-      r.tags,
-      r.geom,
-      r.merged_geom_type,
-      r.geom_build_case,
-      r.geom_quality,
-      r.geom_parts,
-      ST_Distance(r.geom::geography, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography) AS distance_m
-  FROM itinerarius.routes_info r
+RETURNS SETOF api.routes AS $$
+  SELECT *
+  FROM api.routes
   ORDER BY
-      -- Fast index-assisted ordering (approximate meters in WebMercator)
-      r.geom_3857 <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857);
+      -- Spatial index-assisted ordering (K-Nearest Neighbor)
+      geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)
 $$ LANGUAGE sql STABLE;
 
 -- Return routes within a bounding box
@@ -77,7 +42,7 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(
 RETURNS SETOF api.routes AS $$
   SELECT *
   FROM api.routes
-  WHERE ST_Intersects(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326))
+  WHERE geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
   AND (
       search_query IS NULL 
       OR search_query = '' 
@@ -103,75 +68,88 @@ $$ LANGUAGE plpgsql STABLE;
 -- amenities taken from itinerarius.amenities (using functional index on 3857 for speed)
 DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 
--- Index for faster 3857 lookups on amenities
-
--- subdivided version of routes_info 
+DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
 DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
 CREATE TABLE itinerarius.routes_subdivide AS
-WITH segments AS (
-    SELECT 
-        osm_id,
-        (ST_DumpSegments(ST_Segmentize(geom_m, 1000))).geom AS seg_m
-    FROM itinerarius.routes_info
-    WHERE geom_m IS NOT NULL
-)
 SELECT
-    osm_id,
-    seg_m AS geom_m,
-    ST_Transform(seg_m, 3857) AS geom_3857
-FROM segments;
+    r.osm_id,
+    -- Get the M-measure at the very first point of this subdivided part
+    ST_M(ST_PointN(s.geom, 1)) as start_m,
+    s.geom AS geom
+FROM itinerarius.routes_info r
+-- Subdivide into chunks of max 50 vertices for optimal indexing
+CROSS JOIN LATERAL ST_Dump(ST_Subdivide(r.geom, 50)) AS s(geom)
+WHERE r.geom IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON itinerarius.routes_subdivide (osm_id);
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON itinerarius.routes_subdivide USING GIST (geom_3857);
+-- 2. Create Indexes
+-- Primary index for ID lookups
+CREATE INDEX idx_rs_osm_id ON itinerarius.routes_subdivide (osm_id);
+-- Spatial index for the DWithin join
+CREATE INDEX idx_rs_geom ON itinerarius.routes_subdivide USING GIST (geom);
+
+-- 3. Optimize Physical Storage
+-- This sorts the data on disk by geography, making nearby segments 
+-- live in the same CPU cache lines/RAM pages.
+CLUSTER itinerarius.routes_subdivide USING idx_rs_geom;
+ANALYZE itinerarius.routes_subdivide;
+
+
+DROP VIEW IF EXISTS api.route_amenities;
+CREATE OR REPLACE FUNCTION api.get_route_amenities(target_route_id bigint, search_radius_m integer DEFAULT 1000)
+RETURNS TABLE (
+    osm_id bigint,
+    osm_type text,
+    name text,
+    class text,
+    subclass text,
+    lon double precision,
+    lat double precision,
+    distance_from_trail_m double precision,
+    trail_km double precision,
+    tags jsonb
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH found_amenities AS (
+        -- Fast spatial join using only the specific route's segments
+        SELECT DISTINCT ON (a.osm_id, a.osm_type)
+            a.osm_id,
+            a.osm_type,
+            a.name,
+            a.class,
+            a.subclass,
+            a.geom as amenity_geom,
+            ST_Distance(rs.geom, a.geom) as dist_m,
+            -- Local calculation: Start of segment + interpolation on segment
+            (rs.start_m + ST_InterpolatePoint(rs.geom, a.geom)) / 1000.0 as t_km,
+            a.tags
+        FROM itinerarius.routes_subdivide rs
+        JOIN itinerarius.amenities a ON ST_DWithin(rs.geom, a.geom, search_radius_m)
+        WHERE rs.osm_id = target_route_id
+        ORDER BY a.osm_id, a.osm_type, ST_Distance(rs.geom, a.geom)
+    )
+    SELECT 
+        f.osm_id,
+        f.osm_type,
+        f.name,
+        f.class,
+        f.subclass,
+        ST_X(ST_Transform(f.amenity_geom, 4326)) as lon,
+        ST_Y(ST_Transform(f.amenity_geom, 4326)) as lat,
+        f.dist_m,
+        f.t_km,
+        f.tags
+    FROM found_amenities f
+    ORDER BY f.t_km ASC;
+END;
+$$ LANGUAGE plpgsql STABLE;
 
 GRANT USAGE ON SCHEMA api TO calixtinus;
 GRANT USAGE ON SCHEMA itinerarius TO calixtinus;
-
-DROP VIEW IF EXISTS api.route_amenities;
-CREATE OR REPLACE VIEW api.route_amenities AS
-WITH candidates_all AS (
-    -- Find amenities within 1km of the route using subdivided geometries for speed
-    -- Using 3857 for ST_DWithin is faster than geography
-    SELECT
-        r.osm_id AS route_id,
-        a.osm_id AS amenity_id,
-        a.osm_type AS amenity_type, -- osm_type is 'node', 'way', or 'relation' - required because osm_id is not globally unique
-        -- Calculate distance here to pick the closest segment later
-        ST_Distance(r.geom_3857, a.geom) as dist_from_route_m,
-        a.name, a.class, a.subclass, a.tags, a.geom AS amenity_geom,
-        r.geom_m AS segment_m
-    FROM itinerarius.routes_subdivide r
-    JOIN itinerarius.amenities a
-      ON ST_DWithin(r.geom_3857, a.geom, 1000)
-),
-candidates AS (
-    -- Pick the closest segment for each amenity
-    SELECT DISTINCT ON (route_id, amenity_id, amenity_type)
-        route_id, amenity_id, amenity_type, dist_from_route_m,
-        name, class, subclass, tags, amenity_geom, segment_m
-    FROM candidates_all
-    ORDER BY route_id, amenity_id, amenity_type, dist_from_route_m ASC
-)
-SELECT
-    c.route_id AS route_osm_id,
-    c.amenity_type AS osm_type,
-    c.amenity_id AS osm_id,
-    c.name,
-    c.class,
-    c.subclass,
-    ST_X(ST_Transform(c.amenity_geom, 4326)) AS lon,
-    ST_Y(ST_Transform(c.amenity_geom, 4326)) AS lat,
-    c.dist_from_route_m AS distance_from_trail_m,
-    -- Use the pre-calculated measures in the segment for high performance
-    ST_M(ST_LineInterpolatePoint(c.segment_m, ST_LineLocatePoint(c.segment_m, ST_Transform(c.amenity_geom, 4326)))) / 1000.0 AS trail_km,
-    c.tags
-FROM candidates c
-ORDER BY c.route_id, trail_km;
-
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text) TO calixtinus;
-GRANT SELECT ON api.route_amenities TO calixtinus;
+GRANT EXECUTE ON FUNCTION api.get_route_amenities(bigint, integer) TO calixtinus;
 
 -- Reload PostgREST schema cache to pick up changes immediately
 NOTIFY pgrst, 'reload schema';
