@@ -9,6 +9,7 @@ This is intentionally a thin wrapper around the existing WMT geometry builder
 import os
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Iterable
 
 import sqlalchemy as sa
@@ -199,7 +200,7 @@ def build_routes() -> None:
         todo = conn.execute(
             sa.text(
                 """
-                SELECT ri.osm_id, r.name
+                SELECT ri.osm_id, r.name, r.members
                 FROM itinerarius.ri ri
                 JOIN itinerarius.routes r ON r.osm_id = ri.osm_id
                 WHERE ri.geom_quality <> 'ok_singleline'
@@ -216,14 +217,28 @@ def build_routes() -> None:
     started = time.monotonic()
     processed = 0
 
+    # Reuse the ways subquery across routes.
+    ways = sa.select(
+        ways_raw.c.osm_id.label("id"),
+        ways_raw.c.geom.label("geom"),
+        ways_raw.c.tags.label("tags"),
+    ).subquery("ways")
+
+    def fmt_td(seconds: float) -> str:
+        return str(timedelta(seconds=int(max(0, seconds))))
+
+    def fmt_name(name: str | None, max_len: int = 48) -> str:
+        if not name:
+            return ""
+        n = " ".join(str(name).split())
+        if len(n) <= max_len:
+            return n
+        return n[: max_len - 1] + "…"
+
     try:
-        for idx, (route_id, route_name) in enumerate(todo, start=1):
+        for idx, (route_id, route_name, members_json) in enumerate(todo, start=1):
             t0 = time.monotonic()
             with engine.begin() as conn:
-                members_json = conn.execute(
-                    sa.select(routes_raw.c.members).where(routes_raw.c.osm_id == route_id)
-                ).scalar_one_or_none()
-
                 if not members_json:
                     conn.execute(
                         ri.update()
@@ -246,14 +261,6 @@ def build_routes() -> None:
                         )
                     )
                     continue
-
-                # Load base ways and (already-built) relation members.
-                # Adapt DB tables to what WMT member_loader expects: id/geom/tags.
-                ways = sa.select(
-                    ways_raw.c.osm_id.label("id"),
-                    ways_raw.c.geom.label("geom"),
-                    ways_raw.c.tags.label("tags"),
-                ).subquery("ways")
 
                 route_members = get_relation_objects(conn, members, ways, wmt_routes)
                 if not route_members:
@@ -282,12 +289,13 @@ def build_routes() -> None:
                 route.id = int(route_id)
 
                 # Cache JSON route for potential parent relations.
+                route_json = route.to_json()
                 conn.execute(
                     insert(wmt_routes)
-                    .values(id=route_id, route=route.to_json())
+                    .values(id=route_id, route=route_json)
                     .on_conflict_do_update(
                         index_elements=[wmt_routes.c.id],
-                        set_={"route": route.to_json()},
+                        set_={"route": route_json},
                     )
                 )
 
@@ -345,15 +353,25 @@ def build_routes() -> None:
                     )
 
             processed += 1
-            dt = time.monotonic() - t0
-            avg = (time.monotonic() - started) / max(processed, 1)
-            eta_s = int(avg * (total - processed))
-            print(f"[{idx}/{total}] {route_id} {route_name or ''} ({dt:0.2f}s) ETA ~{eta_s}s")
+            elapsed_s = time.monotonic() - started
+            s_per_route = elapsed_s / max(processed, 1)
+            eta_s = s_per_route * (total - processed)
+
+            msg = (
+                f"[{idx:>3}/{total:<3}] id={route_id} {fmt_name(route_name):<48} "
+                f"elapsed={fmt_td(elapsed_s)} s/route={s_per_route:0.3f} ETA={fmt_td(eta_s)}"
+            )
+            # Single-line progress (keeps terminal readable).
+            print("\r" + msg.ljust(120), end="", flush=True)
 
     except KeyboardInterrupt:
-        print("Interrupted. Progress committed up to last completed route.")
+        print("\nInterrupted. Progress committed up to last completed route.")
 
-    print(f"Finished. Processed {processed} routes.")
+    elapsed_s = time.monotonic() - started
+    print(f"\nFinished. Processed {processed} routes.")
+    if processed:
+        print(f"Elapsed: {fmt_td(elapsed_s)}")
+        print(f"Rate: {elapsed_s / processed:0.3f} s/route")
 
 
 if __name__ == "__main__":
