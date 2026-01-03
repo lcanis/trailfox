@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View, Text, TouchableOpacity } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { AmenityCluster } from '../types';
+import { AmenityCluster, AmenityFilterPreset } from '../types';
 import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
@@ -22,6 +22,8 @@ const tagsToList = (tags: Record<string, string> | null | undefined) => {
 interface ItineraryMapProps {
   routeOsmId: number;
   clusters: AmenityCluster[];
+  filterPreset?: AmenityFilterPreset;
+  onCycleFilter?: () => void;
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
   userLocation?: { latitude: number; longitude: number } | null;
@@ -37,6 +39,8 @@ interface ItineraryMapProps {
 export default function ItineraryMap({
   routeOsmId,
   clusters,
+  filterPreset,
+  onCycleFilter,
   selectedClusterKey,
   onSelectClusterKey,
   userLocation,
@@ -404,13 +408,13 @@ export default function ItineraryMap({
       ) : null}
 
       {/* Filter Button */}
-      {onOpenFilters && (
+      {onCycleFilter && (
         <TouchableOpacity
           style={[styles.mapButton, { top: insets.top + 16, right: 72 }]}
-          onPress={onOpenFilters}
+          onPress={onCycleFilter}
           activeOpacity={0.8}
         >
-          <Ionicons name="filter" size={20} color="#666" />
+          <Ionicons name={(filterPreset?.icon as any) || 'filter'} size={20} color={THEME.accent} />
         </TouchableOpacity>
       )}
     </View>

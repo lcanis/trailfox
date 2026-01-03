@@ -21,9 +21,24 @@ export const useDiscoveryScreen = () => {
   });
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [fetchedSelectedRoute, setFetchedSelectedRoute] = useState<Route | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [itineraryRouteId, setItineraryRouteId] = useState<number | null>(DEBUG_ITINERARY_ROUTE_ID);
   const [fetchedItineraryRoute, setFetchedItineraryRoute] = useState<Route | null>(null);
+
+  // Fetch selected route if it's not in the current routes list
+  useEffect(() => {
+    if (selectedId) {
+      const found = routes.find((r) => r.osm_id === selectedId);
+      if (found) {
+        setFetchedSelectedRoute(found);
+      } else {
+        RouteService.fetchRouteById(selectedId).then(setFetchedSelectedRoute).catch(console.error);
+      }
+    } else {
+      setFetchedSelectedRoute(null);
+    }
+  }, [selectedId, routes]);
 
   // Fetch itinerary route if it's not in the current routes list
   useEffect(() => {
@@ -47,9 +62,9 @@ export const useDiscoveryScreen = () => {
   const displayedRoutes = routes;
 
   const activeId = selectedId || hoveredId;
-  // Show details for selected route, or hovered if none selected.
-  const targetId = selectedId || hoveredId;
-  const detailsRoute = targetId ? routes.find((r) => r.osm_id === targetId) : null;
+  // Show details for selected route (fetched independently) or hovered if none selected.
+  const detailsRoute =
+    fetchedSelectedRoute || (hoveredId ? routes.find((r) => r.osm_id === hoveredId) : null);
   const itineraryRoute = fetchedItineraryRoute;
 
   // Handlers

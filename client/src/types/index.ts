@@ -15,6 +15,7 @@ export interface Route {
 }
 
 export * from './itinerary';
+export * from './amenityFilter';
 
 export type SortOption = 'name' | 'length' | 'distance' | null;
 

@@ -27,6 +27,7 @@ describe('ItineraryScreen', () => {
   beforeEach(() => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: false,
       error: null,
@@ -84,6 +85,7 @@ describe('ItineraryScreen', () => {
 
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: mockClusters,
       loading: false,
       error: null,

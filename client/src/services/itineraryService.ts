@@ -22,10 +22,10 @@ const SELECT_FIELDS = [
 export const ItineraryService = {
   async fetchRouteAmenities(params: {
     routeOsmId: number;
-    maxDistanceFromTrailM?: number;
     timeoutMs?: number;
   }): Promise<FeatureCollection<Point, RouteAmenityProperties>> {
-    const { routeOsmId, maxDistanceFromTrailM = 1000, timeoutMs = 8000 } = params;
+    const { routeOsmId, timeoutMs = 8000 } = params;
+    const maxDistanceFromTrailM = 1000; // Always query with 1km for offline filtering
 
     const search = new URLSearchParams({
       select: SELECT_FIELDS,
