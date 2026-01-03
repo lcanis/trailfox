@@ -1,5 +1,4 @@
 import React from 'react';
-import debounce from 'lodash.debounce';
 import {
   ActivityIndicator,
   Alert,
@@ -15,9 +14,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AmenityCluster, Route, RouteAmenity } from '../types';
+import { Ionicons } from '@expo/vector-icons';
+import { AmenityCluster, Route, RouteAmenity, AmenityFilterPreset } from '../types';
 import { useItinerary } from '../hooks/useItinerary';
-import RadiusSlider from '../components/RadiusSlider';
+import { AMENITY_FILTER_PRESETS } from '../config/amenityFilter';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { DEVELOPER_MODE } from '../constants';
 import {
@@ -49,7 +49,8 @@ interface ItineraryContentProps {
     route: Route;
     clusters: AmenityCluster[];
     rawAmenities: RouteAmenity[];
-    radiusKm: number;
+    filterPreset: AmenityFilterPreset;
+    onCycleFilter: () => void;
     allowedClasses: string[] | undefined;
     selectedClusterKey: string | null;
     setSelectedClusterKey: (key: string | null) => void;
@@ -81,16 +82,7 @@ const tagsToList = (tags: Record<string, string> | null | undefined) => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const RADIUS_STEPS = [0.02, 0.05, 0.1, 0.3, 0.5, 1.0];
-
 const ITINERARY_LEFT_PANE_MIN_WIDTH_PX = 450;
-
-const formatRadius = (km: number) => {
-  if (km < 1) {
-    return `${Math.round(km * 1000)} m`;
-  }
-  return `${km.toFixed(1)} km`;
-};
 
 export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   route,
@@ -109,8 +101,9 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const listRef = React.useRef<FlatList>(null);
-  const [radiusKm, setRadiusKm] = React.useState(0.1);
-  const [tempRadiusKm, setTempRadiusKm] = React.useState(radiusKm);
+  const [filterPreset, setFilterPreset] = React.useState<AmenityFilterPreset>(
+    AMENITY_FILTER_PRESETS[1]
+  );
   const [routeGeoJSON, setRouteGeoJSON] = React.useState<any>(null);
   const [customStartKm, setCustomStartKm] = React.useState<number | null>(null);
 
@@ -188,9 +181,9 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     [selectedClasses]
   );
 
-  const { rawAmenities, clusters, loading, error } = useItinerary({
+  const { rawAmenities, presetFilteredAmenities, clusters, loading, error } = useItinerary({
     routeOsmId: route.osm_id,
-    maxDistanceFromTrailM: radiusKm * 1000,
+    filterPreset,
     clusterBucketKm: 0.5,
     timeoutMs: 8000,
     allowedClasses,
@@ -200,8 +193,8 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const toLoc = route.tags?.to;
 
   const availableClasses = React.useMemo(() => {
-    return getAvailableClasses(rawAmenities);
-  }, [rawAmenities]);
+    return getAvailableClasses(presetFilteredAmenities);
+  }, [presetFilteredAmenities]);
 
   const showDevTags = React.useCallback(
     (key: string, overlay: { title: string; tags: Record<string, string> | null }) => {
@@ -222,22 +215,6 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       setDevTagsOverlay(null);
     }, 120);
   }, [clearHoverHideTimer]);
-
-  const debouncedSetRadius = React.useMemo(
-    () => debounce((v: number) => setRadiusKm(v), 550),
-    [setRadiusKm]
-  );
-
-  React.useEffect(() => {
-    // Keep the tempRadius synced if external radius changes (e.g., via code).
-    setTempRadiusKm(radiusKm);
-  }, [radiusKm]);
-
-  React.useEffect(() => {
-    return () => {
-      debouncedSetRadius.cancel();
-    };
-  }, [debouncedSetRadius]);
 
   const controlsNode = (
     <Modal
@@ -260,26 +237,35 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
 
           <ScrollView style={styles.modalBody}>
             <View style={styles.radiusRow}>
-              <Text style={styles.controlLabel}>📏 Radius</Text>
-              <Text style={styles.radiusValue}>{formatRadius(tempRadiusKm)}</Text>
+              <Text style={styles.controlLabel}>🎯 Complexity Level</Text>
+              <Text style={styles.radiusValue}>{filterPreset.label}</Text>
             </View>
-            <RadiusSlider
-              value={
-                RADIUS_STEPS.indexOf(tempRadiusKm) !== -1 ? RADIUS_STEPS.indexOf(tempRadiusKm) : 2
-              }
-              onValueChange={(v: number) => {
-                const index = clamp(Math.round(v), 0, RADIUS_STEPS.length - 1);
-                const newV = RADIUS_STEPS[index];
-                setTempRadiusKm(newV);
-                debouncedSetRadius(newV);
-              }}
-              minimumValue={0}
-              maximumValue={RADIUS_STEPS.length - 1}
-              step={1}
-              minimumTrackTintColor={THEME.accent}
-              maximumTrackTintColor={THEME.border}
-              thumbTintColor={THEME.accent}
-            />
+            <View style={styles.presetContainer}>
+              {AMENITY_FILTER_PRESETS.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => setFilterPreset(p)}
+                  style={[
+                    styles.presetButton,
+                    filterPreset.id === p.id && styles.presetButtonActive,
+                  ]}
+                >
+                  <Ionicons
+                    name={p.icon as any}
+                    size={24}
+                    color={filterPreset.id === p.id ? 'white' : THEME.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.presetLabel,
+                      filterPreset.id === p.id && styles.presetLabelActive,
+                    ]}
+                  >
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <View style={styles.filterRow}>
               <Text style={styles.controlLabel}>🏷️ Filter Amenities</Text>
@@ -627,13 +613,22 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     };
   }, [onMouseMove, onMouseUp]);
 
+  const onCycleFilter = React.useCallback(() => {
+    setFilterPreset((prev) => {
+      const idx = AMENITY_FILTER_PRESETS.findIndex((p) => p.id === prev.id);
+      const nextIdx = (idx + 1) % AMENITY_FILTER_PRESETS.length;
+      return AMENITY_FILTER_PRESETS[nextIdx];
+    });
+  }, []);
+
   const rightPaneNode = React.useMemo(() => {
     if (!renderRightPane) return null;
     return renderRightPane({
       route,
       clusters: clustersWithEndpoints,
       rawAmenities,
-      radiusKm,
+      filterPreset,
+      onCycleFilter,
       allowedClasses,
       selectedClusterKey: effectiveSelectedKey,
       setSelectedClusterKey: setSelectedKey,
@@ -646,7 +641,8 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     route,
     clustersWithEndpoints,
     rawAmenities,
-    radiusKm,
+    filterPreset,
+    onCycleFilter,
     allowedClasses,
     effectiveSelectedKey,
     setSelectedKey,
@@ -763,9 +759,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                 }
                 ListFooterComponent={<View style={{ height: 400 }} />}
                 ListEmptyComponent={
-                  <Text style={styles.muted}>
-                    No amenities found within {radiusKm.toFixed(1)} km of this route.
-                  </Text>
+                  <Text style={styles.muted}>No amenities found for the current filter.</Text>
                 }
                 renderItem={renderItem}
               />
@@ -1291,6 +1285,35 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: THEME.border,
+  },
+  presetContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  presetButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    backgroundColor: THEME.surface,
+    gap: 6,
+  },
+  presetButtonActive: {
+    backgroundColor: THEME.accent,
+    borderColor: THEME.accentDark,
+  },
+  presetLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: THEME.textSecondary,
+  },
+  presetLabelActive: {
+    color: 'white',
   },
   modalTitle: {
     fontSize: 18,

@@ -31,6 +31,7 @@ describe('Itinerary splitter drag', () => {
   beforeEach(() => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: false,
       error: null,

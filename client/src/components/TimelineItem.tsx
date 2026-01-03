@@ -193,49 +193,54 @@ export const TimelineItem = React.memo(
                 .slice()
                 .sort(
                   (a: RouteAmenity, b: RouteAmenity) =>
-                    a.distance_from_trail_m - b.distance_from_trail_m
+                    a.properties.distance_from_trail_m - b.properties.distance_from_trail_m
                 )
                 .slice(0, 100)
-                .map((a: RouteAmenity, amenityIndex: number) => (
-                  <Pressable
-                    key={`${a.osm_type}-${a.osm_id}-${amenityIndex}`}
-                    onHoverIn={() =>
-                      Platform.OS === 'web'
-                        ? onShowDevTags(`${a.osm_type}-${a.osm_id}`, {
-                            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                            tags: a.tags,
-                          })
-                        : undefined
-                    }
-                    onHoverOut={() => (Platform.OS === 'web' ? onScheduleHideDevTags() : undefined)}
-                    onPressIn={() =>
-                      isDeveloperMode
-                        ? onShowDevTags(`${a.osm_type}-${a.osm_id}`, {
-                            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-                            tags: a.tags,
-                          })
-                        : undefined
-                    }
-                    style={styles.detailsLineRow}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      {ICON_REGISTRY[getAmenityIconName(a.class, a.subclass)] && (
-                        <SmartIcon
-                          source={ICON_REGISTRY[getAmenityIconName(a.class, a.subclass)]}
-                          size={20}
-                          style={{ marginRight: 8 }}
-                        />
-                      )}
-                      <Text style={styles.detailsLine} numberOfLines={1}>
-                        {a.name ? a.name : a.subclass ? titleize(a.subclass) : 'Unnamed'}
-                        {a.subclass && a.name ? ` — ${titleize(a.subclass)}` : ''}{' '}
+                .map((a: RouteAmenity, amenityIndex: number) => {
+                  const { osm_type, osm_id, name, class: cls, subclass, tags } = a.properties;
+                  return (
+                    <Pressable
+                      key={`${osm_type}-${osm_id}-${amenityIndex}`}
+                      onHoverIn={() =>
+                        Platform.OS === 'web'
+                          ? onShowDevTags(`${osm_type}-${osm_id}`, {
+                              title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+                              tags: tags,
+                            })
+                          : undefined
+                      }
+                      onHoverOut={() =>
+                        Platform.OS === 'web' ? onScheduleHideDevTags() : undefined
+                      }
+                      onPressIn={() =>
+                        isDeveloperMode
+                          ? onShowDevTags(`${osm_type}-${osm_id}`, {
+                              title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+                              tags: tags,
+                            })
+                          : undefined
+                      }
+                      style={styles.detailsLineRow}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        {ICON_REGISTRY[getAmenityIconName(cls, subclass)] && (
+                          <SmartIcon
+                            source={ICON_REGISTRY[getAmenityIconName(cls, subclass)]}
+                            size={20}
+                            style={{ marginRight: 8 }}
+                          />
+                        )}
+                        <Text style={styles.detailsLine} numberOfLines={1}>
+                          {name ? name : subclass ? titleize(subclass) : 'Unnamed'}
+                          {subclass && name ? ` — ${titleize(subclass)}` : ''}{' '}
+                        </Text>
+                      </View>
+                      <Text style={styles.detailsLine}>
+                        ({formatMeters(a.properties.distance_from_trail_m)})
                       </Text>
-                    </View>
-                    <Text style={styles.detailsLine}>
-                      ({formatMeters(a.distance_from_trail_m)})
-                    </Text>
-                  </Pressable>
-                ))}
+                    </Pressable>
+                  );
+                })}
               {cluster.amenities.length > 100 && (
                 <Text style={styles.detailsMore}>+{cluster.amenities.length - 100} more</Text>
               )}

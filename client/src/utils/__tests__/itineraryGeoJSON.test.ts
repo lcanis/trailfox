@@ -7,17 +7,22 @@ import { AmenityCluster, RouteAmenity } from '../../types';
 
 describe('itineraryGeoJSON', () => {
   const mockAmenity: RouteAmenity = {
-    route_osm_id: 1,
-    osm_type: 'node',
-    osm_id: 101,
-    name: 'Test Amenity',
-    class: 'food',
-    subclass: 'restaurant',
-    lon: 6.1,
-    lat: 49.7,
-    distance_from_trail_m: 10,
-    trail_km: 1.5,
-    tags: {},
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [6.1, 49.7],
+    },
+    properties: {
+      route_osm_id: 1,
+      osm_type: 'node',
+      osm_id: 101,
+      name: 'Test Amenity',
+      class: 'food',
+      subclass: 'restaurant',
+      distance_from_trail_m: 10,
+      trail_km: 1.5,
+      tags: {},
+    },
   };
 
   const mockCluster: AmenityCluster = {

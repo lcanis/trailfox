@@ -8,20 +8,28 @@ import {
 } from '../itineraryModel';
 import type { AmenityCluster, Route, RouteAmenity } from '../../../types';
 
-const makeAmenity = (partial: Partial<RouteAmenity>): RouteAmenity => ({
-  route_osm_id: 1,
-  osm_type: 'N',
-  osm_id: Math.floor(Math.random() * 1_000_000),
-  name: null,
-  class: 'food',
-  subclass: null,
-  lon: 10,
-  lat: 20,
-  distance_from_trail_m: 50,
-  trail_km: 1,
-  tags: null,
-  ...partial,
-});
+const makeAmenity = (partial: any): RouteAmenity => {
+  const { lon = 10, lat = 20, ...props } = partial;
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [lon, lat],
+    },
+    properties: {
+      route_osm_id: 1,
+      osm_type: 'N',
+      osm_id: Math.floor(Math.random() * 1_000_000),
+      name: null,
+      class: 'food',
+      subclass: null,
+      distance_from_trail_m: 50,
+      trail_km: 1,
+      tags: null,
+      ...props,
+    },
+  };
+};
 
 describe('itineraryModel', () => {
   test('buildAmenityClusters groups by spatial proximity using DBSCAN', () => {
@@ -67,12 +75,12 @@ describe('itineraryModel', () => {
     const withEndpoints = addItineraryEndpointClusters({ clusters, route });
 
     expect(withEndpoints[0].trail_km).toBe(0);
-    expect(withEndpoints[0].amenities[0].class).toBe('Place');
-    expect(withEndpoints[0].amenities[0].name).toBe('A');
+    expect(withEndpoints[0].amenities[0].properties.class).toBe('Place');
+    expect(withEndpoints[0].amenities[0].properties.name).toBe('A');
 
     expect(withEndpoints[withEndpoints.length - 1].trail_km).toBe(10);
-    expect(withEndpoints[withEndpoints.length - 1].amenities[0].class).toBe('Place');
-    expect(withEndpoints[withEndpoints.length - 1].amenities[0].name).toBe('B');
+    expect(withEndpoints[withEndpoints.length - 1].amenities[0].properties.class).toBe('Place');
+    expect(withEndpoints[withEndpoints.length - 1].amenities[0].properties.name).toBe('B');
 
     // Always sorted.
     const kms = withEndpoints.map((c) => c.trail_km);

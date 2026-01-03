@@ -130,9 +130,14 @@ export const buildAmenityClusters = (
 ): AmenityCluster[] => {
   if (amenities.length === 0) return [];
 
-  // 1. Convert to GeoJSON
-  const points = amenities.map((a, i) => turf.point([a.lon, a.lat], { index: i }));
-  const collection = turf.featureCollection(points);
+  // 1. Prepare for DBSCAN
+  // We need to add an index to properties so we can map back to the original amenity
+  const collection = turf.featureCollection(
+    amenities.map((a, i) => ({
+      ...a,
+      properties: { ...a.properties, index: i },
+    }))
+  );
 
   // 2. Run DBSCAN
   // minPoints: 1 ensures every point is part of a cluster (even if it's a cluster of 1)
@@ -165,9 +170,9 @@ export const buildAmenityClusters = (
   const result: AmenityCluster[] = [];
   for (const [id, clusterAmenities] of clusterGroups.entries()) {
     const size = clusterAmenities.length;
-    const lonSum = clusterAmenities.reduce((sum, a) => sum + a.lon, 0);
-    const latSum = clusterAmenities.reduce((sum, a) => sum + a.lat, 0);
-    const trailKmSum = clusterAmenities.reduce((sum, a) => sum + a.trail_km, 0);
+    const lonSum = clusterAmenities.reduce((sum, a) => sum + a.geometry.coordinates[0], 0);
+    const latSum = clusterAmenities.reduce((sum, a) => sum + a.geometry.coordinates[1], 0);
+    const trailKmSum = clusterAmenities.reduce((sum, a) => sum + a.properties.trail_km, 0);
 
     const avgTrailKm = trailKmSum / size;
 
@@ -175,8 +180,9 @@ export const buildAmenityClusters = (
     const countsByIcon: Record<string, number> = {};
 
     for (const a of clusterAmenities) {
-      countsByClass[a.class] = (countsByClass[a.class] ?? 0) + 1;
-      const iconName = getAmenityIconName(a.class, a.subclass);
+      const { class: cls, subclass } = a.properties;
+      countsByClass[cls] = (countsByClass[cls] ?? 0) + 1;
+      const iconName = getAmenityIconName(cls, subclass);
       countsByIcon[iconName] = (countsByIcon[iconName] ?? 0) + 1;
     }
 
@@ -199,7 +205,8 @@ export const buildAmenityClusters = (
 export const getAvailableClasses = (rawAmenities: RouteAmenity[]) => {
   const counts = new Map<string, number>();
   for (const a of rawAmenities) {
-    counts.set(a.class, (counts.get(a.class) ?? 0) + 1);
+    const cls = a.properties.class;
+    counts.set(cls, (counts.get(cls) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([cls]) => cls);
 };
@@ -208,21 +215,26 @@ export const getTotalAmenities = (clusters: AmenityCluster[]) =>
   clusters.reduce((sum, c) => sum + c.amenities.length, 0);
 
 export const getClusterMinDistanceM = (cluster: AmenityCluster) =>
-  Math.min(...cluster.amenities.map((a) => a.distance_from_trail_m));
+  Math.min(...cluster.amenities.map((a) => a.properties.distance_from_trail_m));
 
 export const getClusterPlaceTitle = (
   cluster: AmenityCluster,
   maxDistanceFromTrailM: number = PLACE_HEADER_MAX_DISTANCE_M
 ) => {
   const places = cluster.amenities
-    .filter((a) => a.class === 'Place' && a.distance_from_trail_m <= maxDistanceFromTrailM)
+    .filter(
+      (a) =>
+        a.properties.class === 'Place' &&
+        a.properties.distance_from_trail_m <= maxDistanceFromTrailM
+    )
     .slice()
-    .sort((a, b) => a.distance_from_trail_m - b.distance_from_trail_m);
+    .sort((a, b) => a.properties.distance_from_trail_m - b.properties.distance_from_trail_m);
 
   const best = places[0];
   if (!best) return null;
-  if (best.name) return best.name;
-  if (best.subclass) return titleize(best.subclass);
+  const { name, subclass } = best.properties;
+  if (name) return name;
+  if (subclass) return titleize(subclass);
   return null;
 };
 
@@ -236,19 +248,21 @@ export const getClusterDisplayTitle = (cluster: AmenityCluster) => {
   // 2. If single item, use name or subclass
   if (cluster.amenities.length === 1) {
     const a = cluster.amenities[0];
-    if (a.name) return { title: a.name, isPlaceHeader: false };
-    if (a.subclass) return { title: titleize(a.subclass), isPlaceHeader: false };
+    const { name, subclass } = a.properties;
+    if (name) return { title: name, isPlaceHeader: false };
+    if (subclass) return { title: titleize(subclass), isPlaceHeader: false };
   }
 
   // 3. Multiple items: prefer first named item
-  const firstNamed = cluster.amenities.find((a) => a.name)?.name;
+  const firstNamed = cluster.amenities.find((a) => a.properties.name)?.properties.name;
   if (firstNamed) return { title: firstNamed, isPlaceHeader: false };
 
   // 4. Fallback: most common subclass
   const subclassCounts = new Map<string, number>();
   for (const a of cluster.amenities) {
-    if (a.subclass) {
-      subclassCounts.set(a.subclass, (subclassCounts.get(a.subclass) ?? 0) + 1);
+    const { subclass } = a.properties;
+    if (subclass) {
+      subclassCounts.set(subclass, (subclassCounts.get(subclass) ?? 0) + 1);
     }
   }
   const sortedSubclasses = [...subclassCounts.entries()].sort((a, b) => b[1] - a[1]);
@@ -280,18 +294,25 @@ export const addItineraryEndpointClusters = (params: {
   const hasStart = out.some((c) => Math.abs(c.trail_km - 0) <= epsKm);
   if (!hasStart) {
     const startName = route.tags?.from || 'Start';
+    const startLon = out.length ? out[0].lon : 0;
+    const startLat = out.length ? out[0].lat : 0;
     const startAmenity: RouteAmenity = {
-      route_osm_id: route.osm_id,
-      osm_type: 'N',
-      osm_id: -1,
-      name: startName,
-      class: 'Place',
-      subclass: null,
-      lon: out.length ? out[0].lon : 0,
-      lat: out.length ? out[0].lat : 0,
-      distance_from_trail_m: 0,
-      trail_km: 0,
-      tags: null,
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [startLon, startLat],
+      },
+      properties: {
+        route_osm_id: route.osm_id,
+        osm_type: 'N',
+        osm_id: -1,
+        name: startName,
+        class: 'Place',
+        subclass: null,
+        distance_from_trail_m: 0,
+        trail_km: 0,
+        tags: null,
+      },
     };
 
     out.unshift({
@@ -301,8 +322,8 @@ export const addItineraryEndpointClusters = (params: {
       countsByClass: { Place: 1 },
       countsByIcon: { [getAmenityIconName('Place', null)]: 1 },
       size: 1,
-      lon: startAmenity.lon,
-      lat: startAmenity.lat,
+      lon: startLon,
+      lat: startLat,
     });
   }
 
@@ -312,18 +333,25 @@ export const addItineraryEndpointClusters = (params: {
     const hasEnd = out.some((c) => Math.abs((c.trail_km || 0) - routeKm) <= epsKm);
     if (!hasEnd) {
       const endName = route.tags?.to || 'End';
+      const endLon = out.length ? out[out.length - 1].lon : 0;
+      const endLat = out.length ? out[out.length - 1].lat : 0;
       const endAmenity: RouteAmenity = {
-        route_osm_id: route.osm_id,
-        osm_type: 'N',
-        osm_id: -2,
-        name: endName,
-        class: 'Place',
-        subclass: null,
-        lon: out.length ? out[out.length - 1].lon : 0,
-        lat: out.length ? out[out.length - 1].lat : 0,
-        distance_from_trail_m: 0,
-        trail_km: routeKm,
-        tags: null,
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [endLon, endLat],
+        },
+        properties: {
+          route_osm_id: route.osm_id,
+          osm_type: 'N',
+          osm_id: -2,
+          name: endName,
+          class: 'Place',
+          subclass: null,
+          distance_from_trail_m: 0,
+          trail_km: routeKm,
+          tags: null,
+        },
       };
 
       out.push({
@@ -333,8 +361,8 @@ export const addItineraryEndpointClusters = (params: {
         countsByClass: { Place: 1 },
         countsByIcon: { [getAmenityIconName('Place', null)]: 1 },
         size: 1,
-        lon: endAmenity.lon,
-        lat: endAmenity.lat,
+        lon: endLon,
+        lat: endLat,
       });
     }
   }

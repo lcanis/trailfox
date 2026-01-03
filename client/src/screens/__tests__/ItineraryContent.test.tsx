@@ -56,6 +56,7 @@ describe('ItineraryContent', () => {
   beforeEach(() => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: false,
       error: null,
@@ -66,6 +67,7 @@ describe('ItineraryContent', () => {
   it('renders loading state', () => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: true,
       error: null,
@@ -79,6 +81,7 @@ describe('ItineraryContent', () => {
   it('renders error state', () => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: false,
       error: { message: 'Failed to load' },
@@ -93,7 +96,7 @@ describe('ItineraryContent', () => {
   it('renders empty state', () => {
     const { getByText } = render(<ItineraryContent route={mockRoute} onClose={jest.fn()} />);
 
-    expect(getByText(/No amenities found within/)).toBeTruthy();
+    expect(getByText(/No amenities found for the current filter/)).toBeTruthy();
   });
 
   it('renders clusters', () => {
@@ -104,13 +107,17 @@ describe('ItineraryContent', () => {
         size: 1,
         amenities: [
           {
-            osm_id: 1,
-            osm_type: 'node',
-            class: 'sustenance',
-            subclass: 'restaurant',
-            name: 'Food Place',
-            distance_from_trail_m: 10,
-            tags: {},
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: {
+              osm_id: 1,
+              osm_type: 'node',
+              class: 'sustenance',
+              subclass: 'restaurant',
+              name: 'Food Place',
+              distance_from_trail_m: 10,
+              tags: {},
+            },
           },
         ],
         countsByClass: { sustenance: 1 },
@@ -120,6 +127,7 @@ describe('ItineraryContent', () => {
 
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: mockClusters,
       loading: false,
       error: null,

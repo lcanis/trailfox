@@ -27,6 +27,7 @@ describe('ItineraryScreen', () => {
   beforeEach(() => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: false,
       error: null,
@@ -63,13 +64,17 @@ describe('ItineraryScreen', () => {
         trail_km: 1.5,
         amenities: [
           {
-            osm_id: 1,
-            osm_type: 'node',
-            class: 'amenity',
-            subclass: 'cafe',
-            name: 'Coffee Shop',
-            distance_from_trail_m: 10,
-            tags: {},
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: {
+              osm_id: 1,
+              osm_type: 'node',
+              class: 'amenity',
+              subclass: 'cafe',
+              name: 'Coffee Shop',
+              distance_from_trail_m: 10,
+              tags: {},
+            },
           },
         ],
         countsByClass: { amenity: 1 },
@@ -80,6 +85,7 @@ describe('ItineraryScreen', () => {
 
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: mockClusters,
       loading: false,
       error: null,

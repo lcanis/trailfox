@@ -16,6 +16,8 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
         renderRightPane={({
           route,
           clusters,
+          filterPreset,
+          onCycleFilter,
           selectedClusterKey,
           setSelectedClusterKey,
           onOpenFilters,
@@ -24,6 +26,8 @@ export const ItineraryScreen = (props: React.ComponentProps<typeof ItineraryCont
           <ItineraryMap
             routeOsmId={route.osm_id}
             clusters={clusters}
+            filterPreset={filterPreset}
+            onCycleFilter={onCycleFilter}
             selectedClusterKey={selectedClusterKey}
             onSelectClusterKey={setSelectedClusterKey}
             onOpenFilters={onOpenFilters}

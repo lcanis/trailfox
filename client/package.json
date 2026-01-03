@@ -40,6 +40,7 @@
   "devDependencies": {
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
+    "@types/geojson": "^7946.0.16",
     "@types/jest": "^29.5.14",
     "@types/lodash.debounce": "^4.0.9",
     "@types/node": "^22.10.2",

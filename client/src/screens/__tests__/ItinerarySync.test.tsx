@@ -100,6 +100,7 @@ describe('ItineraryScreen Synchronization', () => {
     jest.clearAllMocks();
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: mockClusters,
       loading: false,
       error: null,

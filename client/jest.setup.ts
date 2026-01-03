@@ -87,3 +87,15 @@ jest.mock('@gorhom/bottom-sheet', () => {
 
 // Keep test output clean (settings.ts logs config when DEVELOPER_MODE is true)
 jest.spyOn(console, 'log').mockImplementation(() => undefined);
+
+// Mock window.location for web tests
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'location', {
+    value: {
+      hostname: 'localhost',
+      port: '8081',
+      origin: 'http://localhost:8081',
+    },
+    writable: true,
+  });
+}
