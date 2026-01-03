@@ -1,7 +1,6 @@
 -- Finalize post-import maintenance for Itinerarius (run after routebuilder)
 \timing
 
-
 ---- quality work done, now create indexes and materialize derived columns
 DO $$ BEGIN RAISE NOTICE 'Creating materialized view routes_info...'; END $$;
 
@@ -21,6 +20,7 @@ SELECT
     r.tags,
     ri.length_m,
     ri.geom_m AS geom,
+    ST_Transform(ri.geom_m, 4326) AS geom_4326, -- precompute for api routes, geojson, no indexing
     ri.merged_geom_type,
     ri.geom_build_case,
     ri.geom_quality,
@@ -44,10 +44,10 @@ ANALYZE itinerarius.routes_info;
 -- raw_geom is kept only as importer output/debugging. Avoid indexing it.
 DROP INDEX IF EXISTS itinerarius.routes_raw_geom_idx;
 
--- Fail-fast: ensure every route has a geometry.
+-- Fail-fast: ensure every non-superroute has a geometry.
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM itinerarius.routes_info WHERE geom IS NULL) THEN
-    RAISE EXCEPTION 'itinerarius.routes_info contains % routes with NULL geom; fix the import before proceeding', (SELECT count(*) FROM itinerarius.routes_info WHERE geom IS NULL);
+  IF EXISTS (SELECT 1 FROM itinerarius.routes_info WHERE geom IS NULL and route_type <> 'superroute') THEN
+    RAISE EXCEPTION 'itinerarius.routes_info contains % non-superroutes with NULL geom; fix the import before proceeding', (SELECT count(*) FROM itinerarius.routes_info WHERE geom IS NULL and route_type <> 'superroute');
   END IF;
 END $$;

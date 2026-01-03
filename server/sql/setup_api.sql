@@ -18,7 +18,7 @@ SELECT
     r.roundtrip,
     r.length_m,
     r.tags,
-    r.geom AS geom,
+    r.geom_4326 AS geom,
     r.merged_geom_type,
     r.geom_build_case,
     r.geom_quality,
@@ -28,11 +28,12 @@ FROM itinerarius.routes_info r;
 -- Return routes ordered by distance to a given lon/lat, i.e. which routes are closest to that point.
 CREATE OR REPLACE FUNCTION api.routes_by_distance(lon double precision, lat double precision)
 RETURNS SETOF api.routes AS $$
-  SELECT *
-  FROM api.routes
+  SELECT r.*
+  FROM api.routes r
+  JOIN itinerarius.routes_info ri ON r.osm_id = ri.osm_id
   ORDER BY
       -- Spatial index-assisted ordering (K-Nearest Neighbor)
-      geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)
+      ri.geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)
 $$ LANGUAGE sql STABLE;
 
 -- Return routes within a bounding box
@@ -44,13 +45,14 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(
     search_query text DEFAULT NULL
 )
 RETURNS SETOF api.routes AS $$
-  SELECT *
-  FROM api.routes
-  WHERE geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
+  SELECT r.*
+  FROM api.routes r
+  JOIN itinerarius.routes_info ri ON r.osm_id = ri.osm_id
+  WHERE ri.geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
   AND (
       search_query IS NULL 
       OR search_query = '' 
-      OR name ILIKE '%' || search_query || '%' 
+      OR r.name ILIKE '%' || search_query || '%' 
   );
 $$ LANGUAGE sql STABLE;
 
