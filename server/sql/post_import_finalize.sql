@@ -19,7 +19,7 @@ SELECT
     r.descent,
     r.roundtrip,
     r.tags,
-    ri.length_m,
+    ST_Length(ri.geom::geography) AS length_m,
     ri.geom,
     ri.merged_geom_type,
     ri.geom_build_case,
@@ -50,6 +50,29 @@ ANALYZE itinerarius.routes_info;
 
 -- raw_geom is kept only as importer output/debugging. Avoid indexing it.
 DROP INDEX IF EXISTS itinerarius.routes_raw_geom_idx;
+
+-- subdivided version of routes_info for fast spatial joins (amenities)
+DO $$ BEGIN RAISE NOTICE 'Creating subdivided routes for fast spatial joins...'; END $$;
+DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
+
+CREATE TABLE itinerarius.routes_subdivide AS
+WITH segments AS (
+    SELECT 
+        osm_id,
+        ST_Subdivide(geom, 255) AS seg_m
+    FROM itinerarius.routes_info
+    WHERE geom IS NOT NULL
+)
+SELECT
+    osm_id,
+    seg_m AS geom_m
+FROM segments;
+
+ALTER TABLE itinerarius.routes_subdivide ADD COLUMN id SERIAL PRIMARY KEY;
+
+CREATE INDEX idx_routes_subdivide_osm_id ON itinerarius.routes_subdivide (osm_id);
+CREATE INDEX idx_routes_subdivide_geom ON itinerarius.routes_subdivide USING GIST (geom_m);
+ANALYZE itinerarius.routes_subdivide;
 
 -- Fail-fast: ensure every route has a geometry.
 DO $$

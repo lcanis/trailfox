@@ -286,7 +286,7 @@ for i in "${!PBF_FILES[@]}"; do
   else
     # macOS loopback OR normal compose network
     docker compose -f "$SCRIPT_DIR/docker-compose.yml" --project-directory "$SCRIPT_DIR" \
-      --profile import run --rm --no-deps \
+      --profile import run -T --rm --no-deps \
       -e PGPASSWORD="${DB_ADMIN_PASSWORD:-}" \
       -e LUA_PATH="$OSM2PGSQL_LUA_PATH" \
       -w /data \

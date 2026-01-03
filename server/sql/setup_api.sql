@@ -54,7 +54,7 @@ RETURNS TABLE (
       r.roundtrip,
       r.length_m,
       r.tags,
-      ST_Transform(r.geom, 4326) AS geom,
+      r.geom_4326 AS geom,
       r.merged_geom_type,
       r.geom_build_case,
       r.geom_quality,
@@ -119,29 +119,6 @@ $$ LANGUAGE plpgsql STABLE;
 -- amenities taken from itinerarius.amenities (using functional index on 3857 for speed)
 DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 
--- subdivided version of routes_info 
-DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
-
-CREATE TABLE IF NOT EXISTS itinerarius.routes_subdivide AS
-WITH segments AS (
-    SELECT 
-        osm_id,
-        ST_Subdivide(geom, 255) AS seg_m
-    FROM itinerarius.routes_info
-    WHERE geom IS NOT NULL
-)
-SELECT
-    osm_id,
-    seg_m AS geom_m,
-    ST_Transform(seg_m, 3857) AS geom_3857
-FROM segments;
-
-ALTER TABLE itinerarius.routes_subdivide ADD COLUMN IF NOT EXISTS id SERIAL PRIMARY KEY;
-
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_osm_id ON itinerarius.routes_subdivide (osm_id);
-CREATE INDEX IF NOT EXISTS idx_routes_subdivide_geom ON itinerarius.routes_subdivide USING GIST (geom_3857);
-ANALYZE itinerarius.routes_subdivide;
-
 GRANT USAGE ON SCHEMA api TO calixtinus;
 GRANT USAGE ON SCHEMA itinerarius TO calixtinus;
 
@@ -157,10 +134,10 @@ WITH candidates_all AS (
         r.id AS segment_id,
         a.osm_id AS amenity_id,
         a.osm_type AS amenity_type,
-        ST_Distance(r.geom_3857, a.geom) as dist_from_route_m
+        ST_Distance(r.geom_m, a.geom) as dist_from_route_m
     FROM itinerarius.routes_subdivide r
     JOIN itinerarius.amenities a
-      ON ST_DWithin(r.geom_3857, a.geom, 1000)
+      ON ST_DWithin(r.geom_m, a.geom, 1000)
 ),
 candidates AS (
     -- Pick the closest segment for each amenity
@@ -179,19 +156,11 @@ SELECT
     ST_X(ST_Transform(a.geom, 4326)) AS lon,
     ST_Y(ST_Transform(a.geom, 4326)) AS lat,
     c.dist_from_route_m AS distance_from_trail_m,
-    ST_M(ST_LineInterpolatePoint(r.geom_m, ST_LineLocatePoint(r.geom_m, a.geom))) / 1000.0 AS trail_km,
+    ST_M(ST_LineInterpolatePoint(ri.geom, ST_LineLocatePoint(ri.geom, a.geom))) / 1000.0 AS trail_km,
     a.tags
 FROM candidates c
-CROSS JOIN LATERAL (
-    SELECT * FROM itinerarius.amenities a 
-    WHERE c.amenity_id = a.osm_id AND c.amenity_type = a.osm_type
-    OFFSET 0
-) a
-CROSS JOIN LATERAL (
-    SELECT * FROM itinerarius.routes_subdivide r
-    WHERE c.segment_id = r.id
-    OFFSET 0
-) r
+JOIN itinerarius.amenities a ON c.amenity_id = a.osm_id AND c.amenity_type = a.osm_type
+JOIN itinerarius.routes_info ri ON c.route_id = ri.osm_id
 ORDER BY c.route_id, trail_km;
 GRANT SELECT ON api.routes TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;

@@ -24,6 +24,7 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 DO $$ BEGIN RAISE NOTICE 'Starting amenities optimization...'; END $$;
 CREATE INDEX IF NOT EXISTS idx_amenities_geom ON itinerarius.amenities USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_amenities_osm_id_type ON itinerarius.amenities (osm_id, osm_type);
 CREATE INDEX IF NOT EXISTS idx_amenities_class ON itinerarius.amenities (class);
 CREATE INDEX IF NOT EXISTS idx_amenities_subclass ON itinerarius.amenities (subclass);
 ANALYZE itinerarius.amenities;

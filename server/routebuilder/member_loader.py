@@ -26,10 +26,13 @@ def get_relation_objects(conn, members, way_table, route_table):
     ways = [m['ref'] for m in members if m['type'].lower() == 'w']
     if ways:
         t = way_table
-        # In Trailfox, geom is already 3857. We need length in meters.
-        # We transform to 4326 before casting to geography for accurate meters.
+        # Use pre-calculated length_m if available, otherwise calculate on the fly
+        length_col = t.c.length_m if hasattr(t.c, 'length_m') else sa.func.ST_Length(sa.func.ST_Transform(t.c.geom, 4326).cast(Geography))
+        
         sql = sa.select(t.c.osm_id, t.c.geom, t.c.tags,
-                        sa.func.ST_Length(sa.func.ST_Transform(t.c.geom, 4326).cast(Geography)).label('length'))\
+                        sa.func.coalesce(length_col, 
+                                         sa.func.ST_Length(sa.func.ST_Transform(t.c.geom, 4326).cast(Geography))
+                                        ).label('length'))\
                 .where(t.c.osm_id.in_(ways))\
                 .where(t.c.geom.isnot(None))
         for way in conn.execute(sql):
