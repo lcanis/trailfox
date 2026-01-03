@@ -3,21 +3,10 @@ import { API_BASE_URL } from '../config/settings';
 import { RouteAmenity, RouteAmenityProperties } from '../types';
 import { fetchJsonWithTimeout } from './http';
 
-const ITINERARY_URL = `${API_BASE_URL}/api/route_amenities`;
-
-const SELECT_FIELDS = [
-  'route_osm_id',
-  'osm_type',
-  'osm_id',
-  'name',
-  'class',
-  'subclass',
-  'lon',
-  'lat',
-  'distance_from_trail_m',
-  'trail_km',
-  'tags',
-].join(',');
+/**
+ * Endpoint for calling the RPC function
+ */
+const ITINERARY_RPC_URL = `${API_BASE_URL}/api/rpc/get_route_amenities`;
 
 export const ItineraryService = {
   async fetchRouteAmenities(params: {
@@ -25,19 +14,31 @@ export const ItineraryService = {
     timeoutMs?: number;
   }): Promise<FeatureCollection<Point, RouteAmenityProperties>> {
     const { routeOsmId, timeoutMs = 8000 } = params;
-    const maxDistanceFromTrailM = 1000; // Always query with 1km for offline filtering
+    const searchRadiusM = 1000; // Always query with 1km for offline filtering
 
+    /**
+     * Arguments match the SQL function parameters:
+     * target_route_id and search_radius_m
+     */
     const search = new URLSearchParams({
-      select: SELECT_FIELDS,
-      route_osm_id: `eq.${routeOsmId}`,
-      distance_from_trail_m: `lte.${maxDistanceFromTrailM}`,
+      target_route_id: routeOsmId.toString(),
+      search_radius_m: searchRadiusM.toString(),
     });
 
     const { data } = await fetchJsonWithTimeout<
       (RouteAmenityProperties & { lon: number; lat: number })[]
-    >(`${ITINERARY_URL}?${search.toString()}`, undefined, timeoutMs);
+    >(
+      `${ITINERARY_RPC_URL}?${search.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+      timeoutMs
+    );
 
-    const features: RouteAmenity[] = data.map((item) => {
+    const features: RouteAmenity[] = (data || []).map((item) => {
       const { lon, lat, ...properties } = item;
       return {
         type: 'Feature',
