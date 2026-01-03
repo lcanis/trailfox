@@ -8,14 +8,14 @@ DECLARE
     mvt bytea;
 BEGIN
     -- ST_TileEnvelope returns WebMercator (3857) bounds
-    -- Use precomputed routes.geom_3857 to avoid per-request ST_Transform.
+    -- Use precomputed routes_info.geom to avoid per-request ST_Transform.
 
     SELECT INTO mvt ST_AsMVT(tile, 'routes', 4096, 'geom') FROM (
         SELECT
             osm_id,
             network,
             ST_AsMVTGeom(
-                geom_3857,
+                geom,
                 ST_TileEnvelope(z, x, y),
                 4096,
                 256,
@@ -24,7 +24,7 @@ BEGIN
         FROM itinerarius.routes_info
         WHERE
             -- Spatial Index Filter: Check if route intersects the tile
-            geom_3857 && ST_TileEnvelope(z, x, y)
+            geom && ST_TileEnvelope(z, x, y)
             AND (
                 -- Zoom Level Filtering Logic (Server-Side)
                 -- Matches client/src/components/Map.web.tsx logic

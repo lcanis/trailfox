@@ -18,7 +18,7 @@ SELECT
     r.roundtrip,
     r.length_m,
     r.tags,
-    r.geom AS geom,
+    r.geom_4326 AS geom,
     r.merged_geom_type,
     r.geom_build_case,
     r.geom_quality,
@@ -28,11 +28,12 @@ FROM itinerarius.routes_info r;
 -- Return routes ordered by distance to a given lon/lat, i.e. which routes are closest to that point.
 CREATE OR REPLACE FUNCTION api.routes_by_distance(lon double precision, lat double precision)
 RETURNS SETOF api.routes AS $$
-  SELECT *
-  FROM api.routes
+  SELECT r.*
+  FROM api.routes r
+  JOIN itinerarius.routes_info ri ON r.osm_id = ri.osm_id
   ORDER BY
       -- Spatial index-assisted ordering (K-Nearest Neighbor)
-      geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)
+      ri.geom <-> ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)
 $$ LANGUAGE sql STABLE;
 
 -- Return routes within a bounding box
@@ -44,13 +45,14 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(
     search_query text DEFAULT NULL
 )
 RETURNS SETOF api.routes AS $$
-  SELECT *
-  FROM api.routes
-  WHERE geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
+  SELECT r.*
+  FROM api.routes r
+  JOIN itinerarius.routes_info ri ON r.osm_id = ri.osm_id
+  WHERE ri.geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
   AND (
       search_query IS NULL 
       OR search_query = '' 
-      OR name ILIKE '%' || search_query || '%' 
+      OR r.name ILIKE '%' || search_query || '%' 
   );
 $$ LANGUAGE sql STABLE;
 
@@ -65,13 +67,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+-- So far, so easy. Now the hard part:
 -- Route amenities: view of amenities located near routes, with distance along route.
 -- amenities should be within 1km of the route (roughly)
 -- should be ordered by trail-km
 -- needs to be very aggressively optimized for performance : suitable simplification, subdivision, corridor buffers, few transforms, etc.
--- amenities taken from itinerarius.amenities (using functional index on 3857 for speed)
+-- amenities taken from itinerarius.amenities
+-- there are some benchmark queries in server/sql/samples/amenities_benchmark_*.sql
 DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 
+-- for a gentle introduction to linear referencing, see https://postgis.net/workshops/postgis-intro/linear_referencing.html
+
+-- first, create a subdivided routes table for fast spatial joins
+-- this is a standard technique for speeding up linear feature joins
+-- but we also want to preserve M values for distance-along-route calculations
 DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
 CREATE TABLE itinerarius.routes_subdivide AS
 SELECT
@@ -89,7 +98,6 @@ CROSS JOIN LATERAL ST_Dump(ri.geom_m) AS p(part_path, part_geom)
 CROSS JOIN LATERAL ST_Subdivide(p.part_geom, 200) AS s(sub_geom)
 -- Ensure we always store LineString parts (not MultiLineString containers)
 CROSS JOIN LATERAL ST_Dump(s.sub_geom) AS d(dump_path, dump_geom)
-
 -- Compute measures once per segment
 CROSS JOIN LATERAL (
     SELECT
@@ -108,12 +116,14 @@ CREATE INDEX idx_rs_osm_id ON itinerarius.routes_subdivide (osm_id);
 -- Spatial index for the DWithin join
 CREATE INDEX idx_rs_geom ON itinerarius.routes_subdivide USING GIST (geom);
 
+-- Spatial index on core table for fast initial filtering
+CREATE INDEX IF NOT EXISTS idx_ri_geom_m ON itinerarius.ri USING GIST (geom_m);
+
 -- 3. Optimize Physical Storage
--- This sorts the data on disk by geography, making nearby segments 
--- live in the same CPU cache lines/RAM pages.
+-- This sorts the data (on disk) by geography
+-- One would think that with modern storage this would not matter, but it does: live in the same CPU cache lines/RAM pages. 
 CLUSTER itinerarius.routes_subdivide USING idx_rs_geom;
 ANALYZE itinerarius.routes_subdivide;
-
 
 DROP VIEW IF EXISTS api.route_amenities;
 CREATE OR REPLACE FUNCTION api.get_route_amenities(target_route_id bigint, search_radius_m integer DEFAULT 1000)
@@ -129,23 +139,46 @@ RETURNS TABLE (
     trail_km double precision,
     tags jsonb
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
-SET jit = off
 AS $$
-    WITH nearest AS MATERIALIZED (
-        -- Compute nearest segment per amenity using only lightweight columns.
-        SELECT DISTINCT ON (a.osm_id, a.osm_type)
-            a.osm_id,
-            a.osm_type,
-            a.geom AS amenity_geom,
-            ST_Distance(rs.geom, a.geom) AS dist_m,
-            (ST_InterpolatePoint(rs.geom, a.geom) / 1000.0) AS t_km
+BEGIN
+    -- Increase work_mem for this session to avoid disk spills during large sorts
+    PERFORM set_config('work_mem', '128MB', true);
+    -- Disable JIT to avoid overhead on these types of queries (hmm, apparently yes)
+    PERFORM set_config('jit', 'off', true);
+
+    RETURN QUERY
+    WITH route_envelope AS (
+        -- Get the bounding box of the WHOLE trail + the radius
+        -- This is a single, extremely fast index lookup
+        SELECT ST_Expand(ST_Extent(rs.geom), search_radius_m) as bbox
         FROM itinerarius.routes_subdivide rs
-        JOIN itinerarius.amenities a
-            ON ST_DWithin(rs.geom, a.geom, search_radius_m)
         WHERE rs.osm_id = target_route_id
-        ORDER BY a.osm_id, a.osm_type, ST_Distance(rs.geom, a.geom)
+    ),
+    nearby_amenities AS (
+        -- Narrow the planet down to JUST the amenities near this trail
+        SELECT a.osm_id, a.osm_type, a.geom
+        FROM itinerarius.amenities a, route_envelope re
+        WHERE a.geom && re.bbox
+    ),
+    nearest AS MATERIALIZED (
+        SELECT DISTINCT ON (na.osm_id, na.osm_type)
+            na.osm_id,
+            na.osm_type,
+            na.geom AS amenity_geom,
+            ST_Distance(rs.geom, na.geom) AS dist_m,
+            (ST_InterpolatePoint(rs.geom, na.geom) / 1000.0) AS t_km
+        FROM itinerarius.routes_subdivide rs
+        JOIN nearby_amenities na
+            ON ST_DWithin(rs.geom, na.geom, search_radius_m)
+        WHERE rs.osm_id = target_route_id
+        ORDER BY na.osm_id, na.osm_type, ST_Distance(rs.geom, na.geom)
+    ),
+    nearest_sorted AS (
+        -- Sort by trail-km BEFORE joining large metadata columns (tags, name, etc.)
+        -- This keeps the sort buffer small and fast.
+        SELECT * FROM nearest ORDER BY t_km ASC
     )
     SELECT
         n.osm_id,
@@ -158,11 +191,11 @@ AS $$
         n.dist_m AS distance_from_trail_m,
         n.t_km AS trail_km,
         a.tags
-    FROM nearest n
+    FROM nearest_sorted n
     JOIN itinerarius.amenities a
         ON a.osm_id = n.osm_id
-        AND a.osm_type = n.osm_type
-    ORDER BY n.t_km ASC;
+        AND a.osm_type = n.osm_type;
+END;
 $$;
 
 GRANT USAGE ON SCHEMA api TO calixtinus;
