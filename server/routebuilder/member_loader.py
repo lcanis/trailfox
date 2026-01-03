@@ -10,7 +10,6 @@ from copy import deepcopy
 import sqlalchemy as sa
 from geoalchemy2.shape import to_shape
 from geoalchemy2 import Geography
-from osgende.common.tags import TagStore
 
 from . import route_types as rt
 
@@ -33,7 +32,7 @@ def get_relation_objects(conn, members, way_table, route_table):
                 .where(t.c.geom is not None)
         for way in conn.execute(sql):
             data[('W', way.id)] = rt.BaseWay(osm_id=way.id,
-                                             tags=TagStore(way.tags or {}),
+                                             tags=(way.tags or {}),
                                              length=int(way.length), direction=0,
                                              geom=to_shape(way.geom))
 

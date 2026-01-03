@@ -20,7 +20,7 @@ SELECT
     r.roundtrip,
     r.tags,
     ri.length_m,
-    ri.geom,
+    ri.geom_m AS geom,
     ri.merged_geom_type,
     ri.geom_build_case,
     ri.geom_quality,

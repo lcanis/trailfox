@@ -1,6 +1,10 @@
 
 -- main route-centric view
 DROP VIEW IF EXISTS api.routes CASCADE;
+DROP FUNCTION IF EXISTS api.routes_by_distance(double precision, double precision) CASCADE;
+DROP FUNCTION IF EXISTS api.routes_in_bbox(double precision, double precision, double precision, double precision, text) CASCADE;
+DROP FUNCTION IF EXISTS api.safe_line_locate_point(geometry, geometry) CASCADE;
+DROP FUNCTION IF EXISTS api.get_route_amenities(bigint, integer) CASCADE;
 CREATE OR REPLACE VIEW api.routes AS
 SELECT
     r.osm_id,
@@ -69,17 +73,34 @@ $$ LANGUAGE plpgsql STABLE;
 DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 
 DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
-DROP TABLE IF EXISTS itinerarius.routes_subdivide CASCADE;
 CREATE TABLE itinerarius.routes_subdivide AS
 SELECT
-    r.osm_id,
-    -- Get the M-measure at the very first point of this subdivided part
-    ST_M(ST_PointN(s.geom, 1)) as start_m,
-    s.geom AS geom
-FROM itinerarius.routes_info r
--- Subdivide into chunks of max 50 vertices for optimal indexing
-CROSS JOIN LATERAL ST_Dump(ST_Subdivide(r.geom, 50)) AS s(geom)
-WHERE r.geom IS NOT NULL;
+	ri.osm_id,
+    -- Exact measure at the start of the segment (meters).
+    m.start_m as start_m,
+    -- Measure-length of the segment (meters).
+    (m.end_m - m.start_m) as seg_len_m,
+    -- Segment geometry with M restored.
+    ST_AddMeasure(m.geom_2d, m.start_m, m.end_m) AS geom
+FROM itinerarius.ri ri
+-- Work per-LineString part (ri.geom_m is MultiLineStringM)
+CROSS JOIN LATERAL ST_Dump(ri.geom_m) AS p(part_path, part_geom)
+-- Subdivide into chunks of max 200 vertices (fewer segments = fewer join probes)
+CROSS JOIN LATERAL ST_Subdivide(p.part_geom, 200) AS s(sub_geom)
+-- Ensure we always store LineString parts (not MultiLineString containers)
+CROSS JOIN LATERAL ST_Dump(s.sub_geom) AS d(dump_path, dump_geom)
+
+-- Compute measures once per segment
+CROSS JOIN LATERAL (
+    SELECT
+        d.dump_geom AS geom_2d,
+        ST_InterpolatePoint(p.part_geom, ST_StartPoint(d.dump_geom)) AS start_m,
+        ST_InterpolatePoint(p.part_geom, ST_EndPoint(d.dump_geom)) AS end_m
+) m
+WHERE ri.geom_m IS NOT NULL
+    AND GeometryType(p.part_geom) IN ('LINESTRING', 'LINESTRINGM')
+    AND ST_M(ST_StartPoint(p.part_geom)) IS NOT NULL
+    AND GeometryType(d.dump_geom) IN ('LINESTRING', 'LINESTRINGM');
 
 -- 2. Create Indexes
 -- Primary index for ID lookups
@@ -107,42 +128,42 @@ RETURNS TABLE (
     distance_from_trail_m double precision,
     trail_km double precision,
     tags jsonb
-) AS $$
-BEGIN
-    RETURN QUERY
-    WITH found_amenities AS (
-        -- Fast spatial join using only the specific route's segments
+)
+LANGUAGE sql
+STABLE
+SET jit = off
+AS $$
+    WITH nearest AS MATERIALIZED (
+        -- Compute nearest segment per amenity using only lightweight columns.
         SELECT DISTINCT ON (a.osm_id, a.osm_type)
             a.osm_id,
             a.osm_type,
-            a.name,
-            a.class,
-            a.subclass,
-            a.geom as amenity_geom,
-            ST_Distance(rs.geom, a.geom) as dist_m,
-            -- Local calculation: Start of segment + interpolation on segment
-            (rs.start_m + ST_InterpolatePoint(rs.geom, a.geom)) / 1000.0 as t_km,
-            a.tags
+            a.geom AS amenity_geom,
+            ST_Distance(rs.geom, a.geom) AS dist_m,
+            (ST_InterpolatePoint(rs.geom, a.geom) / 1000.0) AS t_km
         FROM itinerarius.routes_subdivide rs
-        JOIN itinerarius.amenities a ON ST_DWithin(rs.geom, a.geom, search_radius_m)
+        JOIN itinerarius.amenities a
+            ON ST_DWithin(rs.geom, a.geom, search_radius_m)
         WHERE rs.osm_id = target_route_id
         ORDER BY a.osm_id, a.osm_type, ST_Distance(rs.geom, a.geom)
     )
-    SELECT 
-        f.osm_id,
-        f.osm_type,
-        f.name,
-        f.class,
-        f.subclass,
-        ST_X(ST_Transform(f.amenity_geom, 4326)) as lon,
-        ST_Y(ST_Transform(f.amenity_geom, 4326)) as lat,
-        f.dist_m,
-        f.t_km,
-        f.tags
-    FROM found_amenities f
-    ORDER BY f.t_km ASC;
-END;
-$$ LANGUAGE plpgsql STABLE;
+    SELECT
+        n.osm_id,
+        n.osm_type::text,
+        a.name,
+        a.class,
+        a.subclass,
+        ST_X(ST_Transform(n.amenity_geom, 4326)) AS lon,
+        ST_Y(ST_Transform(n.amenity_geom, 4326)) AS lat,
+        n.dist_m AS distance_from_trail_m,
+        n.t_km AS trail_km,
+        a.tags
+    FROM nearest n
+    JOIN itinerarius.amenities a
+        ON a.osm_id = n.osm_id
+        AND a.osm_type = n.osm_type
+    ORDER BY n.t_km ASC;
+$$;
 
 GRANT USAGE ON SCHEMA api TO calixtinus;
 GRANT USAGE ON SCHEMA itinerarius TO calixtinus;

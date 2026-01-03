@@ -83,4 +83,5 @@ CREATE TABLE itinerarius.wmt_route_segments (
     geom geometry(LineString, 3857),
     length_m numeric
 );
-CREATE INDEX IF NOT EXISTS idx_route_segments_osm_id ON itinerarius.route_segments (osm_id);
+CREATE INDEX IF NOT EXISTS idx_wmt_route_segments_osm_id ON itinerarius.wmt_route_segments (osm_id);
+CREATE INDEX IF NOT EXISTS idx_wmt_route_segments_geom ON itinerarius.wmt_route_segments USING GIST (geom);
