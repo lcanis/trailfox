@@ -52,7 +52,7 @@ with_stats AS (
     SELECT
         osm_id,
         geom,
-        ST_Length(geom::geography) as length_m,
+        ST_Length(ST_Transform(geom, 4326)::geography) as length_m,
         GeometryType(geom) as merged_geom_type,
         'simple_merge' as geom_build_case,
         CASE
@@ -64,8 +64,7 @@ with_stats AS (
 )
 SELECT
     osm_id,
-    geom,
-    ST_AddMeasure(geom, 0, length_m) as geom_m,
+    ST_Multi(ST_AddMeasure(geom, 0, length_m)) as geom_m,
     length_m,
     merged_geom_type,
     geom_build_case,
