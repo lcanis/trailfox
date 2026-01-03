@@ -7,21 +7,37 @@ export const TRAILSIDE_FILTER: AmenityFilterPreset = {
   id: 'low',
   label: 'Trailside',
   icon: 'footsteps',
-  defaultEnabled: false,
-  defaultMaxDistanceMeters: 50,
+  defaultEnabled: true,
+  defaultMaxDistanceMeters: 30,
   classes: {
     place: { enabled: true, maxDistanceMeters: 1000 },
-    amenity: {
+    street: {
       subclasses: {
         bench: { enabled: true, maxDistanceMeters: 30 },
+      },
+    },
+    water: {
+      subclasses: {
         drinking_water: { enabled: true, maxDistanceMeters: 100 },
+      },
+    },
+    shelter: {
+      subclasses: {
         shelter: { enabled: true, maxDistanceMeters: 100 },
+      },
+    },
+    hygiene: {
+      subclasses: {
         toilets: { enabled: true, maxDistanceMeters: 100 },
       },
     },
     tourism: {
       subclasses: {
         viewpoint: { enabled: true, maxDistanceMeters: 100 },
+      },
+    },
+    other: {
+      subclasses: {
         information: { enabled: true, maxDistanceMeters: 100 },
       },
     },
@@ -36,17 +52,11 @@ export const EXPLORER_FILTER: AmenityFilterPreset = {
   label: 'Explorer',
   icon: 'map',
   defaultEnabled: true,
-  defaultMaxDistanceMeters: 300,
+  defaultMaxDistanceMeters: 50,
   classes: {
     place: { maxDistanceMeters: 1000 },
-    shop: { maxDistanceMeters: 500 },
-    tourism: {
-      subclasses: {
-        hotel: { enabled: false },
-        guest_house: { enabled: false },
-        hostel: { enabled: false },
-      },
-    },
+    resupply: { maxDistanceMeters: 500 },
+    accom: { enabled: false },
   },
 };
 
@@ -57,16 +67,20 @@ export const MULTI_DAY_FILTER: AmenityFilterPreset = {
   id: 'high',
   label: 'Multi-day',
   icon: 'bed',
-  defaultEnabled: true,
-  defaultMaxDistanceMeters: 1000,
+  defaultEnabled: false,
+  defaultMaxDistanceMeters: 50,
   classes: {
-    place: { maxDistanceMeters: 1000 },
-    tourism: {
+    place: { enabled: true, maxDistanceMeters: 1000 },
+    accom: {
       subclasses: {
-        hotel: { maxDistanceMeters: 2000 },
-        guest_house: { maxDistanceMeters: 2000 },
-        hostel: { maxDistanceMeters: 2000 },
-        camp_site: { maxDistanceMeters: 2000 },
+        hotel: { enabled: true, maxDistanceMeters: 1000 },
+        guest_house: { enabled: true, maxDistanceMeters: 1000 },
+        hostel: { enabled: true, maxDistanceMeters: 1000 },
+        camp_site: { enabled: true, maxDistanceMeters: 1000 },
+        alpine_hut: { enabled: true, maxDistanceMeters: 1000 },
+        wilderness_hut: { enabled: true, maxDistanceMeters: 1000 },
+        caravan_site: { enabled: true, maxDistanceMeters: 1000 },
+        chalet: { enabled: true, maxDistanceMeters: 1000 },
       },
     },
   },

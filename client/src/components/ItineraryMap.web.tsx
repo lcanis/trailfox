@@ -55,19 +55,24 @@ export default function ItineraryMap({
   const map = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const clustersRef = useRef<AmenityCluster[]>(clusters);
+  const onSelectClusterKeyRef = useRef(onSelectClusterKey);
   const insets = useSafeAreaInsets();
   const [devTagsOverlay, setDevTagsOverlay] = useState<{
     title: string;
     tags: Record<string, string> | null;
   } | null>(null);
 
-  const amenitiesGeoJSON = useMemo(() => {
-    return getAmenitiesGeoJSON(clusters, selectedClusterKey);
-  }, [clusters, selectedClusterKey]);
-
   useEffect(() => {
     clustersRef.current = clusters;
   }, [clusters]);
+
+  useEffect(() => {
+    onSelectClusterKeyRef.current = onSelectClusterKey;
+  }, [onSelectClusterKey]);
+
+  const amenitiesGeoJSON = useMemo(() => {
+    return getAmenitiesGeoJSON(clusters, selectedClusterKey);
+  }, [clusters, selectedClusterKey]);
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
@@ -88,9 +93,9 @@ export default function ItineraryMap({
         if (initialCenter && initialCenter.length === 2) {
           center = initialCenter;
           zoom = 12;
-        } else if (clusters && clusters.length > 0) {
+        } else if (clustersRef.current && clustersRef.current.length > 0) {
           // average cluster centroid as reasonable fallback
-          const sum = clusters.reduce(
+          const sum = clustersRef.current.reduce(
             (acc, cur) => {
               acc[0] += cur.lon;
               acc[1] += cur.lat;
@@ -98,7 +103,7 @@ export default function ItineraryMap({
             },
             [0, 0]
           );
-          center = [sum[0] / clusters.length, sum[1] / clusters.length];
+          center = [sum[0] / clustersRef.current.length, sum[1] / clustersRef.current.length];
           zoom = 12;
         }
       } catch {
@@ -283,13 +288,13 @@ export default function ItineraryMap({
             layers: ['itinerary-amenities-circles', 'itinerary-amenities-individual'],
           });
           if (!features || features.length === 0) {
-            onSelectClusterKey(null);
+            onSelectClusterKeyRef.current(null);
             setDevTagsOverlay(null);
           } else {
             const feature = features[0];
             const key = feature.properties?.key;
             if (typeof key === 'string') {
-              onSelectClusterKey(key);
+              onSelectClusterKeyRef.current(key);
             }
           }
         });
@@ -318,7 +323,7 @@ export default function ItineraryMap({
       map.current = null;
       setIsMapLoaded(false);
     };
-  }, [onSelectClusterKey, clusters, initialCenter]);
+  }, [initialCenter]);
 
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
