@@ -1,8 +1,8 @@
 -- Finalize post-import maintenance for Itinerarius (run after routebuilder)
 \timing
 
+
 ---- quality work done, now create indexes and materialize derived columns
--- 
 DO $$ BEGIN RAISE NOTICE 'Creating materialized view routes_info...'; END $$;
 
 DROP MATERIALIZED VIEW IF EXISTS itinerarius.routes_info CASCADE;
