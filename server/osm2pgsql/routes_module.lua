@@ -12,14 +12,22 @@ end
 -- ----------------------------------------------------------------------------
 -- Table Definition
 -- ----------------------------------------------------------------------------
-local constants = require("constants")
+
+local ways = osm2pgsql.define_table({
+	schema = "itinerarius",
+	name = "ways",
+	ids = { type = "way", id_column = "osm_id" },
+	columns = {
+		{ column = "geom", type = "linestring", projection = 3857 },
+		{ column = "tags", type = "jsonb" },
+	},
+})
 
 local routes = osm2pgsql.define_table({
 	schema = "itinerarius",
 	name = "routes",
 	ids = { type = "relation", id_column = "osm_id" },
 	columns = {
-		-- Minimal set of columns: keep only fields that we want as first-class DB columns
 		{ column = "name" },
 		{ column = "route_type" },
 		{ column = "network" },
@@ -28,9 +36,53 @@ local routes = osm2pgsql.define_table({
 		{ column = "descent", type = "real" },
 		{ column = "roundtrip", type = "boolean" },
 		{ column = "tags", type = "jsonb" },
-		{ column = "raw_geom", type = "multilinestring", projection = constants.GEOMETRY_PROJECTION },
+		{ column = "raw_geom", type = "multilinestring", projection = 3857 },
+		{ column = "members", type = "jsonb" },
 	},
 })
+
+-- Filter for relevant highways to avoid database bloat
+local relevant_highways = {
+	footway = true,
+	path = true,
+	track = true,
+	cycleway = true,
+	bridleway = true,
+	steps = true,
+	corridor = true,
+	pedestrian = true,
+	living_street = true,
+	residential = true,
+	unclassified = true,
+	service = true,
+	road = true,
+	tertiary = true,
+	secondary = true,
+	primary = true,
+	trunk = true,
+	motorway = true,
+	tertiary_link = true,
+	secondary_link = true,
+	primary_link = true,
+	trunk_link = true,
+	motorway_link = true,
+}
+
+local function process_way(object)
+	local tags = object.tags
+	local highway = tags.highway
+	if not highway then
+		return
+	end
+
+	if relevant_highways[highway] then
+		ways:insert({
+			geom = object:as_linestring(),
+			tags = tags,
+		})
+	end
+end
+process_way = maybe_wrap(process_way, "process_way")
 
 -- this is more lenient than OSM Wiki definitions, accepting
 -- any route tag that includes hiking, walking, or foot
@@ -77,16 +129,6 @@ local function parse_boolean(value)
 	return nil
 end
 
--- NOTE: Relation members are useful for building 'superroute' hierarchies
--- (e.g. multiplexes or `route=superroute`) but are not used for simple
--- rendering/visualization in the main import. We therefore do not store
--- `members` as a top-level column at this time. For future reference:
---  - `member.type` values are: 'node', 'way', 'relation'
---  - `member.ref` is the numeric OSM id of the member (integer)
---  - `member.role` is a relation-specific role string (stop, platform, forward, etc.)
--- You can re-add a `members` JSONB field if you later want to import and
--- index the relation graph for superroute resolution.
-
 local function in_meters(value)
 	if not value then
 		return nil
@@ -130,20 +172,20 @@ local function process_relation(object)
 		return
 	end
 
-	-- Skip routes with invalid or empty geometry
-	-- This filters out:
-	-- - Superroutes that contain only relation members (no direct ways)
-	-- - Broken relations with only node members or no members
+	-- Skip routes with invalid or empty geometry (unless superroute)
 	-- See: https://wiki.openstreetmap.org/wiki/Relation:route#Hierarchies
-	-- NOTE: In osm2pgsql flex, `as_linestring()` is only valid in process_way.
-	-- For relations we import as MultiLineString and line-merge later in SQL.
+	-- This filters out broken relations with only node members or no members
+	-- In osm2pgsql flex, `as_linestring()` is only valid in process_way.
+	-- For relations we import as MultiLineString and line-merge later in SQL -> if indeed a linestring, 
+	-- everything is fine. Otherwise, keeping the members allows us to reconstruct 
+	-- the route if needed using wmt routebuilder.
 	local geom = object:as_multilinestring()
-	if not geom or geom:is_null() then
+	if (not geom or geom:is_null()) and tags.type ~= "superroute" then
 		return nil
 	end
 
 	local route_data = {
-		name = object:grab_tag('name'),
+		name = object:grab_tag("name"),
 		route_type = route_type,
 		network = object.tags.network,
 		distance = in_meters(object.tags["route:distance"] or object.tags.distance),
@@ -152,17 +194,23 @@ local function process_relation(object)
 		roundtrip = parse_boolean(object.tags.roundtrip),
 		tags = object.tags,
 		raw_geom = geom,
+		members = object.members,
 	}
 
 	routes:insert(route_data)
 end
 process_relation = maybe_wrap(process_relation, "process_relation")
 
+module.process_way = process_way
 module.process_relation = process_relation
 
 -- ----------------------------------------------------------------------------
 -- OSM2PGSQL Callbacks (Standalone support)
 -- ----------------------------------------------------------------------------
+function osm2pgsql.process_way(object)
+	module.process_way(object)
+end
+
 function osm2pgsql.process_relation(object)
 	module.process_relation(object)
 end
