@@ -11,6 +11,7 @@ end
 
 function osm2pgsql.process_way(object)
 	amenities.process_way(object)
+	routes.process_way(object)
 end
 
 function osm2pgsql.process_relation(object)
