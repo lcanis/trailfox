@@ -29,6 +29,7 @@ describe('ItineraryScreen.web', () => {
   beforeEach(() => {
     mockUseItinerary.mockReturnValue({
       rawAmenities: [],
+      presetFilteredAmenities: [],
       clusters: [],
       loading: false,
       error: null,

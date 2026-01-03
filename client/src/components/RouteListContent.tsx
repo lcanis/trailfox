@@ -107,6 +107,7 @@ export const RouteList: React.FC<RouteListProps> = ({
                   })()}
                   <Text style={styles.listItemSub}>
                     {item.length_m ? `${(item.length_m / 1000).toFixed(1)} km` : ''}
+                    {item.geom_parts && item.geom_parts > 1 ? ` • ${item.geom_parts} seg` : ''}
                   </Text>
                 </View>
               </View>

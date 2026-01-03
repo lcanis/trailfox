@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Amenity Filter Configuration",
+  "description": "Schema for filtering route amenities by class, subclass, and distance.",
+  "type": "OBJECT",
+  "properties": {
+    "defaultEnabled": {
+      "type": "boolean",
+      "description": "Global default for whether an amenity is shown."
+    },
+    "defaultMaxDistanceMeters": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Global default maximum distance from trail in meters."
+    },
+    "classes": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/classRule"
+      },
+      "description": "Rules keyed by amenity class (e.g., 'shop', 'amenity')."
+    }
+  },
+  "required": ["defaultEnabled", "defaultMaxDistanceMeters", "classes"],
+  "definitions": {
+    "filterRule": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxDistanceMeters": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "classRule": {
+      "allOf": [
+        { "$ref": "#/definitions/filterRule" },
+        {
+          "type": "object",
+          "properties": {
+            "subclasses": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/definitions/filterRule" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

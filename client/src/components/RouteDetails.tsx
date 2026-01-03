@@ -221,6 +221,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
               {ok
                 ? 'Route builder OK'
                 : `Route builder reports ${q || 'unknown'}. Itinerary may not be correct.`}
+              {route.geom_parts && route.geom_parts > 1 ? ` (${route.geom_parts} segments)` : ''}
             </Text>
           </View>
 

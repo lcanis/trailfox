@@ -48,6 +48,6 @@ describe('RouteDetails segments display', () => {
 
     // The UI shows the route builder status; the explicit "Segments" row
     // may not be rendered for all track types, so assert on the status text.
-    getByText('Route builder reports 4 parts. Itinerary may not be correct.');
+    getByText(/Route builder reports 4 parts/);
   });
 });

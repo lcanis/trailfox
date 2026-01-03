@@ -74,6 +74,7 @@ $$ LANGUAGE plpgsql STABLE;
 -- needs to be very aggressively optimized for performance : suitable simplification, subdivision, corridor buffers, few transforms, etc.
 -- amenities taken from itinerarius.amenities
 -- there are some benchmark queries in server/sql/samples/amenities_benchmark_*.sql
+-- but keep in mind that from a certain point we need to start restricting the number of amenities returned to be handled by the client!
 DO $$ BEGIN RAISE NOTICE 'Creating API helpers...'; END $$;
 
 -- for a gentle introduction to linear referencing, see https://postgis.net/workshops/postgis-intro/linear_referencing.html

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View, Text, TouchableOpacity } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { AmenityCluster } from '../types';
+import { AmenityCluster, AmenityFilterPreset } from '../types';
 import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
@@ -22,6 +22,8 @@ const tagsToList = (tags: Record<string, string> | null | undefined) => {
 interface ItineraryMapProps {
   routeOsmId: number;
   clusters: AmenityCluster[];
+  filterPreset?: AmenityFilterPreset;
+  onCycleFilter?: () => void;
   selectedClusterKey: string | null;
   onSelectClusterKey: (key: string | null) => void;
   userLocation?: { latitude: number; longitude: number } | null;
@@ -37,6 +39,8 @@ interface ItineraryMapProps {
 export default function ItineraryMap({
   routeOsmId,
   clusters,
+  filterPreset,
+  onCycleFilter,
   selectedClusterKey,
   onSelectClusterKey,
   userLocation,
@@ -51,19 +55,24 @@ export default function ItineraryMap({
   const map = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const clustersRef = useRef<AmenityCluster[]>(clusters);
+  const onSelectClusterKeyRef = useRef(onSelectClusterKey);
   const insets = useSafeAreaInsets();
   const [devTagsOverlay, setDevTagsOverlay] = useState<{
     title: string;
     tags: Record<string, string> | null;
   } | null>(null);
 
-  const amenitiesGeoJSON = useMemo(() => {
-    return getAmenitiesGeoJSON(clusters, selectedClusterKey);
-  }, [clusters, selectedClusterKey]);
-
   useEffect(() => {
     clustersRef.current = clusters;
   }, [clusters]);
+
+  useEffect(() => {
+    onSelectClusterKeyRef.current = onSelectClusterKey;
+  }, [onSelectClusterKey]);
+
+  const amenitiesGeoJSON = useMemo(() => {
+    return getAmenitiesGeoJSON(clusters, selectedClusterKey);
+  }, [clusters, selectedClusterKey]);
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
@@ -84,9 +93,9 @@ export default function ItineraryMap({
         if (initialCenter && initialCenter.length === 2) {
           center = initialCenter;
           zoom = 12;
-        } else if (clusters && clusters.length > 0) {
+        } else if (clustersRef.current && clustersRef.current.length > 0) {
           // average cluster centroid as reasonable fallback
-          const sum = clusters.reduce(
+          const sum = clustersRef.current.reduce(
             (acc, cur) => {
               acc[0] += cur.lon;
               acc[1] += cur.lat;
@@ -94,7 +103,7 @@ export default function ItineraryMap({
             },
             [0, 0]
           );
-          center = [sum[0] / clusters.length, sum[1] / clusters.length];
+          center = [sum[0] / clustersRef.current.length, sum[1] / clustersRef.current.length];
           zoom = 12;
         }
       } catch {
@@ -244,9 +253,10 @@ export default function ItineraryMap({
             return;
           }
 
+          const { name, class: cls, subclass, tags } = a.properties;
           setDevTagsOverlay({
-            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-            tags: a.tags,
+            title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+            tags: tags,
           });
         });
 
@@ -266,9 +276,10 @@ export default function ItineraryMap({
             return;
           }
 
+          const { name, class: cls, subclass, tags } = a.properties;
           setDevTagsOverlay({
-            title: a.name || `${a.class}${a.subclass ? ` / ${a.subclass}` : ''}`,
-            tags: a.tags,
+            title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+            tags: tags,
           });
         });
 
@@ -277,13 +288,13 @@ export default function ItineraryMap({
             layers: ['itinerary-amenities-circles', 'itinerary-amenities-individual'],
           });
           if (!features || features.length === 0) {
-            onSelectClusterKey(null);
+            onSelectClusterKeyRef.current(null);
             setDevTagsOverlay(null);
           } else {
             const feature = features[0];
             const key = feature.properties?.key;
             if (typeof key === 'string') {
-              onSelectClusterKey(key);
+              onSelectClusterKeyRef.current(key);
             }
           }
         });
@@ -312,7 +323,7 @@ export default function ItineraryMap({
       map.current = null;
       setIsMapLoaded(false);
     };
-  }, [onSelectClusterKey, clusters, initialCenter]);
+  }, [initialCenter]);
 
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
@@ -402,13 +413,13 @@ export default function ItineraryMap({
       ) : null}
 
       {/* Filter Button */}
-      {onOpenFilters && (
+      {onCycleFilter && (
         <TouchableOpacity
           style={[styles.mapButton, { top: insets.top + 16, right: 72 }]}
-          onPress={onOpenFilters}
+          onPress={onCycleFilter}
           activeOpacity={0.8}
         >
-          <Ionicons name="filter" size={20} color="#666" />
+          <Ionicons name={(filterPreset?.icon as any) || 'filter'} size={20} color={THEME.accent} />
         </TouchableOpacity>
       )}
     </View>
