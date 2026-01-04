@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from geoalchemy2.shape import to_shape
 from geoalchemy2 import Geography
 
-from . import route_types as rt
+import route_types as rt
 
 def get_relation_objects(conn, members, way_table, route_table):
     """ Load all necessary data for relation members from the database.

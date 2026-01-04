@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Apply schema SQL scripts for API and tiles and count results.
+# Post-import processing: run SQL maintenance, build routes, finalize, and apply API schema.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/bootstrap-common.sh"
@@ -16,6 +16,16 @@ fi
 
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 
+echo "-- running post_import.sql (amenity indexes, route geometry merge)"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import.sql"
+
+echo "-- running routebuilder (Python route geometry assembly)"
+cd "$SCRIPT_DIR/routebuilder"
+uv run python build_routes.py
+
+echo "-- running post_import_finalize.sql (route hierarchy, materialized views)"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import_finalize.sql"
+
 echo "-- applying api schema"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v DB_ADMIN_USER="$DB_ADMIN_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
 
@@ -25,8 +35,29 @@ echo "-- applying tiles schema"
 echo "-- ensuring app user can read itinerarius tables"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -c "GRANT USAGE ON SCHEMA itinerarius TO \"$APP_USER\"; GRANT SELECT ON ALL TABLES IN SCHEMA itinerarius TO \"$APP_USER\"; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA itinerarius TO \"$APP_USER\";"
 
-echo "-- results"
+echo "-- verifying database consistency"
 AMENITIES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.amenities")
 ROUTES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.routes")
-echo "amenities: $AMENITIES"
-echo "routes: $ROUTES"
+ROUTES_WITH_GEOM=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.routes_info WHERE geom IS NOT NULL")
+SUPERROUTES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.routes_info WHERE type = 'superroute'")
+HIERARCHY_RELATIONS=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.route_hierarchy")
+PARENT_ROUTES=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(DISTINCT parent_id) FROM itinerarius.route_hierarchy")
+
+echo ""
+echo "=== Database Import Summary ==="
+echo "Amenities:              $AMENITIES"
+echo "Routes (total):         $ROUTES"
+echo "Routes with geometry:   $ROUTES_WITH_GEOM"
+echo "Superroutes:            $SUPERROUTES"
+echo "Hierarchy relations:    $HIERARCHY_RELATIONS"
+echo "Parent routes:          $PARENT_ROUTES"
+echo "==============================="
+echo ""
+
+# Verify consistency
+MISSING_GEOM=$("${PSQL_DB[@]}" -tAc "SELECT COUNT(*) FROM itinerarius.routes_info WHERE geom IS NULL AND type <> 'superroute'")
+if [ "$MISSING_GEOM" -gt 0 ]; then
+  echo "WARNING: $MISSING_GEOM non-superroutes are missing geometry!" >&2
+fi
+
+echo "done"

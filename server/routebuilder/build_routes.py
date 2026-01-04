@@ -19,9 +19,9 @@ from geoalchemy2.shape import from_shape
 from shapely.geometry import LineString
 from shapely.ops import linemerge
 
-from .member_loader import get_relation_objects
-from .route_builder import build_route
-from . import route_types as rt
+from member_loader import get_relation_objects
+from route_builder import build_route
+import route_types as rt
 
 
 def _env_path() -> str:

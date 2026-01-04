@@ -12,7 +12,7 @@ from typing import Any
 from shapely import LineString
 from shapely.geometry import shape
 
-from .json_writer import JsonWriter
+from json_writer import JsonWriter
 
 def _dist(p0, p1) -> int:
     """ Appoximation of distance between two points in Mercator.

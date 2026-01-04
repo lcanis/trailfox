@@ -44,10 +44,189 @@ ANALYZE itinerarius.routes_info;
 -- raw_geom is kept only as importer output/debugging. Avoid indexing it.
 DROP INDEX IF EXISTS itinerarius.routes_raw_geom_idx;
 
+-- ---------------------------------------------------------------------------
+-- Route hierarchy processing (after routebuilder has populated ri table)
+-- ---------------------------------------------------------------------------
+DO $$ BEGIN RAISE NOTICE 'Creating route hierarchy schema...'; END $$;
+
+-- Route hierarchy table: materializes parent-child relationships from relation members
+DROP TABLE IF EXISTS itinerarius.route_hierarchy CASCADE;
+CREATE TABLE itinerarius.route_hierarchy (
+    parent_id bigint NOT NULL,
+    child_id bigint NOT NULL,
+    sequence integer,
+    role text,
+    network_compatible boolean,
+    PRIMARY KEY (parent_id, child_id)
+);
+
+-- Indexes for both parent->children and child->parents lookups
+CREATE INDEX IF NOT EXISTS idx_route_hierarchy_parent ON itinerarius.route_hierarchy (parent_id);
+CREATE INDEX IF NOT EXISTS idx_route_hierarchy_child ON itinerarius.route_hierarchy (child_id);
+
+-- Function to parse members jsonb and populate route_hierarchy
+-- Validates network tag hierarchy: iwn > nwn > rwn > lwn
+-- Applies to ALL routes with relation members (not just superroutes)
+CREATE OR REPLACE FUNCTION itinerarius.populate_route_hierarchy()
+RETURNS void AS $$
+DECLARE
+    network_levels text[] := ARRAY['iwn', 'nwn', 'rwn', 'lwn'];
+    parent_rec RECORD;
+    parent_network_level integer;
+BEGIN
+    TRUNCATE itinerarius.route_hierarchy;
+    
+    FOR parent_rec IN 
+        SELECT osm_id, tags->>'network' AS network, members
+        FROM itinerarius.routes
+        WHERE members IS NOT NULL
+          AND EXISTS (
+              SELECT 1 FROM jsonb_array_elements(members) m 
+              WHERE m->>'type' = 'r'
+          )
+    LOOP
+        -- Get parent network level (1=iwn, 2=nwn, 3=rwn, 4=lwn, null=unspecified)
+        parent_network_level := array_position(network_levels, parent_rec.network);
+        
+        -- Extract relation members and insert into hierarchy
+        INSERT INTO itinerarius.route_hierarchy (parent_id, child_id, sequence, role, network_compatible)
+        SELECT 
+            parent_rec.osm_id,
+            (member->>'ref')::bigint,
+            (row_number() OVER ())::integer,
+            member->>'role',
+            CASE
+                -- If parent has no network tag, accept any child
+                WHEN parent_network_level IS NULL THEN true
+                -- If child doesn't exist or has no network, flag as incompatible
+                WHEN child_info.network IS NULL THEN false
+                -- Check if child network is same or more specific than parent
+                ELSE child_level.child_network_level >= parent_network_level
+            END
+        FROM jsonb_array_elements(parent_rec.members) AS member
+        CROSS JOIN LATERAL (
+            SELECT tags->>'network' AS network
+            FROM itinerarius.routes
+            WHERE osm_id = (member->>'ref')::bigint
+        ) AS child_info
+        CROSS JOIN LATERAL (
+            SELECT array_position(network_levels, child_info.network) AS child_network_level
+        ) AS child_level
+        WHERE member->>'type' = 'r'
+        ON CONFLICT (parent_id, child_id) DO NOTHING;
+        
+    END LOOP;
+    
+    RAISE NOTICE 'Populated % parent-child relationships', (SELECT count(*) FROM itinerarius.route_hierarchy);
+    
+    -- Log warnings for network mismatches
+    FOR parent_rec IN
+        SELECT 
+            h.parent_id,
+            pr.name AS parent_name,
+            pr.tags->>'network' AS parent_network,
+            h.child_id,
+            cr.name AS child_name,
+            cr.tags->>'network' AS child_network
+        FROM itinerarius.route_hierarchy h
+        JOIN itinerarius.routes pr ON h.parent_id = pr.osm_id
+        LEFT JOIN itinerarius.routes cr ON h.child_id = cr.osm_id
+        WHERE NOT h.network_compatible
+    LOOP
+        RAISE WARNING 'Network mismatch: % (%) -> % (%)',
+            parent_rec.parent_name, parent_rec.parent_network,
+            parent_rec.child_name, parent_rec.child_network;
+    END LOOP;
+    
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to assemble parent route geometry from child routes
+-- Materializes geometry into ri table for routes with relation members
+-- Prioritizes routebuilder geometry, only assembles if no geometry exists
+CREATE OR REPLACE FUNCTION itinerarius.assemble_parent_route_geometries()
+RETURNS void AS $$
+DECLARE
+    parent_rec RECORD;
+    child_geoms geometry[];
+    assembled_geom geometry;
+    geom_length numeric;
+BEGIN
+    FOR parent_rec IN
+        SELECT DISTINCT h.parent_id, ri.geom_m as existing_geom
+        FROM itinerarius.route_hierarchy h
+        LEFT JOIN itinerarius.ri ri ON h.parent_id = ri.osm_id
+        WHERE ri.geom_m IS NULL  -- Only assemble if routebuilder didn't create geometry
+        ORDER BY h.parent_id
+    LOOP
+        -- Collect child geometries in sequence order (main role first, then others)
+        SELECT array_agg(ri.geom_m ORDER BY 
+            CASE WHEN h.role IS NULL OR h.role = '' OR h.role = 'main' THEN 0 ELSE 1 END,
+            h.sequence
+        )
+        INTO child_geoms
+        FROM itinerarius.route_hierarchy h
+        JOIN itinerarius.ri ri ON h.child_id = ri.osm_id
+        WHERE h.parent_id = parent_rec.parent_id
+          AND ri.geom_m IS NOT NULL;
+        
+        IF child_geoms IS NULL OR array_length(child_geoms, 1) = 0 THEN
+            RAISE WARNING 'Parent route % has no child geometries', parent_rec.parent_id;
+            CONTINUE;
+        END IF;
+        
+        -- Merge child geometries into single MultiLineString
+        assembled_geom := ST_Multi(ST_LineMerge(ST_Union(child_geoms)));
+        geom_length := ST_Length(ST_Transform(assembled_geom, 4326)::geography);
+        
+        -- Insert or update in ri table
+        INSERT INTO itinerarius.ri (
+            osm_id,
+            geom_m,
+            length_m,
+            merged_geom_type,
+            geom_build_case,
+            geom_quality,
+            geom_parts
+        ) VALUES (
+            parent_rec.parent_id,
+            ST_AddMeasure(assembled_geom, 0, geom_length),
+            geom_length,
+            GeometryType(assembled_geom),
+            'hierarchy_assembly',
+            CASE
+                WHEN GeometryType(assembled_geom) = 'LINESTRING' THEN 'ok_singleline'
+                ELSE concat(ST_NumGeometries(assembled_geom)::text, ' parts')
+            END,
+            ST_NumGeometries(assembled_geom)
+        )
+        ON CONFLICT (osm_id) DO UPDATE SET
+            geom_m = EXCLUDED.geom_m,
+            length_m = EXCLUDED.length_m,
+            merged_geom_type = EXCLUDED.merged_geom_type,
+            geom_build_case = EXCLUDED.geom_build_case,
+            geom_quality = EXCLUDED.geom_quality,
+            geom_parts = EXCLUDED.geom_parts;
+        
+    END LOOP;
+    
+    RAISE NOTICE 'Assembled geometry for % parent routes', (SELECT count(DISTINCT parent_id) FROM itinerarius.route_hierarchy WHERE parent_id NOT IN (SELECT osm_id FROM itinerarius.ri WHERE geom_build_case != 'hierarchy_assembly'));
+END;
+$$ LANGUAGE plpgsql;
+
+-- Execute hierarchy processing
+DO $$ BEGIN RAISE NOTICE 'Populating route hierarchy...'; END $$;
+SELECT itinerarius.populate_route_hierarchy();
+
+DO $$ BEGIN RAISE NOTICE 'Assembling parent route geometries...'; END $$;
+SELECT itinerarius.assemble_parent_route_geometries();
+
+ANALYZE itinerarius.route_hierarchy;
+
 -- Fail-fast: ensure every non-superroute has a geometry.
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM itinerarius.routes_info WHERE geom IS NULL and route_type <> 'superroute') THEN
-    RAISE EXCEPTION 'itinerarius.routes_info contains % non-superroutes with NULL geom; fix the import before proceeding', (SELECT count(*) FROM itinerarius.routes_info WHERE geom IS NULL and route_type <> 'superroute');
+  IF EXISTS (SELECT 1 FROM itinerarius.routes_info WHERE geom IS NULL and type <> 'superroute') THEN
+    RAISE EXCEPTION 'itinerarius.routes_info contains % non-superroutes with NULL geom; fix the import before proceeding', (SELECT count(*) FROM itinerarius.routes_info WHERE geom IS NULL and type <> 'superroute');
   END IF;
 END $$;

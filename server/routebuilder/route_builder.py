@@ -10,7 +10,7 @@ from itertools import pairwise
 
 import shapely
 
-from . import route_types as rt
+import route_types as rt
 
 
 def build_route(members: list[rt.BaseWay | rt.RouteSegment]) -> rt.RouteSegment:

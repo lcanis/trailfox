@@ -5,12 +5,16 @@ DROP FUNCTION IF EXISTS api.routes_by_distance(double precision, double precisio
 DROP FUNCTION IF EXISTS api.routes_in_bbox(double precision, double precision, double precision, double precision, text) CASCADE;
 DROP FUNCTION IF EXISTS api.safe_line_locate_point(geometry, geometry) CASCADE;
 DROP FUNCTION IF EXISTS api.get_route_amenities(bigint, integer) CASCADE;
+DROP VIEW IF EXISTS api.route_children CASCADE;
+DROP VIEW IF EXISTS api.route_parents CASCADE;
+
 CREATE OR REPLACE VIEW api.routes AS
 SELECT
     r.osm_id,
     r.name,
     r.network,
     r.route_type,
+    r.type,
     r.symbol,
     r.distance,
     r.ascent,
@@ -22,8 +26,38 @@ SELECT
     r.merged_geom_type,
     r.geom_build_case,
     r.geom_quality,
-    r.geom_parts
+    r.geom_parts,
+    (r.type = 'superroute') AS is_superroute
 FROM itinerarius.routes_info r;
+
+-- View: child routes of a superroute
+CREATE OR REPLACE VIEW api.route_children AS
+SELECT
+    h.parent_id,
+    h.child_id,
+    h.sequence,
+    h.role,
+    h.network_compatible,
+    r.name AS child_name,
+    r.network AS child_network,
+    r.route_type AS child_route_type,
+    r.length_m AS child_length_m
+FROM itinerarius.route_hierarchy h
+JOIN itinerarius.routes_info r ON h.child_id = r.osm_id
+ORDER BY h.parent_id, h.sequence;
+
+-- View: parent superroutes of a route
+CREATE OR REPLACE VIEW api.route_parents AS
+SELECT
+    h.child_id,
+    h.parent_id,
+    h.network_compatible,
+    r.name AS parent_name,
+    r.network AS parent_network,
+    r.route_type AS parent_route_type
+FROM itinerarius.route_hierarchy h
+JOIN itinerarius.routes_info r ON h.parent_id = r.osm_id;
+
 
 -- Return routes ordered by distance to a given lon/lat, i.e. which routes are closest to that point.
 CREATE OR REPLACE FUNCTION api.routes_by_distance(lon double precision, lat double precision)
@@ -202,6 +236,8 @@ $$;
 GRANT USAGE ON SCHEMA api TO calixtinus;
 GRANT USAGE ON SCHEMA itinerarius TO calixtinus;
 GRANT SELECT ON api.routes TO calixtinus;
+GRANT SELECT ON api.route_children TO calixtinus;
+GRANT SELECT ON api.route_parents TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text) TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.get_route_amenities(bigint, integer) TO calixtinus;
