@@ -15,13 +15,14 @@ fi
 echo "--- Extracting Hiking Routes and POIs ---"
 # yes, that might include ferries and piers.
 osmium tags-filter "$INPUT_PBF" \
-    r/type=route,superroute/route=hiking,foot,walking,ferry \
+    r/type=route,superroute \
+    r/route=hiking,foot,walking,ferry \
     nwr/route=ferry \
     nwr/man_made=pier nwr/ferry=yes \
     nwr/tourism nwr/amenity nwr/healthcare \
-    nwr/shop=supermarket,convenience,general,department_store,greengrocer,bakery,butcher,bicycle,sports \
-    nwr/leisure=swimming_pool,picnic_table \
-    nwr/historic=monument,memorial \
+    nwr/shop \
+    nwr/leisure=swimming_pool,swimming_area,bathing_place,beach,picnic_table \
+    nwr/historic=monument,memorial,statue \
     nwr/natural=hot_spring \
     nwr/highway=bus_stop nwr/railway=station,halt \
     nwr/aeroway=aerodrome,airport nwr/emergency=phone,defibrillator \

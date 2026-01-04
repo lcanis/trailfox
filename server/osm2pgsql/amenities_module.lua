@@ -102,6 +102,9 @@ local CATEGORY_BY_TAG = {
 	},
 	leisure = {
 		swimming_pool = CATEGORY_CODE.HYGIENE,
+		swimming_area = CATEGORY_CODE.HYGIENE,
+		bathing_place = CATEGORY_CODE.HYGIENE,
+		beach = CATEGORY_CODE.HYGIENE,
 		picnic_table = CATEGORY_CODE.STREET_FURNITURE,
 	},
 	shop = {

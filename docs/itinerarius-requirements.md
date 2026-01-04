@@ -243,7 +243,7 @@ These tags are used on the backend to derive `env_class` per trail segment; fron
 - **Medical**
   - `amenity=pharmacy`, `amenity=hospital`, `amenity=clinic`, `amenity=doctors`, `amenity=dentist`.
 - **Other Hiker-Relevant** (optional but recommended)
-  - `amenity=drinking_water`, `amenity=fountain`, `amenity=toilets`, `amenity=shower`, `amenity=public_bath`, `tourism=information`, `information=guidepost|map`, `emergency=phone|defibrillator`, `natural=hot_spring`, `leisure=swimming_pool`.
+  - `amenity=drinking_water`, `amenity=fountain`, `amenity=toilets`, `amenity=shower`, `amenity=public_bath`, `tourism=information`, `information=guidepost|map`, `emergency=phone|defibrillator`, `natural=hot_spring`, `leisure=swimming_pool|swimming_area|bathing_place|beach`.
 
 ### 4.4 Environment Classification (Why Not Boundaries?)
 
