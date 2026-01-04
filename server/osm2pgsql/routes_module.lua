@@ -41,46 +41,17 @@ local routes = osm2pgsql.define_table({
 	},
 })
 
--- Filter for relevant highways to avoid database bloat
-local relevant_highways = {
-	footway = true,
-	path = true,
-	track = true,
-	cycleway = true,
-	bridleway = true,
-	steps = true,
-	corridor = true,
-	pedestrian = true,
-	living_street = true,
-	residential = true,
-	unclassified = true,
-	service = true,
-	road = true,
-	tertiary = true,
-	secondary = true,
-	primary = true,
-	trunk = true,
-	motorway = true,
-	tertiary_link = true,
-	secondary_link = true,
-	primary_link = true,
-	trunk_link = true,
-	motorway_link = true,
-}
-
 local function process_way(object)
 	local tags = object.tags
-	local highway = tags.highway
-	if not highway then
+	local ls = object:as_linestring()
+	if not ls or ls:is_null() then
 		return
 	end
 
-	if relevant_highways[highway] then
-		ways:insert({
-			geom = object:as_linestring(),
-			tags = tags,
-		})
-	end
+	ways:insert({
+		geom = ls,
+		tags = tags,
+	})
 end
 process_way = maybe_wrap(process_way, "process_way")
 
