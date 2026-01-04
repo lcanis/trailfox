@@ -22,7 +22,7 @@ def get_relation_objects(conn, members, way_table, route_table):
     """
     data = {}
 
-    ways = [m['id'] for m in members if m['type'] == 'W']
+    ways = [m.get('ref') or m.get('id') for m in members if m['type'] == 'W']
     if ways:
         t = way_table
         sql = sa.select(t.c.id, t.c.geom, t.c.tags,
@@ -37,7 +37,7 @@ def get_relation_objects(conn, members, way_table, route_table):
                                              geom=to_shape(way.geom))
 
 
-    rels = [m['id'] for m in members if m['type'] == 'R']
+    rels = [m.get('ref') or m.get('id') for m in members if m['type'] == 'R']
     if rels:
         t = route_table
         sql = sa.select(t.c.id, t.c.route)\
@@ -51,7 +51,8 @@ def get_relation_objects(conn, members, way_table, route_table):
 
     finallist = []
     for i, m in enumerate(members):
-        key = (m['type'], m['id'])
+        member_id = m.get('ref') or m.get('id')
+        key = (m['type'], member_id)
         if (seg := data.get(key)) is not None:
             # If a way appears two times, we need to make a copy because
             # the way may be reversed and moved around later.

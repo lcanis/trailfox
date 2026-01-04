@@ -141,6 +141,32 @@ def _make_single_linestring_from_main(route: rt.RouteSegment) -> LineString | No
     return None
 
 
+def _make_multilinestring_from_route(route: rt.RouteSegment) -> LineString | None:
+    """Extract all geometries from a route, including nested relation members.
+    
+    Returns a merged LineString or MultiLineString with all route geometry.
+    """
+    parts: list[LineString] = []
+    
+    def collect_geometries(seg: rt.AnySegment) -> None:
+        if isinstance(seg, rt.WaySegment):
+            for w in seg.ways:
+                parts.append(w.geom)
+        elif isinstance(seg, rt.RouteSegment):
+            # Recursively collect from nested routes
+            for child in seg.main:
+                collect_geometries(child)
+    
+    for seg in route.main:
+        collect_geometries(seg)
+    
+    if not parts:
+        return None
+    
+    merged = linemerge(parts)
+    return merged
+
+
 def _normalize_osm2pgsql_members(members: object) -> list[dict]:
     """Convert osm2pgsql flex member JSON into WMT member_loader format."""
     if not isinstance(members, list):
@@ -200,11 +226,32 @@ def build_routes() -> None:
         todo = conn.execute(
             sa.text(
                 """
-                SELECT ri.osm_id, r.name, r.members
+                WITH RECURSIVE hierarchy_depth AS (
+                    -- Base case: leaf routes (routes with no children)
+                    SELECT ri.osm_id, 0 as depth
+                    FROM itinerarius.ri ri
+                    WHERE ri.geom_quality <> 'ok_singleline'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM itinerarius.route_hierarchy rh
+                          WHERE rh.parent_id = ri.osm_id
+                      )
+                    
+                    UNION ALL
+                    
+                    -- Recursive case: parent routes whose children have been seen
+                    SELECT DISTINCT rh.parent_id, hd.depth + 1
+                    FROM hierarchy_depth hd
+                    JOIN itinerarius.route_hierarchy rh ON rh.child_id = hd.osm_id
+                    JOIN itinerarius.ri ri ON ri.osm_id = rh.parent_id
+                    WHERE ri.geom_quality <> 'ok_singleline'
+                )
+                SELECT ri.osm_id, r.name, r.members, COALESCE(MAX(hd.depth), 999999) as depth
                 FROM itinerarius.ri ri
                 JOIN itinerarius.routes r ON r.osm_id = ri.osm_id
+                LEFT JOIN hierarchy_depth hd ON hd.osm_id = ri.osm_id
                 WHERE ri.geom_quality <> 'ok_singleline'
-                ORDER BY ri.osm_id
+                GROUP BY ri.osm_id, r.name, r.members
+                ORDER BY depth, ri.osm_id
                 """
             )
         ).fetchall()
@@ -236,7 +283,7 @@ def build_routes() -> None:
         return n[: max_len - 1] + "…"
 
     try:
-        for idx, (route_id, route_name, members_json) in enumerate(todo, start=1):
+        for idx, (route_id, route_name, members_json, depth) in enumerate(todo, start=1):
             t0 = time.monotonic()
             with engine.begin() as conn:
                 if not members_json:
@@ -323,8 +370,12 @@ def build_routes() -> None:
                     "ok_wmt_singleline" if linear == "yes" else "ok_wmt_sorted" if linear == "sorted" else "wmt_non_linear"
                 )
 
-                # If WMT yields a clean single LineString, replace ri.geom with measured line.
+                # If WMT yields a clean single LineString, use it. Otherwise create from all segments.
                 new_line = _make_single_linestring_from_main(route) if linear == "yes" else None
+                if new_line is None:
+                    # Try to create MultiLineString from all route geometry (including nested relations)
+                    new_line = _make_multilinestring_from_route(route)
+                
                 if new_line is not None:
                     conn.execute(
                         sa.text(
@@ -346,11 +397,53 @@ def build_routes() -> None:
                         {"case": "wmt_routebuilder", "quality": quality, "wkb": new_line.wkb, "osm_id": route_id},
                     )
                 else:
-                    conn.execute(
-                        ri.update()
-                        .where(ri.c.osm_id == route_id)
-                        .values(geom_build_case="wmt_routebuilder", geom_quality=quality)
-                    )
+                    # For non-linear or sorted routes, create MultiLineString geometry from all main segments
+                    all_lines = []
+                    for seg in route.main:
+                        for way in _iter_baseways(seg):
+                            all_lines.append(way.geom)
+                    
+                    if all_lines:
+                        merged = linemerge(all_lines)
+                        geom_wkb = merged.wkb if isinstance(merged, LineString) else merged.wkb
+                        geom_length = sum(w.length for w in _iter_baseways(route.main[0]) if route.main) if all_lines else 0
+                        
+                        conn.execute(
+                            sa.text(
+                                """
+                                UPDATE itinerarius.ri
+                                SET
+                                  geom_build_case = :case,
+                                  geom_quality = :quality,
+                                  geom_parts = :parts,
+                                  merged_geom_type = :geom_type,
+                                  geom_m = ST_Multi(
+                                    ST_AddMeasure(
+                                      ST_GeomFromWKB(:wkb, 3857),
+                                      0,
+                                      :length
+                                    )
+                                  ),
+                                  length_m = :length
+                                WHERE osm_id = :osm_id
+                                """
+                            ),
+                            {
+                                "case": "wmt_routebuilder",
+                                "quality": quality,
+                                "parts": len(all_lines) if isinstance(merged, type(merged)) and hasattr(merged, 'geoms') else 1,
+                                "geom_type": "MULTILINESTRING" if not isinstance(merged, LineString) else "LINESTRING",
+                                "wkb": geom_wkb,
+                                "length": geom_length,
+                                "osm_id": route_id,
+                            },
+                        )
+                    else:
+                        conn.execute(
+                            ri.update()
+                            .where(ri.c.osm_id == route_id)
+                            .values(geom_build_case="wmt_routebuilder", geom_quality=quality)
+                        )
 
             processed += 1
             elapsed_s = time.monotonic() - started

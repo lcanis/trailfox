@@ -20,10 +20,19 @@ interface RouteDetailsProps {
   route: Route;
   onClose: () => void;
   onOpenItinerary: (route: Route) => void;
+  onNavigateToRoute?: (routeId: number) => void;
 }
 
-export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOpenItinerary }) => {
+export const RouteDetails: React.FC<RouteDetailsProps> = ({
+  route,
+  onClose,
+  onOpenItinerary,
+  onNavigateToRoute,
+}) => {
   const [osmTagsCollapsed, setOsmTagsCollapsed] = React.useState(COLLAPSE_OSM_TAGS_BY_DEFAULT);
+  const [parents, setParents] = React.useState<any[]>([]);
+  const [children, setChildren] = React.useState<any[]>([]);
+  const [hierarchyLoading, setHierarchyLoading] = React.useState(false);
   const { width, height } = useWindowDimensions();
   const isSmallScreen = width < 768;
 
@@ -31,6 +40,34 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
   const ok = q.startsWith('ok_');
 
   const geojsonRef = React.useRef<any | null>(null);
+
+  // Fetch hierarchy data
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchHierarchy = async () => {
+      setHierarchyLoading(true);
+      try {
+        const [parentsData, childrenData] = await Promise.all([
+          RouteService.fetchRouteParents(route.osm_id),
+          RouteService.fetchRouteChildren(route.osm_id),
+        ]);
+        if (isMounted) {
+          setParents(parentsData);
+          setChildren(childrenData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch hierarchy:', error);
+      } finally {
+        if (isMounted) {
+          setHierarchyLoading(false);
+        }
+      }
+    };
+    fetchHierarchy();
+    return () => {
+      isMounted = false;
+    };
+  }, [route.osm_id]);
 
   const fetchGeoJSONOnce = React.useCallback(async () => {
     if (geojsonRef.current) return geojsonRef.current;
@@ -117,6 +154,21 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
 
   const isMultiLineString = route.merged_geom_type === 'MULTILINESTRING';
   const itineraryDisabled = !allowMultistring && isMultiLineString;
+
+  const getRoleStyle = (role: string) => {
+    switch (role) {
+      case 'alternative':
+        return { backgroundColor: '#ffc107' };
+      case 'approach':
+        return { backgroundColor: '#17a2b8' };
+      case 'excursion':
+        return { backgroundColor: '#28a745' };
+      case 'connection':
+        return { backgroundColor: '#6c757d' };
+      default:
+        return { backgroundColor: '#6c757d' };
+    }
+  };
 
   return (
     <View
@@ -247,6 +299,78 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({ route, onClose, onOp
             <Text style={styles.downloadBtnText}>Download GPX</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Route Hierarchy */}
+        {(parents.length > 0 || children.length > 0) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Route Hierarchy</Text>
+
+            {parents.length > 0 && (
+              <View style={styles.hierarchyGroup}>
+                <Text style={styles.hierarchyGroupTitle}>Part of:</Text>
+                {parents.map((parent) => (
+                  <TouchableOpacity
+                    key={parent.parent_id}
+                    style={styles.hierarchyItem}
+                    onPress={() => {
+                      if (onNavigateToRoute) {
+                        onNavigateToRoute(parent.parent_id);
+                      }
+                    }}
+                  >
+                    <View style={styles.hierarchyItemContent}>
+                      <Text style={styles.hierarchyItemName}>{parent.parent_name}</Text>
+                      {parent.parent_network ? (
+                        <Text style={styles.hierarchyItemMeta}>{parent.parent_network}</Text>
+                      ) : null}
+                      {!parent.network_compatible ? (
+                        <Text style={styles.hierarchyWarning}>⚠️</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.hierarchyChevron}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {children.length > 0 && (
+              <View style={styles.hierarchyGroup}>
+                <Text style={styles.hierarchyGroupTitle}>
+                  {children.length === 1 ? '1 stage' : `${children.length} stages`}:
+                </Text>
+                {children.map((child, index) => (
+                  <TouchableOpacity
+                    key={child.child_id}
+                    style={styles.hierarchyItem}
+                    onPress={() => {
+                      if (onNavigateToRoute) {
+                        onNavigateToRoute(child.child_id);
+                      }
+                    }}
+                  >
+                    <View style={styles.hierarchyItemContent}>
+                      <View style={styles.hierarchyItemHeader}>
+                        <Text style={styles.hierarchySequence}>{index + 1}</Text>
+                        {child.role && child.role !== '' && child.role !== 'main' ? (
+                          <View style={[styles.roleBadge, getRoleStyle(child.role)]}>
+                            <Text style={styles.roleBadgeText}>{child.role}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.hierarchyItemName}>{child.child_name}</Text>
+                      {child.child_length_m ? (
+                        <Text style={styles.hierarchyItemMeta}>
+                          {(child.child_length_m / 1000).toFixed(1)} km
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.hierarchyChevron}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Details</Text>
@@ -502,5 +626,72 @@ const styles = StyleSheet.create({
   chevron: {
     fontSize: 12,
     color: '#666',
+  },
+  hierarchyGroup: {
+    marginBottom: 16,
+  },
+  hierarchyGroupTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  hierarchyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  hierarchyItemContent: {
+    flex: 1,
+  },
+  hierarchyItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  hierarchySequence: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#666',
+    backgroundColor: '#e9ecef',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  hierarchyItemName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 2,
+  },
+  hierarchyItemMeta: {
+    fontSize: 12,
+    color: '#666',
+  },
+  hierarchyChevron: {
+    fontSize: 18,
+    color: '#007bff',
+    marginLeft: 8,
+  },
+  roleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    marginLeft: 4,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'capitalize',
+  },
+  hierarchyWarning: {
+    fontSize: 14,
+    marginLeft: 6,
   },
 });

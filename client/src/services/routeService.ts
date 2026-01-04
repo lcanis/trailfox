@@ -101,10 +101,38 @@ export const RouteService = {
         {},
         timeoutMs
       );
-      return data.length > 0 ? data[0] : null;
+      return data && data.length > 0 ? data[0] : null;
     } catch (error) {
-      console.error('Failed to fetch route by id:', error);
+      console.error('Failed to fetch route by ID:', error);
       throw error;
+    }
+  },
+
+  async fetchRouteParents(id: number, timeoutMs: number = 15000) {
+    try {
+      const { data } = await fetchJsonWithTimeout<any[]>(
+        `${API_ROOT}/route_parents?child_id=eq.${id}`,
+        {},
+        timeoutMs
+      );
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch route parents:', error);
+      return [];
+    }
+  },
+
+  async fetchRouteChildren(id: number, timeoutMs: number = 15000) {
+    try {
+      const { data } = await fetchJsonWithTimeout<any[]>(
+        `${API_ROOT}/route_children?parent_id=eq.${id}&order=sequence.asc`,
+        {},
+        timeoutMs
+      );
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch route children:', error);
+      return [];
     }
   },
 };

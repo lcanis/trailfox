@@ -3,11 +3,12 @@ import { Platform } from 'react-native';
 
 // User-configurable settings moved here from constants.ts
 // Keep this file simple so it's easy for devs to override locally if needed.
-export type StartLocation = 'luxembourg' | 'munich' | 'user';
+export type StartLocation = 'amsterdam' | 'luxembourg' | 'munich' | 'user';
 
-export const START_LOCATION_MODE: StartLocation = 'user';
+export const START_LOCATION_MODE: StartLocation = 'amsterdam';
 
 export const PREDEFINED_LOCATIONS: Record<string, { center: [number, number]; zoom: number }> = {
+  amsterdam: { center: [4.89, 52.37], zoom: 12 },
   luxembourg: { center: [6.13, 49.61], zoom: 12 },
   munich: { center: [11.58, 48.13], zoom: 12 },
 };
@@ -28,7 +29,7 @@ export const WEB_BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/brigh
 // Production: blank base URL means same-origin (served via reverse proxy)
 // For remote testing, set this to your VPS domain or IP (e.g., 'https://trailfox.app')
 // Note: 8090 is only for local dev proxy; production Caddy uses 80/443.
-export const REMOTE_SERVER_URL: string | null = 'https://trailfox.app';
+export const REMOTE_SERVER_URL: string | null = null;
 
 export let API_BASE_URL = '';
 
