@@ -16,16 +16,6 @@ fi
 
 export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 
-echo "-- running post-import maintenance (indices, analysis, materialization)"
-PGOPTIONS="-c statement_timeout=0" \
-  "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import.sql"
-
-echo "-- running routebuilder (WMT logic)"
-(cd "$SCRIPT_DIR" && uv run --project routebuilder -m routebuilder.build_routes)
-
-echo "-- finalizing post-import (materialization, indices)"
-"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import_finalize.sql"
-
 echo "-- applying api schema"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -v DB_ADMIN_USER="$DB_ADMIN_USER" -v APP_USER="$APP_USER" -f "$SCRIPT_DIR/sql/setup_api.sql"
 

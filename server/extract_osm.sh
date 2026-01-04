@@ -13,9 +13,11 @@ if [ -z "$INPUT_PBF" ]; then
 fi
 
 echo "--- Extracting Hiking Routes and POIs ---"
-# Combined filter for routes and amenities
+# yes, that might include ferries and piers.
 osmium tags-filter "$INPUT_PBF" \
-    r/type=route,superroute/route=hiking,foot,walking \
+    r/type=route,superroute/route=hiking,foot,walking,ferry \
+    nwr/route=ferry \
+    nwr/man_made=pier nwr/ferry=yes \
     nwr/tourism nwr/amenity nwr/healthcare \
     nwr/shop=supermarket,convenience,general,department_store,greengrocer,bakery,butcher,bicycle,sports \
     nwr/leisure=swimming_pool,picnic_table \
