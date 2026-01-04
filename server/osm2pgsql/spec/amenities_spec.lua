@@ -172,6 +172,40 @@ describe("amenities_module", function()
     assert.are.equal("hotel", table_inserts[1].row.subclass)
   end)
 
+  it("does not classify waterway=stream without drinking_water", function()
+    local obj = {
+      tags = { waterway = "stream" },
+      as_point = function() return "POINT" end,
+    }
+
+    amenities.process_node(obj)
+    assert.are.equal(0, #table_inserts)
+  end)
+
+  it("classifies drinking_water=yes even when waterway is present (simplified)", function()
+    local obj = {
+      tags = { waterway = "stream", drinking_water = "yes" },
+      as_point = function() return "POINT" end,
+    }
+
+    amenities.process_node(obj)
+    assert.are.equal(1, #table_inserts)
+    assert.are.equal("water", table_inserts[1].row.class)
+    assert.are.equal("drinking_water", table_inserts[1].row.subclass)
+  end)
+
+  it("classifies drinking_water=yes without waterway as drinking_water subclass", function()
+    local obj = {
+      tags = { drinking_water = "yes" },
+      as_point = function() return "POINT" end,
+    }
+
+    amenities.process_node(obj)
+    assert.are.equal(1, #table_inserts)
+    assert.are.equal("water", table_inserts[1].row.class)
+    assert.are.equal("drinking_water", table_inserts[1].row.subclass)
+  end)
+
   it("process_way imports closed ways", function()
     local obj_open = {
       is_closed = false,

@@ -237,7 +237,7 @@ local function get_poi_classification(tags)
 		local tag_key = TAG_FAMILY_PRIORITY[i]
 		local tag_values = CATEGORY_BY_TAG[tag_key]
 		local tag_value = tags[tag_key]
-		if tag_value and tag_values[tag_value] then
+		if tag_value and tag_values and tag_values[tag_value] then
 			if tag_key == "amenity" and tag_value == "vending_machine" then
 				-- vending inclusion list: if `vending` tag exists, require at least
 				-- one allowed vending item; if `vending` is missing, accept the
