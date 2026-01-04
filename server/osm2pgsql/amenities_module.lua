@@ -34,6 +34,7 @@ local pois = osm2pgsql.define_table({
 local CATEGORY_CODE = {
 	ACCOMMODATION = "accom",
 	TOURIST_CULTURAL = "tourism",
+	RELIGIOUS = "religious",
 	OTHER_HIKER_RELEVANT = "other",
 	SHELTER = "shelter",
 	FOOD_DRINK = "food",
@@ -56,6 +57,7 @@ local CATEGORY_BY_TAG = {
 		guest_house = CATEGORY_CODE.ACCOMMODATION,
 		alpine_hut = CATEGORY_CODE.ACCOMMODATION,
 		camp_site = CATEGORY_CODE.ACCOMMODATION,
+		camp_pitch = CATEGORY_CODE.ACCOMMODATION,
 		caravan_site = CATEGORY_CODE.ACCOMMODATION,
 		chalet = CATEGORY_CODE.ACCOMMODATION,
 		wilderness_hut = CATEGORY_CODE.ACCOMMODATION,
@@ -74,6 +76,7 @@ local CATEGORY_BY_TAG = {
 		biergarten = CATEGORY_CODE.FOOD_DRINK,
 		drinking_water = CATEGORY_CODE.WATER,
 		fountain = CATEGORY_CODE.WATER,
+		watering_place = CATEGORY_CODE.WATER,
 		toilets = CATEGORY_CODE.HYGIENE,
 		shower = CATEGORY_CODE.HYGIENE,
 		public_bath = CATEGORY_CODE.HYGIENE,
@@ -99,6 +102,8 @@ local CATEGORY_BY_TAG = {
 	},
 	natural = {
 		hot_spring = CATEGORY_CODE.HYGIENE,
+		spring = CATEGORY_CODE.WATER,
+		water = CATEGORY_CODE.WATER,
 	},
 	leisure = {
 		swimming_pool = CATEGORY_CODE.HYGIENE,
@@ -106,6 +111,20 @@ local CATEGORY_BY_TAG = {
 		bathing_place = CATEGORY_CODE.HYGIENE,
 		beach = CATEGORY_CODE.HYGIENE,
 		picnic_table = CATEGORY_CODE.STREET_FURNITURE,
+	},
+	building = {
+		church = CATEGORY_CODE.RELIGIOUS,
+		monastery = CATEGORY_CODE.RELIGIOUS,
+		chapel = CATEGORY_CODE.RELIGIOUS,
+	},
+	historic = {
+		monument = CATEGORY_CODE.TOURIST_CULTURAL,
+		memorial = CATEGORY_CODE.TOURIST_CULTURAL,
+		monastery = CATEGORY_CODE.RELIGIOUS,
+		castle = CATEGORY_CODE.TOURIST_CULTURAL,
+		fort = CATEGORY_CODE.TOURIST_CULTURAL,
+		fortress = CATEGORY_CODE.TOURIST_CULTURAL,
+		archaeological_site = CATEGORY_CODE.TOURIST_CULTURAL,
 	},
 	shop = {
 		supermarket = CATEGORY_CODE.RESUPPLY_SHOPS,
@@ -128,11 +147,13 @@ local CATEGORY_BY_TAG = {
 	},
 	highway = {
 		bus_stop = CATEGORY_CODE.TRANSPORTATION,
+		rest_area = CATEGORY_CODE.TRANSPORTATION,
 	},
-	historic = {
-		monument = CATEGORY_CODE.TOURIST_CULTURAL,
-		memorial = CATEGORY_CODE.TOURIST_CULTURAL,
+	man_made = {
+		water_tap = CATEGORY_CODE.WATER,
+		water_well = CATEGORY_CODE.WATER,
 	},
+
 	emergency = {
 		phone = CATEGORY_CODE.OTHER_HIKER_RELEVANT,
 		defibrillator = CATEGORY_CODE.OTHER_HIKER_RELEVANT,
@@ -145,10 +166,13 @@ local TAG_FAMILY_PRIORITY = {
 	"amenity",
 	"healthcare",
 	"shop",
+	"building",
+	"man_made",
 	"natural",
 	"leisure",
 	"aeroway",
 	"railway",
+	"waterway",
 	"highway",
 	"historic",
 	"emergency",
@@ -242,6 +266,15 @@ local function get_poi_classification(tags)
 			end
 
 			return tag_values[tag_value], tag_value
+		end
+	end
+
+	
+	-- Fallback: if the object has drinking_water=yes or conditional, treat as WATER
+	if tags.drinking_water then
+		local dv = tags.drinking_water:lower()
+		if dv == "yes" or dv:find("yes") or dv:find("conditional") then
+			return CATEGORY_CODE.WATER, "drinking_water"
 		end
 	end
 
