@@ -27,6 +27,7 @@ CREATE TABLE itinerarius.ri (
 
 CREATE INDEX IF NOT EXISTS idx_routes_osm_id ON itinerarius.routes (osm_id);
 CREATE INDEX IF NOT EXISTS idx_ri_osm_id ON itinerarius.ri (osm_id);
+CREATE INDEX IF NOT EXISTS idx_ways_osm_id ON itinerarius.ways (osm_id);
 
 INSERT INTO itinerarius.ri (
     osm_id,
@@ -83,5 +84,13 @@ CREATE TABLE itinerarius.wmt_route_segments (
     geom geometry(LineString, 3857),
     length_m numeric
 );
+
+-- Indexes to support the route builder which runs after import and before finalize
+-- These ensure member lookups and the worklist filter run efficiently during build_routes
 CREATE INDEX IF NOT EXISTS idx_wmt_route_segments_osm_id ON itinerarius.wmt_route_segments (osm_id);
 CREATE INDEX IF NOT EXISTS idx_wmt_route_segments_geom ON itinerarius.wmt_route_segments USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_ri_geom_quality_not_ok_singleline ON itinerarius.ri (osm_id) WHERE geom_quality <> 'ok_singleline';
+
+-- Update planner statistics after bulk import and index creation
+ANALYZE itinerarius.ways;
+ANALYZE itinerarius.ri;
