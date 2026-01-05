@@ -19,11 +19,17 @@ export PGPASSWORD="${DB_ADMIN_PASSWORD:-}"
 echo "-- running post_import.sql (amenity indexes, route geometry merge)"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import.sql"
 
+echo "-- creating route hierarchy schema and function"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/route_hierarchy.sql"
+
+echo "-- populating route hierarchy (parent-child relationships from members)"
+"${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -c "SELECT itinerarius.populate_route_hierarchy();"
+
 echo "-- running routebuilder (Python route geometry assembly)"
 cd "$SCRIPT_DIR/routebuilder"
 uv run python build_routes.py
 
-echo "-- running post_import_finalize.sql (route hierarchy, materialized views)"
+echo "-- running post_import_finalize.sql (materialized views, final validation)"
 "${PSQL_DB[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/post_import_finalize.sql"
 
 echo "-- applying api schema"

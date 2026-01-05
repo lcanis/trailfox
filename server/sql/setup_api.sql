@@ -13,6 +13,7 @@ SELECT
     r.osm_id,
     r.name,
     r.network,
+    r.is_node_network,
     r.route_type,
     r.type,
     r.symbol,

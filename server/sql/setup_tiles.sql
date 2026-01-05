@@ -14,6 +14,7 @@ BEGIN
         SELECT
             osm_id,
             network,
+            is_node_network,
             ST_AsMVTGeom(
                 geom,
                 ST_TileEnvelope(z, x, y),
@@ -21,7 +22,7 @@ BEGIN
                 256,
                 true
             ) AS geom
-        FROM itinerarius.routes_info
+        FROM itinerarius.routes_info r
         WHERE
             -- Spatial Index Filter: Check if route intersects the tile
             geom && ST_TileEnvelope(z, x, y)
@@ -33,10 +34,12 @@ BEGIN
                 OR (z >= 10 AND network = 'lwn') -- Local: Visible from z10
                 OR (z >= 11)                     -- Others: Visible from z11
             )
+            -- Exclude node networks from low zoom tiles (they're very dense)
+            AND (NOT r.is_node_network OR z >= 11)
     ) AS tile;
 
     RETURN mvt;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
 
-GRANT EXECUTE ON FUNCTION api.mvt_routes(integer, integer, integer) TO :APP_USER;
+GRANT EXECUTE ON FUNCTION api.mvt_routes(integer, integer, integer) TO calixtinus;
