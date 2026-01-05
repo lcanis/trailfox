@@ -65,7 +65,7 @@ export const useItinerary = (params: {
 
     // 1. Apply Filter Preset (Offline)
     if (filterPreset) {
-      filteredByPreset = filteredByPreset.filter((a) => shouldShowAmenity(a, filterPreset));
+      filteredByPreset = filteredByPreset.filter((a) => shouldShowAmenity(a, filterPreset.data));
     }
     setPresetFilteredAmenities(filteredByPreset);
 

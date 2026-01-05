@@ -78,9 +78,9 @@ export const SPRITE_BASE_URL = `${API_BASE_URL}/sprites/itinerarius`;
 export const allowMultistring = true;
 
 // Log config values during development so the dev console helps debugging network errors
-if (DEVELOPER_MODE) {
-  // eslint-disable-next-line no-console
-  console.log('Trailfox settings:', {
+// Avoid logging during tests to keep test output clean
+if (DEVELOPER_MODE && process.env.NODE_ENV !== 'test') {
+  console.warn('Trailfox settings:', {
     API_URL,
     TILES_BASE_URL,
     START_LOCATION_MODE,

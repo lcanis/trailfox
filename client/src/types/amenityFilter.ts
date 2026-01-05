@@ -45,10 +45,37 @@ export interface AmenityFilterSchema {
 /**
  * A named preset for amenity filtering.
  */
-export interface AmenityFilterPreset extends AmenityFilterSchema {
+export interface AmenityFilterPreset {
   id: string;
-  label: string;
-  icon: string;
+  name: string;
+  isPreset: boolean; // true = built-in (Trailside, etc.)
+  isCustom: boolean; // true = user-created
+  createdAt: number;
+  updatedAt: number;
+  data: AmenityFilterSchema;
+}
+
+/**
+ * A category grouping multiple OSM classes together (Water & Toilets, Food & Drink, etc.)
+ */
+export interface AmenityCategory {
+  id: string;
+  name: string;
+  icon: string; // Unicode emoji or icon name
+  osmClasses: string[]; // Which OSM classes belong here
+  order: number; // Display order (1-8)
+  defaultEnabled: boolean; // Show by default?
+  defaultDistance: number; // Suggested max distance (meters)
+}
+
+/**
+ * A subclass within a category (Restaurant, Cafe, Hotel, etc.)
+ */
+export interface AmenitySubclass {
+  id: string; // e.g. "food.restaurant"
+  categoryId: string; // Parent category ID
+  name: string; // Display name
+  count: number; // Count of amenities with this subclass
 }
 
 /**

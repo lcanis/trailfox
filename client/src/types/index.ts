@@ -14,8 +14,8 @@ export interface Route {
   tags: Record<string, string> | null;
 }
 
-export * from './itinerary';
 export * from './amenityFilter';
+export * from './itinerary';
 
 export type SortOption = 'name' | 'length' | 'distance' | null;
 

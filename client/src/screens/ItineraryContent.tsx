@@ -14,7 +14,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { AmenityCluster, Route, RouteAmenity, AmenityFilterPreset } from '../types';
 import { useItinerary } from '../hooks/useItinerary';
 import { AMENITY_FILTER_PRESETS } from '../config/amenityFilter';
@@ -240,7 +239,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
             <ScrollView style={styles.modalBody}>
               <View style={styles.radiusRow}>
                 <Text style={styles.controlLabel}>🎯 Complexity Level</Text>
-                <Text style={styles.radiusValue}>{filterPreset.label}</Text>
+                <Text style={styles.radiusValue}>{filterPreset.name}</Text>
               </View>
               <View style={styles.presetContainer}>
                 {AMENITY_FILTER_PRESETS.map((p) => (
@@ -252,18 +251,13 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                       filterPreset.id === p.id && styles.presetButtonActive,
                     ]}
                   >
-                    <Ionicons
-                      name={p.icon as any}
-                      size={24}
-                      color={filterPreset.id === p.id ? 'white' : THEME.textSecondary}
-                    />
                     <Text
                       style={[
                         styles.presetLabel,
                         filterPreset.id === p.id && styles.presetLabelActive,
                       ]}
                     >
-                      {p.label}
+                      {p.name}
                     </Text>
                   </TouchableOpacity>
                 ))}

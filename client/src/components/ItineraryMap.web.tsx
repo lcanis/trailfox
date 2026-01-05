@@ -419,7 +419,7 @@ export default function ItineraryMap({
           onPress={onCycleFilter}
           activeOpacity={0.8}
         >
-          <Ionicons name={(filterPreset?.icon as any) || 'filter'} size={20} color={THEME.accent} />
+          <Ionicons name={'filter'} size={20} color={THEME.accent} />
         </TouchableOpacity>
       )}
     </View>

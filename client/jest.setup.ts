@@ -51,6 +51,18 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Mock @react-native-community/slider
+jest.mock('@react-native-community/slider', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const SliderMock = jest.fn((props) => React.createElement(View, props));
+  return {
+    __esModule: true,
+    default: SliderMock,
+    Slider: SliderMock,
+  };
+});
+
 // Mock react-native-shadow-2 (ESM package) to avoid Jest transform errors
 jest.mock('react-native-shadow-2', () => {
   const React = require('react');

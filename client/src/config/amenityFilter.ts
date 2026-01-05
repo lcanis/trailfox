@@ -1,44 +1,49 @@
-import { AmenityFilterPreset, RouteAmenity } from '../types';
+import { AmenityFilterPreset, RouteAmenity, AmenityFilterSchema } from '../types';
 
 /**
  * Trailside: Focus on items on or very near the trail.
  */
 export const TRAILSIDE_FILTER: AmenityFilterPreset = {
   id: 'low',
-  label: 'Trailside',
-  icon: 'footsteps',
-  defaultEnabled: true,
-  defaultMaxDistanceMeters: 30,
-  classes: {
-    place: { enabled: true, maxDistanceMeters: 1000 },
-    street: {
-      subclasses: {
-        bench: { enabled: true, maxDistanceMeters: 30 },
+  name: 'Trailside',
+  isPreset: true,
+  isCustom: false,
+  createdAt: 0,
+  updatedAt: 0,
+  data: {
+    defaultEnabled: true,
+    defaultMaxDistanceMeters: 30,
+    classes: {
+      place: { enabled: true, maxDistanceMeters: 1000 },
+      street: {
+        subclasses: {
+          bench: { enabled: true, maxDistanceMeters: 30 },
+        },
       },
-    },
-    water: {
-      subclasses: {
-        drinking_water: { enabled: true, maxDistanceMeters: 100 },
+      water: {
+        subclasses: {
+          drinking_water: { enabled: true, maxDistanceMeters: 100 },
+        },
       },
-    },
-    shelter: {
-      subclasses: {
-        shelter: { enabled: true, maxDistanceMeters: 100 },
+      shelter: {
+        subclasses: {
+          shelter: { enabled: true, maxDistanceMeters: 100 },
+        },
       },
-    },
-    hygiene: {
-      subclasses: {
-        toilets: { enabled: true, maxDistanceMeters: 100 },
+      hygiene: {
+        subclasses: {
+          toilets: { enabled: true, maxDistanceMeters: 100 },
+        },
       },
-    },
-    tourism: {
-      subclasses: {
-        viewpoint: { enabled: true, maxDistanceMeters: 100 },
+      tourism: {
+        subclasses: {
+          viewpoint: { enabled: true, maxDistanceMeters: 100 },
+        },
       },
-    },
-    other: {
-      subclasses: {
-        information: { enabled: true, maxDistanceMeters: 100 },
+      other: {
+        subclasses: {
+          information: { enabled: true, maxDistanceMeters: 100 },
+        },
       },
     },
   },
@@ -49,14 +54,19 @@ export const TRAILSIDE_FILTER: AmenityFilterPreset = {
  */
 export const EXPLORER_FILTER: AmenityFilterPreset = {
   id: 'mid',
-  label: 'Explorer',
-  icon: 'map',
-  defaultEnabled: true,
-  defaultMaxDistanceMeters: 50,
-  classes: {
-    place: { maxDistanceMeters: 1000 },
-    resupply: { maxDistanceMeters: 500 },
-    accom: { enabled: false },
+  name: 'Explorer',
+  isPreset: true,
+  isCustom: false,
+  createdAt: 0,
+  updatedAt: 0,
+  data: {
+    defaultEnabled: true,
+    defaultMaxDistanceMeters: 50,
+    classes: {
+      place: { maxDistanceMeters: 1000 },
+      resupply: { maxDistanceMeters: 500 },
+      accom: { enabled: false },
+    },
   },
 };
 
@@ -65,22 +75,27 @@ export const EXPLORER_FILTER: AmenityFilterPreset = {
  */
 export const MULTI_DAY_FILTER: AmenityFilterPreset = {
   id: 'high',
-  label: 'Multi-day',
-  icon: 'bed',
-  defaultEnabled: false,
-  defaultMaxDistanceMeters: 50,
-  classes: {
-    place: { enabled: true, maxDistanceMeters: 1000 },
-    accom: {
-      subclasses: {
-        hotel: { enabled: true, maxDistanceMeters: 1000 },
-        guest_house: { enabled: true, maxDistanceMeters: 1000 },
-        hostel: { enabled: true, maxDistanceMeters: 1000 },
-        camp_site: { enabled: true, maxDistanceMeters: 1000 },
-        alpine_hut: { enabled: true, maxDistanceMeters: 1000 },
-        wilderness_hut: { enabled: true, maxDistanceMeters: 1000 },
-        caravan_site: { enabled: true, maxDistanceMeters: 1000 },
-        chalet: { enabled: true, maxDistanceMeters: 1000 },
+  name: 'Multi-day',
+  isPreset: true,
+  isCustom: false,
+  createdAt: 0,
+  updatedAt: 0,
+  data: {
+    defaultEnabled: false,
+    defaultMaxDistanceMeters: 50,
+    classes: {
+      place: { enabled: true, maxDistanceMeters: 1000 },
+      accom: {
+        subclasses: {
+          hotel: { enabled: true, maxDistanceMeters: 1000 },
+          guest_house: { enabled: true, maxDistanceMeters: 1000 },
+          hostel: { enabled: true, maxDistanceMeters: 1000 },
+          camp_site: { enabled: true, maxDistanceMeters: 1000 },
+          alpine_hut: { enabled: true, maxDistanceMeters: 1000 },
+          wilderness_hut: { enabled: true, maxDistanceMeters: 1000 },
+          caravan_site: { enabled: true, maxDistanceMeters: 1000 },
+          chalet: { enabled: true, maxDistanceMeters: 1000 },
+        },
       },
     },
   },
@@ -91,7 +106,7 @@ export const AMENITY_FILTER_PRESETS = [TRAILSIDE_FILTER, EXPLORER_FILTER, MULTI_
 /**
  * Checks if an amenity should be shown based on the filter preset.
  */
-export const shouldShowAmenity = (amenity: RouteAmenity, filter: AmenityFilterPreset): boolean => {
+export const shouldShowAmenity = (amenity: RouteAmenity, filter: AmenityFilterSchema): boolean => {
   const { class: cls, subclass, distance_from_trail_m } = amenity.properties;
 
   const classRule = filter.classes[cls];
