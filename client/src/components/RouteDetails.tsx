@@ -184,7 +184,7 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({
           <View style={styles.headerContent}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={styles.title}>{route.name || 'Unnamed Route'}</Text>
-              {hierarchyLoading && <ActivityIndicator size="small" />}
+              {hierarchyLoading && <ActivityIndicator size="small" testID="hierarchy-loading" />}
             </View>
             {networkInfo && (
               <View style={[styles.badge, { backgroundColor: networkInfo.color, marginTop: 4 }]}>

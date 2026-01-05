@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import '@testing-library/jest-native/extend-expect';
 
+// Prevent un-awaited RouteService network calls from logging after tests finish
+// (components call these in useEffect; in tests we prefer they be no-ops)
+import { RouteService } from './src/services/routeService';
+
 // Mock Reanimated
 jest.mock('react-native-reanimated', () => {
   const View = require('react-native').View;
@@ -110,3 +114,6 @@ if (typeof window !== 'undefined') {
     writable: true,
   });
 }
+jest.spyOn(RouteService, 'fetchGeoJSON').mockImplementation(async () => null);
+jest.spyOn(RouteService, 'fetchRouteParents').mockImplementation(async () => []);
+jest.spyOn(RouteService, 'fetchRouteChildren').mockImplementation(async () => []);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, waitFor } from '@testing-library/react-native';
 import { RouteDetails } from '../RouteDetails';
 import type { Route } from '../../types';
 
@@ -26,25 +26,31 @@ describe('RouteDetails segments display', () => {
     tags: null,
   };
 
-  it('does not show Segments when quality starts with ok_', () => {
-    const { queryByText } = render(
+  it('does not show Segments when quality starts with ok_', async () => {
+    const { queryByText, queryByTestId } = render(
       <RouteDetails route={baseRoute} onClose={() => {}} onOpenItinerary={() => {}} />
     );
+
+    // Wait for hierarchy fetch to finish to avoid act(...) warnings
+    await waitFor(() => expect(queryByTestId('hierarchy-loading')).toBeNull());
 
     expect(queryByText('Segments')).toBeNull();
     expect(queryByText('Route builder OK')).not.toBeNull();
   });
 
-  it('shows Segments when quality does not start with ok_', () => {
+  it('shows Segments when quality does not start with ok_', async () => {
     const route = {
       ...baseRoute,
       geom_quality: '4 parts',
       geom_parts: 4,
     };
 
-    const { getByText } = render(
+    const { getByText, queryByTestId } = render(
       <RouteDetails route={route} onClose={() => {}} onOpenItinerary={() => {}} />
     );
+
+    // Wait for hierarchy fetch to finish to avoid act(...) warnings
+    await waitFor(() => expect(queryByTestId('hierarchy-loading')).toBeNull());
 
     // The UI shows the route builder status; the explicit "Segments" row
     // may not be rendered for all track types, so assert on the status text.
