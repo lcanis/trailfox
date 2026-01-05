@@ -18,6 +18,7 @@ import {
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Shadow } from 'react-native-shadow-2';
 
 // Set Access Token to null as we are using self-hosted or keyless tiles (or configured via URL)
 MapLibreGL.setAccessToken(null);
@@ -248,21 +249,28 @@ export default function Map({
         </VectorSource>
       </MapView>
 
-      <TouchableOpacity
-        style={[styles.locationButton, { top: insets.top + 16, right: 16 }]}
-        onPress={handleCenterOnUser}
-        activeOpacity={0.8}
+      <Shadow
+        startColor="rgba(0,0,0,0.12)"
+        distance={5}
+        offset={[0, 2]}
+        containerStyle={{ position: 'absolute', top: insets.top + 16, right: 16 }}
       >
-        <Text
-          style={[
-            styles.locationButtonText,
-            styles.locationArrow,
-            !!followUserMode && styles.locationIconActive,
-          ]}
+        <TouchableOpacity
+          style={styles.locationButton}
+          onPress={handleCenterOnUser}
+          activeOpacity={0.8}
         >
-          ➤
-        </Text>
-      </TouchableOpacity>
+          <Text
+            style={[
+              styles.locationButtonText,
+              styles.locationArrow,
+              !!followUserMode && styles.locationIconActive,
+            ]}
+          >
+            ➤
+          </Text>
+        </TouchableOpacity>
+      </Shadow>
     </View>
   );
 }
@@ -282,11 +290,7 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+
     borderWidth: 1,
     borderColor: THEME.border,
     zIndex: 10,

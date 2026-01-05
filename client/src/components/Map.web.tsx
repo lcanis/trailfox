@@ -3,6 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import debounce from 'lodash.debounce';
+import {
+  majorRouteLayer,
+  regionalRouteLayer,
+  localRouteLayer,
+  nodeNetworkLayer,
+  otherRoutesLayer,
+} from './mapLayers';
 import { RouteService } from '../services/routeService';
 import { getBounds } from '../utils/geo';
 import {
@@ -160,69 +167,16 @@ export default function Map({
         filter: ['==', 'osm_id', -1],
       });
 
-      // Major routes (International/National) - Always visible
-      map.current.addLayer({
-        id: 'routes-line-major',
-        type: 'line',
-        source: 'routes',
-        'source-layer': 'routes',
-        minzoom: 6,
-        filter: ['match', ['get', 'network'], ['iwn', 'nwn'], true, false],
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': ['match', ['get', 'network'], 'iwn', '#e41a1c', 'nwn', '#377eb8', '#333'],
-          'line-width': ['match', ['get', 'network'], 'iwn', 6, 'nwn', 5, 3],
-          'line-opacity': 0.8,
-        },
-      });
+      // Major / Regional / Local layers (use centralized definitions)
+      map.current.addLayer({ ...majorRouteLayer(), source: 'routes', 'source-layer': 'routes' });
+      map.current.addLayer({ ...regionalRouteLayer(), source: 'routes', 'source-layer': 'routes' });
+      map.current.addLayer({ ...localRouteLayer(), source: 'routes', 'source-layer': 'routes' });
 
-      // Regional routes - Visible from zoom 8
-      map.current.addLayer({
-        id: 'routes-line-regional',
-        type: 'line',
-        source: 'routes',
-        'source-layer': 'routes',
-        minzoom: 8,
-        filter: ['==', ['get', 'network'], 'rwn'],
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#4daf4a',
-          'line-width': 4,
-          'line-opacity': 0.8,
-        },
-      });
-
-      // Local routes - Visible from zoom 10
-      map.current.addLayer({
-        id: 'routes-line-local',
-        type: 'line',
-        source: 'routes',
-        'source-layer': 'routes',
-        minzoom: 10,
-        filter: ['==', ['get', 'network'], 'lwn'],
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#ff7f00',
-          'line-width': 3,
-          'line-opacity': 0.8,
-        },
-      });
+      // Node networks (node_network) - less prominent, own style in overview
+      map.current.addLayer({ ...nodeNetworkLayer(), source: 'routes', 'source-layer': 'routes' });
 
       // Other routes - Visible from zoom 11
-      map.current.addLayer({
-        id: 'routes-line-other',
-        type: 'line',
-        source: 'routes',
-        'source-layer': 'routes',
-        minzoom: 11,
-        filter: ['!in', 'network', 'iwn', 'nwn', 'rwn', 'lwn'],
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#999999',
-          'line-width': 3,
-          'line-opacity': 0.8,
-        },
-      });
+      map.current.addLayer({ ...otherRoutesLayer(), source: 'routes', 'source-layer': 'routes' });
 
       // Events
       map.current.on('mouseenter', 'routes-hit-area', () => {

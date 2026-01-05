@@ -11,6 +11,7 @@ import {
 import { AmenityCluster, RouteAmenity } from '../types';
 import { SvgUri } from 'react-native-svg';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
+import { Shadow } from 'react-native-shadow-2';
 import {
   getAmenityIconName,
   getClusterDisplayTitle,
@@ -129,125 +130,138 @@ export const TimelineItem = React.memo(
     const isCurrent = index === 0;
 
     return (
-      <Pressable
-        onPress={onPress}
-        onLongPress={() => onSetStartPoint(cluster.trail_km)}
-        delayLongPress={500}
-        style={({ pressed }) => [
-          { marginTop },
-          styles.timelineItem,
-          isCurrent && styles.timelineItemCurrent,
-          isSelected && styles.timelineItemSelected,
-          pressed && styles.timelineItemPressed,
-          { minHeight: 70 + cluster.size * 3 },
-        ]}
+      <Shadow
+        startColor="rgba(0,0,0,0.06)"
+        distance={1}
+        offset={[0, 1]}
+        containerStyle={{ marginTop }}
       >
-        <View style={styles.timelineMarker}>
-          <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
-          {index < totalItems - 1 && (
-            <View style={[styles.markerLine, isCurrent && styles.markerLineCurrent]} />
-          )}
-        </View>
-
-        <View style={styles.timelineContent}>
-          <Text
-            style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
-            numberOfLines={1}
-          >
-            {cluster.marker ? `${cluster.marker}. ` : ''}
-            {title}
-          </Text>
-          <View style={styles.stopLocationRow}>
-            <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
-            {cluster.kmFromStart !== undefined &&
-              Math.abs(cluster.kmFromStart - cluster.trail_km) > 0.01 && (
-                <Text style={styles.stopMeta}>🚩 {formatKm(cluster.kmFromStart)}</Text>
-              )}
-            <Text style={styles.stopMeta}>·</Text>
-            <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
-            <Text style={styles.stopMeta}>·</Text>
-            <Text style={styles.stopMeta}>📍 {cluster.size}</Text>
+        <Pressable
+          onPress={onPress}
+          onLongPress={() => onSetStartPoint(cluster.trail_km)}
+          delayLongPress={500}
+          style={({ pressed }) => [
+            styles.timelineItem,
+            isCurrent && styles.timelineItemCurrent,
+            isSelected && styles.timelineItemSelected,
+            pressed && styles.timelineItemPressed,
+            { minHeight: 70 + cluster.size * 3 },
+          ]}
+        >
+          <View style={styles.timelineMarker}>
+            <Shadow
+              startColor="rgba(0,0,0,0.06)"
+              distance={1}
+              offset={[0, 0]}
+              containerStyle={{ borderRadius: 999 }}
+            >
+              <View style={[styles.markerDot, isCurrent && styles.markerDotCurrent]} />
+            </Shadow>
+            {index < totalItems - 1 && (
+              <View style={[styles.markerLine, isCurrent && styles.markerLineCurrent]} />
+            )}
           </View>
 
-          <View style={styles.amenityTagsRow}>
-            {Object.entries(cluster.countsByIcon || {})
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 8)
-              .map(([iconName, count]: [string, number]) => {
-                const iconSource = ICON_REGISTRY[iconName];
-                if (!iconSource) return null;
-                return (
-                  <View key={iconName} style={styles.amenityTag}>
-                    <SmartIcon source={iconSource} size={18} />
-                    {count > 1 && (
-                      <Text style={[styles.amenityTagText, { marginLeft: 2 }]}>×{count}</Text>
-                    )}
-                  </View>
-                );
-              })}
-          </View>
+          <View style={styles.timelineContent}>
+            <Text
+              style={[styles.stopTitle, !isPlaceHeader && styles.stopTitleNonPlace]}
+              numberOfLines={1}
+            >
+              {cluster.marker ? `${cluster.marker}. ` : ''}
+              {title}
+            </Text>
+            <View style={styles.stopLocationRow}>
+              <Text style={styles.stopMeta}>🧭 {formatKm(cluster.trail_km)}</Text>
+              {cluster.kmFromStart !== undefined &&
+                Math.abs(cluster.kmFromStart - cluster.trail_km) > 0.01 && (
+                  <Text style={styles.stopMeta}>🚩 {formatKm(cluster.kmFromStart)}</Text>
+                )}
+              <Text style={styles.stopMeta}>·</Text>
+              <Text style={styles.stopMeta}>↔️ {formatMeters(minDist)}</Text>
+              <Text style={styles.stopMeta}>·</Text>
+              <Text style={styles.stopMeta}>📍 {cluster.size}</Text>
+            </View>
 
-          {isSelected && cluster.size > 1 && (
-            <View style={styles.detailsBox}>
-              {cluster.amenities
-                .slice()
-                .sort(
-                  (a: RouteAmenity, b: RouteAmenity) =>
-                    a.properties.distance_from_trail_m - b.properties.distance_from_trail_m
-                )
-                .slice(0, 100)
-                .map((a: RouteAmenity, amenityIndex: number) => {
-                  const { osm_type, osm_id, name, class: cls, subclass, tags } = a.properties;
+            <View style={styles.amenityTagsRow}>
+              {Object.entries(cluster.countsByIcon || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([iconName, count]: [string, number]) => {
+                  const iconSource = ICON_REGISTRY[iconName];
+                  if (!iconSource) return null;
                   return (
-                    <Pressable
-                      key={`${osm_type}-${osm_id}-${amenityIndex}`}
-                      onHoverIn={() =>
-                        Platform.OS === 'web'
-                          ? onShowDevTags(`${osm_type}-${osm_id}`, {
-                              title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
-                              tags: tags,
-                            })
-                          : undefined
-                      }
-                      onHoverOut={() =>
-                        Platform.OS === 'web' ? onScheduleHideDevTags() : undefined
-                      }
-                      onPressIn={() =>
-                        isDeveloperMode
-                          ? onShowDevTags(`${osm_type}-${osm_id}`, {
-                              title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
-                              tags: tags,
-                            })
-                          : undefined
-                      }
-                      style={styles.detailsLineRow}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                        {ICON_REGISTRY[getAmenityIconName(cls, subclass)] && (
-                          <SmartIcon
-                            source={ICON_REGISTRY[getAmenityIconName(cls, subclass)]}
-                            size={20}
-                            style={{ marginRight: 8 }}
-                          />
-                        )}
-                        <Text style={styles.detailsLine} numberOfLines={1}>
-                          {name ? name : subclass ? titleize(subclass) : 'Unnamed'}
-                          {subclass && name ? ` — ${titleize(subclass)}` : ''}{' '}
-                        </Text>
-                      </View>
-                      <Text style={styles.detailsLine}>
-                        ({formatMeters(a.properties.distance_from_trail_m)})
-                      </Text>
-                    </Pressable>
+                    <View key={iconName} style={styles.amenityTag}>
+                      <SmartIcon source={iconSource} size={18} />
+                      {count > 1 && (
+                        <Text style={[styles.amenityTagText, { marginLeft: 2 }]}>×{count}</Text>
+                      )}
+                    </View>
                   );
                 })}
-              {cluster.amenities.length > 100 && (
-                <Text style={styles.detailsMore}>+{cluster.amenities.length - 100} more</Text>
-              )}
             </View>
-          )}
-        </View>
-      </Pressable>
+
+            {isSelected && cluster.size > 1 && (
+              <View style={styles.detailsBox}>
+                {cluster.amenities
+                  .slice()
+                  .sort(
+                    (a: RouteAmenity, b: RouteAmenity) =>
+                      a.properties.distance_from_trail_m - b.properties.distance_from_trail_m
+                  )
+                  .slice(0, 100)
+                  .map((a: RouteAmenity, amenityIndex: number) => {
+                    const { osm_type, osm_id, name, class: cls, subclass, tags } = a.properties;
+                    return (
+                      <Pressable
+                        key={`${osm_type}-${osm_id}-${amenityIndex}`}
+                        onHoverIn={() =>
+                          Platform.OS === 'web'
+                            ? onShowDevTags(`${osm_type}-${osm_id}`, {
+                                title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+                                tags: tags,
+                              })
+                            : undefined
+                        }
+                        onHoverOut={() =>
+                          Platform.OS === 'web' ? onScheduleHideDevTags() : undefined
+                        }
+                        onPressIn={() =>
+                          isDeveloperMode
+                            ? onShowDevTags(`${osm_type}-${osm_id}`, {
+                                title: name || `${cls}${subclass ? ` / ${subclass}` : ''}`,
+                                tags: tags,
+                              })
+                            : undefined
+                        }
+                        style={styles.detailsLineRow}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                          {ICON_REGISTRY[getAmenityIconName(cls, subclass)] && (
+                            <SmartIcon
+                              source={ICON_REGISTRY[getAmenityIconName(cls, subclass)]}
+                              size={20}
+                              style={{ marginRight: 8 }}
+                            />
+                          )}
+                          <Text style={styles.detailsLine} numberOfLines={1}>
+                            {name ? name : subclass ? titleize(subclass) : 'Unnamed'}
+                            {subclass && name ? ` — ${titleize(subclass)}` : ''}{' '}
+                          </Text>
+                        </View>
+                        <Text style={styles.detailsLine}>
+                          ({formatMeters(a.properties.distance_from_trail_m)})
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                {cluster.amenities.length > 100 && (
+                  <Text style={styles.detailsMore}>+{cluster.amenities.length - 100} more</Text>
+                )}
+              </View>
+            )}
+          </View>
+        </Pressable>
+      </Shadow>
     );
   }
 );
@@ -312,11 +326,6 @@ const styles = StyleSheet.create({
     borderColor: THEME.border,
     borderRadius: 10,
     padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
   },
   timelineItemCurrent: {
     borderWidth: 2,
@@ -340,10 +349,6 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.accent,
     borderWidth: 2,
     borderColor: THEME.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
   },
   markerDotCurrent: {
     width: 20,

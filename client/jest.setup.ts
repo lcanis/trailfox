@@ -46,6 +46,17 @@ jest.mock('react-native-safe-area-context', () => {
     useSafeAreaInsets: jest.fn(() => inset),
   };
 });
+
+// Mock react-native-shadow-2 (ESM package) to avoid Jest transform errors
+jest.mock('react-native-shadow-2', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const Shadow = ({ children }: any) => React.createElement(View, null, children);
+  return {
+    __esModule: true,
+    Shadow,
+  };
+});
 jest.mock('@gorhom/bottom-sheet', () => {
   const React = require('react');
   const { View, Text } = require('react-native');

@@ -15,6 +15,7 @@ import type { AmenityCluster } from '../types';
 import { getAmenitiesGeoJSON } from '../utils/itineraryGeoJSON';
 import { RouteService } from '../services/routeService';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
+import { Shadow } from 'react-native-shadow-2';
 import { WEB_BASEMAP_STYLE_URL } from '../config/settings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -224,21 +225,24 @@ export default function ItineraryMap({
       )}
 
       {/* Location Button */}
-      <TouchableOpacity
-        style={[styles.mapButton, { top: insets.top + 16, right: 16 }]}
-        onPress={onToggleFollowUser}
-        activeOpacity={0.8}
+      <Shadow
+        startColor="rgba(0,0,0,0.12)"
+        distance={5}
+        offset={[0, 2]}
+        containerStyle={{ position: 'absolute', top: insets.top + 16, right: 16 }}
       >
-        <Text
-          style={[
-            styles.mapButtonIcon,
-            styles.locationArrow,
-            isFollowingUser && styles.locationIconActive,
-          ]}
-        >
-          ➤
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.mapButton} onPress={onToggleFollowUser} activeOpacity={0.8}>
+          <Text
+            style={[
+              styles.mapButtonIcon,
+              styles.locationArrow,
+              isFollowingUser && styles.locationIconActive,
+            ]}
+          >
+            ➤
+          </Text>
+        </TouchableOpacity>
+      </Shadow>
     </View>
   );
 }
@@ -258,14 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+
     zIndex: 10,
   },
   mapButtonIcon: {

@@ -19,6 +19,7 @@ import { AmenityCluster, Route, RouteAmenity, AmenityFilterPreset } from '../typ
 import { useItinerary } from '../hooks/useItinerary';
 import { AMENITY_FILTER_PRESETS } from '../config/amenityFilter';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
+import { Shadow } from 'react-native-shadow-2';
 import { DEVELOPER_MODE } from '../constants';
 import {
   addItineraryEndpointClusters,
@@ -224,90 +225,97 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       onRequestClose={() => setFilterModalVisible(false)}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filters & Settings</Text>
-            <TouchableOpacity
-              onPress={() => setFilterModalVisible(false)}
-              style={styles.closeButton}
-            >
-              <Text style={styles.closeText}>×</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalBody}>
-            <View style={styles.radiusRow}>
-              <Text style={styles.controlLabel}>🎯 Complexity Level</Text>
-              <Text style={styles.radiusValue}>{filterPreset.label}</Text>
-            </View>
-            <View style={styles.presetContainer}>
-              {AMENITY_FILTER_PRESETS.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  onPress={() => setFilterPreset(p)}
-                  style={[
-                    styles.presetButton,
-                    filterPreset.id === p.id && styles.presetButtonActive,
-                  ]}
-                >
-                  <Ionicons
-                    name={p.icon as any}
-                    size={24}
-                    color={filterPreset.id === p.id ? 'white' : THEME.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.presetLabel,
-                      filterPreset.id === p.id && styles.presetLabelActive,
-                    ]}
-                  >
-                    {p.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+        <Shadow startColor="rgba(0,0,0,0.12)" distance={8} offset={[0, 4]}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filters & Settings</Text>
+              <TouchableOpacity
+                onPress={() => setFilterModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeText}>×</Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.filterRow}>
-              <Text style={styles.controlLabel}>🏷️ Filter Amenities</Text>
-              <View style={styles.filterChipsContainer}>
-                <Pressable
-                  onPress={() => setSelectedClasses(new Set())}
-                  style={[styles.filterChip, selectedClasses.size === 0 && styles.filterChipActive]}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      selectedClasses.size === 0 && styles.filterChipTextActive,
-                    ]}
-                  >
-                    All
-                  </Text>
-                </Pressable>
-                {availableClasses.map((cls) => {
-                  const active = selectedClasses.has(cls);
-                  return (
-                    <Pressable
-                      key={cls}
-                      onPress={() => {
-                        setSelectedClasses((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(cls)) next.delete(cls);
-                          else next.add(cls);
-                          return next;
-                        });
-                      }}
-                      style={[styles.filterChip, active && styles.filterChipActive]}
-                    >
-                      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                        {normalizeAmenityClassLabel(cls)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.radiusRow}>
+                <Text style={styles.controlLabel}>🎯 Complexity Level</Text>
+                <Text style={styles.radiusValue}>{filterPreset.label}</Text>
               </View>
-            </View>
-          </ScrollView>
-        </View>
+              <View style={styles.presetContainer}>
+                {AMENITY_FILTER_PRESETS.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => setFilterPreset(p)}
+                    style={[
+                      styles.presetButton,
+                      filterPreset.id === p.id && styles.presetButtonActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={p.icon as any}
+                      size={24}
+                      color={filterPreset.id === p.id ? 'white' : THEME.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.presetLabel,
+                        filterPreset.id === p.id && styles.presetLabelActive,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.filterRow}>
+                <Text style={styles.controlLabel}>🏷️ Filter Amenities</Text>
+                <View style={styles.filterChipsContainer}>
+                  <Pressable
+                    onPress={() => setSelectedClasses(new Set())}
+                    style={[
+                      styles.filterChip,
+                      selectedClasses.size === 0 && styles.filterChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selectedClasses.size === 0 && styles.filterChipTextActive,
+                      ]}
+                    >
+                      All
+                    </Text>
+                  </Pressable>
+                  {availableClasses.map((cls) => {
+                    const active = selectedClasses.has(cls);
+                    return (
+                      <Pressable
+                        key={cls}
+                        onPress={() => {
+                          setSelectedClasses((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(cls)) next.delete(cls);
+                            else next.add(cls);
+                            return next;
+                          });
+                        }}
+                        style={[styles.filterChip, active && styles.filterChipActive]}
+                      >
+                        <Text
+                          style={[styles.filterChipText, active && styles.filterChipTextActive]}
+                        >
+                          {normalizeAmenityClassLabel(cls)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </Shadow>
       </View>
     </Modal>
   );
@@ -1055,11 +1063,6 @@ const styles = StyleSheet.create({
     borderColor: THEME.border,
     borderRadius: 10,
     padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
   },
   timelineItemCurrent: {
     borderWidth: 2,
@@ -1083,10 +1086,6 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.accent,
     borderWidth: 2,
     borderColor: THEME.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
   },
   markerDotCurrent: {
     width: 20,
@@ -1271,11 +1270,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     backgroundColor: THEME.surface,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+
     maxHeight: '80%',
   },
   modalHeader: {
