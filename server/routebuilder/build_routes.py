@@ -377,6 +377,11 @@ def build_routes() -> None:
                     new_line = _make_multilinestring_from_route(route)
                 
                 if new_line is not None:
+                    # Determine parts / geometry type for the produced geometry so
+                    # the ri table stays consistent (geom_parts must match actual geometry).
+                    parts = len(new_line.geoms) if hasattr(new_line, "geoms") else 1
+                    geom_type = "MULTILINESTRING" if not isinstance(new_line, LineString) else "LINESTRING"
+
                     conn.execute(
                         sa.text(
                             """
@@ -384,17 +389,27 @@ def build_routes() -> None:
                             SET
                               geom_build_case = :case,
                               geom_quality = :quality,
+                              geom_parts = :parts,
+                              merged_geom_type = :geom_type,
                               geom_m = ST_Multi(
                                 ST_AddMeasure(
                                   ST_GeomFromWKB(:wkb, 3857),
                                   0,
                                   ST_Length(ST_Transform(ST_GeomFromWKB(:wkb, 3857), 4326)::geography)
                                 )
-                              )
+                              ),
+                              length_m = ST_Length(ST_Transform(ST_GeomFromWKB(:wkb, 3857), 4326)::geography)
                             WHERE osm_id = :osm_id
-                            """
+                            """,
                         ),
-                        {"case": "wmt_routebuilder", "quality": quality, "wkb": new_line.wkb, "osm_id": route_id},
+                        {
+                            "case": "wmt_routebuilder",
+                            "quality": quality,
+                            "parts": parts,
+                            "geom_type": geom_type,
+                            "wkb": new_line.wkb,
+                            "osm_id": route_id,
+                        },
                     )
                 else:
                     # For non-linear or sorted routes, create MultiLineString geometry from all main segments
