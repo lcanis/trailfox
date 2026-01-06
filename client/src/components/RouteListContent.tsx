@@ -94,6 +94,13 @@ export const RouteList: React.FC<RouteListProps> = ({
                   ) : (
                     <Text style={styles.listItemBadge}>{item.network || '?'}</Text>
                   )}
+
+                  {item.roundtrip ? (
+                    <Text accessibilityLabel="Loop route" style={styles.loopIcon}>
+                      🔁
+                    </Text>
+                  ) : null}
+
                   {/* Route quality indicator: green check when geom_quality starts with ok_, otherwise yellow cross */}
                   {(() => {
                     const q = item.geom_quality || '';
@@ -183,6 +190,11 @@ const styles = StyleSheet.create({
   qualityIcon: {
     marginLeft: 8,
     marginRight: 8,
+    fontSize: 14,
+  },
+  loopIcon: {
+    marginLeft: 8,
+    marginRight: 0,
     fontSize: 14,
   },
   qualityOk: {

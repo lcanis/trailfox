@@ -16,9 +16,24 @@ const baseRoute: Route = {
   tags: null,
 };
 
-const emptyFilter: RouteFilter = { searchQuery: '', viewboxOnly: false, sortBy: null };
+const emptyFilter: RouteFilter = { searchQuery: '', viewboxOnly: false, sortBy: null, loop: 'any' };
 
 describe('RouteList quality indicator', () => {
+  it('shows a loop icon for routes marked as roundtrip', () => {
+    const routes = [{ ...baseRoute, osm_id: 4, name: 'Loop Route', roundtrip: true }];
+    const { getByLabelText, getByText } = render(
+      <RouteList
+        routes={routes}
+        filter={emptyFilter}
+        onFilterChange={() => {}}
+        onSelect={() => {}}
+      />
+    );
+
+    getByText('Loop Route');
+    getByLabelText('Loop route');
+  });
+
   it('shows a green check for routes with geom_quality starting with ok_', () => {
     const routes = [{ ...baseRoute, osm_id: 2, name: 'OK Route', geom_quality: 'ok_singleline' }];
     const { getByText } = render(

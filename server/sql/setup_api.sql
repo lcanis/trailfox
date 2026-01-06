@@ -3,6 +3,7 @@
 DROP VIEW IF EXISTS api.routes CASCADE;
 DROP FUNCTION IF EXISTS api.routes_by_distance(double precision, double precision) CASCADE;
 DROP FUNCTION IF EXISTS api.routes_in_bbox(double precision, double precision, double precision, double precision, text) CASCADE;
+DROP FUNCTION IF EXISTS api.routes_in_bbox(double precision, double precision, double precision, double precision, text, boolean) CASCADE;
 DROP FUNCTION IF EXISTS api.safe_line_locate_point(geometry, geometry) CASCADE;
 DROP FUNCTION IF EXISTS api.get_route_amenities(bigint, integer) CASCADE;
 DROP VIEW IF EXISTS api.route_children CASCADE;
@@ -77,13 +78,18 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(
     min_lat double precision, 
     max_lon double precision, 
     max_lat double precision,
-    search_query text DEFAULT NULL
+        search_query text DEFAULT NULL,
+        roundtrip_filter boolean DEFAULT NULL
 )
 RETURNS SETOF api.routes AS $$
   SELECT r.*
   FROM api.routes r
   JOIN itinerarius.routes_info ri ON r.osm_id = ri.osm_id
   WHERE ri.geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
+    AND (
+            roundtrip_filter IS NULL
+            OR r.roundtrip = roundtrip_filter
+    )
   AND (
       search_query IS NULL 
       OR search_query = '' 
@@ -240,7 +246,7 @@ GRANT SELECT ON api.routes TO calixtinus;
 GRANT SELECT ON api.route_children TO calixtinus;
 GRANT SELECT ON api.route_parents TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.routes_by_distance(double precision, double precision) TO calixtinus;
-GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text) TO calixtinus;
+GRANT EXECUTE ON FUNCTION api.routes_in_bbox(double precision, double precision, double precision, double precision, text, boolean) TO calixtinus;
 GRANT EXECUTE ON FUNCTION api.get_route_amenities(bigint, integer) TO calixtinus;
 
 -- Reload PostgREST schema cache to pick up changes immediately

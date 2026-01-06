@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Route, SortOption } from '../types';
+import { Route, SortOption, LoopFilterOption } from '../types';
 import { RouteService } from '../services/routeService';
 
 const PAGE_SIZE = 20;
@@ -8,6 +8,7 @@ export const useRoutes = (filter?: {
   bbox?: [number, number, number, number];
   searchQuery?: string;
   sortBy?: SortOption;
+  loop?: LoopFilterOption;
 }) => {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -20,6 +21,7 @@ export const useRoutes = (filter?: {
   const bbox = filter?.bbox;
   const searchQuery = filter?.searchQuery;
   const sortBy = filter?.sortBy || null;
+  const loop = filter?.loop || 'any';
 
   // Debounce search query
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
@@ -51,7 +53,8 @@ export const useRoutes = (filter?: {
             PAGE_SIZE,
             currentOffset,
             sortBy,
-            debouncedSearchQuery
+            debouncedSearchQuery,
+            loop
           );
           newRoutes = result.routes;
           count = result.totalCount;
@@ -60,7 +63,8 @@ export const useRoutes = (filter?: {
             currentOffset,
             PAGE_SIZE,
             sortBy,
-            debouncedSearchQuery
+            debouncedSearchQuery,
+            loop
           );
           newRoutes = result.routes;
           count = result.totalCount;
@@ -106,7 +110,7 @@ export const useRoutes = (filter?: {
         }
       }
     },
-    [bboxKey, debouncedSearchQuery, sortBy]
+    [bboxKey, debouncedSearchQuery, sortBy, loop]
   );
 
   // Initial load and reload when filter changes

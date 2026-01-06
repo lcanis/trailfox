@@ -6,6 +6,7 @@ export interface Route {
   route_type: string | null;
   symbol: string | null;
   merged_geom_type: string | null;
+  roundtrip?: boolean | null;
   // Distance from current location to the route (meters). Only present when
   // fetched via `api.routes_by_distance`.
   distance_m?: number | null;
@@ -19,8 +20,11 @@ export * from './itinerary';
 
 export type SortOption = 'name' | 'length' | 'distance' | null;
 
+export type LoopFilterOption = 'any' | 'loop' | 'point_to_point';
+
 export interface RouteFilter {
   searchQuery: string;
   viewboxOnly: boolean;
   sortBy: SortOption;
+  loop: LoopFilterOption;
 }

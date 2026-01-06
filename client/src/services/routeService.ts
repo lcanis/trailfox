@@ -1,9 +1,9 @@
-import { Route, SortOption } from '../types';
+import { Route, SortOption, LoopFilterOption } from '../types';
 import { API_URL, API_ROOT } from '../config/settings';
 import { fetchJsonWithTimeout } from './http';
 
 const SELECT_FIELDS =
-  'osm_id,name,network,length_m,route_type,symbol,merged_geom_type,tags,geom_quality,geom_parts';
+  'osm_id,name,network,length_m,route_type,symbol,roundtrip,merged_geom_type,tags,geom_quality,geom_parts';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -22,6 +22,7 @@ export const RouteService = {
     limit: number = DEFAULT_PAGE_SIZE,
     sortBy: SortOption = null,
     searchQuery?: string,
+    loop?: LoopFilterOption,
     timeoutMs: number = 15000
   ): Promise<{ routes: Route[]; totalCount: number | null }> {
     try {
@@ -31,6 +32,12 @@ export const RouteService = {
       if (searchQuery) {
         const safe = sanitizeSearchQuery(searchQuery);
         url += `&name=ilike.*${encodeURIComponent(safe)}*`;
+      }
+
+      if (loop === 'loop') {
+        url += '&roundtrip=eq.true';
+      } else if (loop === 'point_to_point') {
+        url += '&roundtrip=eq.false';
       }
 
       // Request exact count from PostgREST
@@ -55,6 +62,7 @@ export const RouteService = {
     offset: number = 0,
     sortBy: SortOption = null,
     searchQuery?: string,
+    loop?: LoopFilterOption,
     timeoutMs: number = 15000
   ): Promise<{ routes: Route[]; totalCount: number | null }> {
     try {
@@ -69,6 +77,12 @@ export const RouteService = {
         // Pass sanitized search query to the RPC function
         const safe = sanitizeSearchQuery(searchQuery);
         url += `&search_query=${encodeURIComponent(safe)}`;
+      }
+
+      if (loop === 'loop') {
+        url += '&roundtrip_filter=true';
+      } else if (loop === 'point_to_point') {
+        url += '&roundtrip_filter=false';
       }
 
       const urlWithSelect = `${url}&select=${SELECT_FIELDS}`;

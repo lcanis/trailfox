@@ -88,6 +88,59 @@ $$ LANGUAGE plpgsql;
 DO $$ BEGIN RAISE NOTICE 'Assembling parent route geometries (fallback)...'; END $$;
 SELECT itinerarius.assemble_parent_route_geometries();
 
+-- ---------------------------------------------------------------------------
+-- Roundtrip (loop) precomputation
+-- ---------------------------------------------------------------------------
+-- Rule:
+-- - If tags specify roundtrip=yes/no, respect it.
+-- - Otherwise, infer loop when start/end are within 150m.
+--
+-- We normalize to NOT NULL boolean to make API filtering predictable.
+DO $$ BEGIN RAISE NOTICE 'Computing roundtrip flags (tag OR endpoints within 150m)...'; END $$;
+
+ALTER TABLE itinerarius.routes
+    ALTER COLUMN roundtrip SET DEFAULT false;
+
+WITH ends AS (
+    SELECT
+        osm_id,
+        CASE
+            WHEN geom_m IS NULL THEN false
+            ELSE (
+                WITH lm AS (
+                    SELECT ST_LineMerge(geom_m) AS g
+                )
+                SELECT
+                    CASE
+                        WHEN GeometryType(g) <> 'LINESTRING' THEN false
+                        ELSE ST_DWithin(
+                            ST_Transform(ST_StartPoint(g), 4326)::geography,
+                            ST_Transform(ST_EndPoint(g), 4326)::geography,
+                            150
+                        )
+                    END
+                FROM lm
+            )
+        END AS inferred_loop
+    FROM itinerarius.ri
+)
+UPDATE itinerarius.routes r
+SET roundtrip = CASE
+    WHEN r.roundtrip IS TRUE THEN true
+    WHEN r.roundtrip IS FALSE THEN false
+    ELSE COALESCE(e.inferred_loop, false)
+END
+FROM ends e
+WHERE e.osm_id = r.osm_id;
+
+-- Any routes without merged geometry (no row in ri) default to false.
+UPDATE itinerarius.routes
+SET roundtrip = false
+WHERE roundtrip IS NULL;
+
+ALTER TABLE itinerarius.routes
+    ALTER COLUMN roundtrip SET NOT NULL;
+
 DO $$ BEGIN RAISE NOTICE 'Creating materialized view routes_info...'; END $$;
 
 DROP MATERIALIZED VIEW IF EXISTS itinerarius.routes_info CASCADE;
@@ -125,6 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_routes_name ON itinerarius.routes_info (name);
 CREATE INDEX IF NOT EXISTS idx_routes_name_trgm ON itinerarius.routes_info USING GIN (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_routes_network_trgm ON itinerarius.routes_info USING GIN (network gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_route_info_length_m ON itinerarius.routes_info (length_m);
+CREATE INDEX IF NOT EXISTS idx_route_info_roundtrip ON itinerarius.routes_info (roundtrip);
 CREATE INDEX IF NOT EXISTS idx_route_info_geom ON itinerarius.routes_info USING GIST (geom);
 ANALYZE itinerarius.routes_info;
 

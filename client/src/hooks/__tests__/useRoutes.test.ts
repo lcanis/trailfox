@@ -37,7 +37,8 @@ describe('useRoutes', () => {
       expect.any(Number), // limit
       0, // offset
       null, // sortBy
-      undefined // searchQuery
+      undefined, // searchQuery
+      'any' // loop
     );
     expect(result.current.routes).toEqual(mockRoutes);
     expect(result.current.totalCount).toBe(2);
@@ -57,7 +58,8 @@ describe('useRoutes', () => {
       0,
       expect.any(Number),
       null, // sortBy
-      undefined // searchQuery
+      undefined, // searchQuery
+      'any' // loop
     );
     expect(result.current.routes).toEqual(mockRoutes);
     expect(result.current.totalCount).toBe(100);
@@ -93,7 +95,8 @@ describe('useRoutes', () => {
       20,
       20,
       null, // sortBy
-      undefined // searchQuery
+      undefined, // searchQuery
+      'any' // loop
     );
   });
 
@@ -107,7 +110,13 @@ describe('useRoutes', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), 'name', undefined);
+    expect(RouteService.fetchRoutes).toHaveBeenCalledWith(
+      0,
+      expect.any(Number),
+      'name',
+      undefined,
+      'any'
+    );
   });
 
   it('should update routes when bbox changes', async () => {
@@ -144,7 +153,8 @@ describe('useRoutes', () => {
       expect.any(Number),
       0,
       null, // sortBy
-      undefined // searchQuery
+      undefined, // searchQuery
+      'any' // loop
     );
 
     // Update bbox
@@ -159,7 +169,8 @@ describe('useRoutes', () => {
       expect.any(Number),
       0,
       null, // sortBy
-      undefined // searchQuery
+      undefined, // searchQuery
+      'any' // loop
     );
   });
 
@@ -179,7 +190,7 @@ describe('useRoutes', () => {
 
     // Initial fetch with 'a' happens immediately because useState initializes with prop
     await waitFor(() =>
-      expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), null, 'a')
+      expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), null, 'a', 'any')
     );
 
     // Update search query rapidly
@@ -192,11 +203,23 @@ describe('useRoutes', () => {
     });
 
     await waitFor(() =>
-      expect(RouteService.fetchRoutes).toHaveBeenCalledWith(0, expect.any(Number), null, 'abc')
+      expect(RouteService.fetchRoutes).toHaveBeenCalledWith(
+        0,
+        expect.any(Number),
+        null,
+        'abc',
+        'any'
+      )
     );
 
     // Verify it wasn't called with 'ab'
-    expect(RouteService.fetchRoutes).not.toHaveBeenCalledWith(0, expect.any(Number), null, 'ab');
+    expect(RouteService.fetchRoutes).not.toHaveBeenCalledWith(
+      0,
+      expect.any(Number),
+      null,
+      'ab',
+      'any'
+    );
 
     jest.useRealTimers();
   });

@@ -89,6 +89,30 @@ export const RouteListHeader: React.FC<RouteListHeaderProps> = ({
             onValueChange={(val) => updateFilter({ viewboxOnly: val })}
           />
         </View>
+
+        <View style={styles.controlRow}>
+          <Text style={[styles.controlLabel, isSmallScreen && styles.controlLabelSmall]}>
+            Loop:
+          </Text>
+          <View style={styles.sortButtons}>
+            <SortButton
+              label="Any"
+              active={filter.loop === 'any'}
+              onPress={() => updateFilter({ loop: 'any' })}
+            />
+            <SortButton
+              label="Loop"
+              active={filter.loop === 'loop'}
+              onPress={() => updateFilter({ loop: 'loop' })}
+            />
+            <SortButton
+              label="Point-to-point"
+              active={filter.loop === 'point_to_point'}
+              onPress={() => updateFilter({ loop: 'point_to_point' })}
+            />
+          </View>
+        </View>
+
         <View style={styles.controlRow}>
           <Text style={[styles.controlLabel, isSmallScreen && styles.controlLabelSmall]}>
             Sort by:

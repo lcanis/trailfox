@@ -10,6 +10,7 @@ export const useDiscoveryScreen = () => {
     searchQuery: '',
     viewboxOnly: true,
     sortBy: null, // No sort initially
+    loop: 'any',
   });
 
   const [bbox, setBbox] = useState<[number, number, number, number] | undefined>(undefined);
@@ -18,6 +19,7 @@ export const useDiscoveryScreen = () => {
     bbox: filter.viewboxOnly ? bbox : undefined,
     searchQuery: filter.searchQuery,
     sortBy: filter.sortBy,
+    loop: filter.loop,
   });
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
