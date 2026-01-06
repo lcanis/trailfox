@@ -50,9 +50,14 @@ trailfox.app, 109.199.108.187 {
 		respond "" 204
 	}
 
-	# Tiles route: set canonical CORS headers at gateway
+	# Tiles route: strip upstream CORS, then set canonical CORS headers at gateway
 	handle_path /tiles/* {
-		reverse_proxy martin:3000
+		reverse_proxy martin:3000 {
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Methods
+			header_down -Access-Control-Allow-Headers
+			header_down -Access-Control-Expose-Headers
+		}
 		header Access-Control-Allow-Origin "*"
 		header Access-Control-Allow-Methods "GET, OPTIONS"
 		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
