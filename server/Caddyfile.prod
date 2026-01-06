@@ -13,17 +13,7 @@ trailfox.app, 109.199.108.187 {
 		}
 	}
 
-	@tiles_preflight {
-		path /tiles/*
-		method OPTIONS
-	}
-	handle @tiles_preflight {
-		header Access-Control-Allow-Origin "*"
-		header Access-Control-Allow-Methods "GET, OPTIONS"
-		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
-		respond "" 204
-	}
-
+	# Preflight for API
 	@api_preflight {
 		path /api/*
 		method OPTIONS
@@ -35,12 +25,37 @@ trailfox.app, 109.199.108.187 {
 		respond "" 204
 	}
 
-	handle_path /tiles/* {
-		reverse_proxy martin:3000
+	# API route on public host; strip upstream CORS and set canonical headers at gateway
+	handle_path /api/* {
+		reverse_proxy postgrest:3000 {
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Methods
+			header_down -Access-Control-Allow-Headers
+			header_down -Access-Control-Expose-Headers
+		}
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range, Prefer"
+		header Access-Control-Expose-Headers "Content-Range"
 	}
 
-	handle_path /api/* {
-		reverse_proxy postgrest:3000
+	@tiles_preflight {
+		path /tiles/*
+		method OPTIONS
+	}
+	handle @tiles_preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
+		respond "" 204
+	}
+
+	# Tiles route: set canonical CORS headers at gateway
+	handle_path /tiles/* {
+		reverse_proxy martin:3000
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Range"
 	}
 
 	respond / "Trailfox API Gateway" 200

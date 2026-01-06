@@ -1,5 +1,4 @@
 :8090 {
-
 	handle_path /tiles/* {
 		reverse_proxy martin:3000
 	}
