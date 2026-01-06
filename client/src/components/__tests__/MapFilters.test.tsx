@@ -86,8 +86,10 @@ describe('Map layer filters', () => {
     const local = localRouteLayer();
     const node = nodeNetworkLayer();
 
+    const osmIdValid = ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1];
+
     // Node layer filter must explicitly check is_node_network === true
-    expect(node.filter).toEqual(['==', ['get', 'is_node_network'], true]);
+    expect(node.filter).toEqual(['all', osmIdValid, ['==', ['get', 'is_node_network'], true]]);
 
     // Other layers should exclude node networks via ['!', ['==', ['get','is_node_network'], true]]
     const exclusion = ['!', ['==', ['get', 'is_node_network'], true]];

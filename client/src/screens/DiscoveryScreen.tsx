@@ -13,12 +13,12 @@ export const DiscoveryScreen = () => {
   const {
     filter,
     setFilter,
-    routes,
     totalCount,
     loading,
     error,
     loadMore,
     hasMore,
+    hasLoadedOnce,
     selectedId,
     activeId,
     detailsRoute,
@@ -35,7 +35,7 @@ export const DiscoveryScreen = () => {
     handleCloseItinerary,
   } = useDiscoveryScreen();
 
-  if (loading && routes.length === 0) {
+  if (!hasLoadedOnce && loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -44,7 +44,7 @@ export const DiscoveryScreen = () => {
     );
   }
 
-  if (error) {
+  if (error && !hasLoadedOnce) {
     return (
       <View style={styles.center}>
         <Text style={styles.error}>Error: {error.message}</Text>

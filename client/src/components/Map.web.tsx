@@ -20,6 +20,13 @@ import {
   WEB_BASEMAP_STYLE_URL,
 } from '../config/settings';
 
+let lastKnownWebView: { center: [number, number]; zoom: number } | null = null;
+
+const osmIdEqualsFilter = (id: number) =>
+  ['==', ['coalesce', ['to-number', ['get', 'osm_id']], -1], id] as any;
+
+const osmIdIsValidFilter = ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1] as any;
+
 interface MapProps {
   onHover: (id: number | null) => void;
   onSelect: (id: number | null) => void;
@@ -89,7 +96,10 @@ export default function Map({
     let initialCenter: [number, number] = PREDEFINED_LOCATIONS.munich.center;
     let initialZoom = PREDEFINED_LOCATIONS.munich.zoom;
 
-    if (START_LOCATION_MODE !== 'user' && PREDEFINED_LOCATIONS[START_LOCATION_MODE]) {
+    if (lastKnownWebView) {
+      initialCenter = lastKnownWebView.center;
+      initialZoom = lastKnownWebView.zoom;
+    } else if (START_LOCATION_MODE !== 'user' && PREDEFINED_LOCATIONS[START_LOCATION_MODE]) {
       initialCenter = PREDEFINED_LOCATIONS[START_LOCATION_MODE].center;
       initialZoom = PREDEFINED_LOCATIONS[START_LOCATION_MODE].zoom;
     }
@@ -110,7 +120,17 @@ export default function Map({
     setZoom(initialZoom);
     map.current.on('zoom', () => setZoom(map.current!.getZoom()));
 
-    if (START_LOCATION_MODE === 'user') {
+    const persistView = () => {
+      if (!map.current) return;
+      const center = map.current.getCenter().toArray() as [number, number];
+      const zoomNow = map.current.getZoom();
+      lastKnownWebView = { center, zoom: zoomNow };
+    };
+
+    map.current.on('moveend', persistView);
+    map.current.on('zoomend', persistView);
+
+    if (START_LOCATION_MODE === 'user' && !lastKnownWebView) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           map.current?.flyTo({
@@ -148,6 +168,7 @@ export default function Map({
           'line-width': 20,
           'line-opacity': 0,
         },
+        filter: osmIdIsValidFilter,
       });
 
       map.current.addLayer({
@@ -164,7 +185,7 @@ export default function Map({
           'line-width': 10,
           'line-opacity': 0.6,
         },
-        filter: ['==', 'osm_id', -1],
+        filter: osmIdEqualsFilter(-1),
       });
 
       // Major / Regional / Local layers (use centralized definitions)
@@ -190,15 +211,17 @@ export default function Map({
 
       map.current.on('mousemove', 'routes-hit-area', (e) => {
         if (e.features && e.features.length > 0) {
-          const id = e.features[0].properties.osm_id;
-          handleHoverRef.current(id);
+          const raw = e.features[0].properties?.osm_id;
+          const id = typeof raw === 'number' ? raw : Number(raw);
+          handleHoverRef.current(Number.isFinite(id) ? id : null);
         }
       });
 
       map.current.on('click', 'routes-hit-area', (e) => {
         if (e.features && e.features.length > 0) {
-          const id = e.features[0].properties.osm_id;
-          onSelectRef.current(id);
+          const raw = e.features[0].properties?.osm_id;
+          const id = typeof raw === 'number' ? raw : Number(raw);
+          onSelectRef.current(Number.isFinite(id) ? id : null);
         }
       });
 
@@ -234,11 +257,7 @@ export default function Map({
 
       map.current.on('moveend', updateVisible);
       map.current.on('zoomend', updateVisible);
-      map.current.on('sourcedata', (e) => {
-        if (e.sourceId === 'routes' && map.current?.isSourceLoaded('routes')) {
-          updateVisible();
-        }
-      });
+      // Avoid running updateVisible on every tile streaming event; moveend/zoomend is sufficient.
 
       // Initial check
       updateVisible();
@@ -246,6 +265,8 @@ export default function Map({
 
     return () => {
       resizeObserver.disconnect();
+      map.current?.off('moveend', persistView);
+      map.current?.off('zoomend', persistView);
       map.current?.remove();
       map.current = null;
     };
@@ -255,9 +276,9 @@ export default function Map({
     if (!map.current || !isMapLoaded) return;
 
     if (highlightedId) {
-      map.current.setFilter('routes-highlight', ['==', 'osm_id', highlightedId]);
+      map.current.setFilter('routes-highlight', osmIdEqualsFilter(highlightedId));
     } else {
-      map.current.setFilter('routes-highlight', ['==', 'osm_id', -1]);
+      map.current.setFilter('routes-highlight', osmIdEqualsFilter(-1));
     }
   }, [highlightedId, isMapLoaded]);
 

@@ -64,7 +64,9 @@ export const RouteList: React.FC<RouteListProps> = ({
           }
         }}
         onEndReachedThreshold={0.5}
-        ListFooterComponent={loading ? <ActivityIndicator style={{ margin: 10 }} /> : null}
+        ListFooterComponent={
+          loading && routes.length > 0 ? <ActivityIndicator style={{ margin: 10 }} /> : null
+        }
         renderItem={({ item }: { item: Route }) => {
           const networkInfo = item.network ? NETWORK_MAP[item.network] : null;
           return (

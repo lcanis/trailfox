@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { RouteFilter } from '../types';
@@ -55,17 +56,26 @@ export const RouteListHeader: React.FC<RouteListHeaderProps> = ({
         Routes ({totalCount !== undefined && totalCount !== null ? totalCount : routesLength})
       </Text>
 
-      <InputComponent
-        style={[styles.searchInput, isSmallScreen && styles.searchInputSmall]}
-        placeholder="Search routes..."
-        value={filter.searchQuery}
-        onChangeText={(text) => updateFilter({ searchQuery: text })}
-        placeholderTextColor="#999"
-      />
+      <View style={styles.searchContainer}>
+        <InputComponent
+          style={[styles.searchInput, isSmallScreen && styles.searchInputSmall]}
+          placeholder="Search routes..."
+          value={filter.searchQuery}
+          onChangeText={(text) => updateFilter({ searchQuery: text })}
+          placeholderTextColor="#999"
+        />
+        {loading && <ActivityIndicator style={styles.searchLoader} size="small" color="#999" />}
+      </View>
 
       {routesLength === 0 && !loading && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>No routes found.</Text>
+        </View>
+      )}
+
+      {routesLength === 0 && loading && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>Searching...</Text>
         </View>
       )}
 
@@ -114,6 +124,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     padding: 12,
   },
+  searchContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
   searchInput: {
     margin: 10,
     padding: 10,
@@ -122,11 +136,17 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     fontSize: 16,
+    paddingRight: 40, // Space for loader
   },
   searchInputSmall: {
     margin: 8,
     padding: 8,
     fontSize: 14,
+    paddingRight: 35,
+  },
+  searchLoader: {
+    position: 'absolute',
+    right: 20,
   },
   emptyState: {
     padding: 20,

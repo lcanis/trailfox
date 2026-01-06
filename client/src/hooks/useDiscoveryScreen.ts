@@ -14,7 +14,7 @@ export const useDiscoveryScreen = () => {
 
   const [bbox, setBbox] = useState<[number, number, number, number] | undefined>(undefined);
 
-  const { routes, totalCount, loading, error, loadMore, hasMore } = useRoutes({
+  const { routes, totalCount, loading, error, loadMore, hasMore, hasLoadedOnce } = useRoutes({
     bbox: filter.viewboxOnly ? bbox : undefined,
     searchQuery: filter.searchQuery,
     sortBy: filter.sortBy,
@@ -112,6 +112,7 @@ export const useDiscoveryScreen = () => {
     error,
     loadMore,
     hasMore,
+    hasLoadedOnce,
     selectedId,
     setSelectedId,
     hoveredId,

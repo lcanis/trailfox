@@ -5,6 +5,7 @@ export function majorRouteLayer() {
     minzoom: 6,
     filter: [
       'all',
+      ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1],
       ['in', ['get', 'network'], ['literal', ['iwn', 'nwn']]],
       ['!', ['==', ['get', 'is_node_network'], true]],
     ],
@@ -24,6 +25,7 @@ export function regionalRouteLayer() {
     minzoom: 8,
     filter: [
       'all',
+      ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1],
       ['==', ['get', 'network'], 'rwn'],
       ['!', ['==', ['get', 'is_node_network'], true]],
     ],
@@ -39,6 +41,7 @@ export function localRouteLayer() {
     minzoom: 10,
     filter: [
       'all',
+      ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1],
       ['==', ['get', 'network'], 'lwn'],
       ['!', ['==', ['get', 'is_node_network'], true]],
     ],
@@ -52,7 +55,11 @@ export function nodeNetworkLayer() {
     id: 'routes-line-node-network',
     type: 'line',
     minzoom: 11,
-    filter: ['==', ['get', 'is_node_network'], true],
+    filter: [
+      'all',
+      ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1],
+      ['==', ['get', 'is_node_network'], true],
+    ],
     layout: { 'line-join': 'round', 'line-cap': 'round' },
     paint: {
       'line-color': '#bbbbbb',
@@ -70,6 +77,7 @@ export function otherRoutesLayer() {
     minzoom: 11,
     filter: [
       'all',
+      ['!=', ['coalesce', ['to-number', ['get', 'osm_id']], -1], -1],
       ['!', ['in', ['get', 'network'], ['literal', ['iwn', 'nwn', 'rwn', 'lwn']]]],
       ['!', ['==', ['get', 'is_node_network'], true]],
     ],

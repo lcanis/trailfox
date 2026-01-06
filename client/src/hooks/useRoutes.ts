@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Route, SortOption } from '../types';
 import { RouteService } from '../services/routeService';
 
@@ -14,6 +14,8 @@ export const useRoutes = (filter?: {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState<boolean>(false);
+  const latestRequestIdRef = useRef(0);
 
   const bbox = filter?.bbox;
   const searchQuery = filter?.searchQuery;
@@ -33,6 +35,7 @@ export const useRoutes = (filter?: {
 
   const loadRoutes = useCallback(
     async (currentOffset: number, isRefresh: boolean = false) => {
+      const requestId = ++latestRequestIdRef.current;
       try {
         setLoading(true);
         let newRoutes: Route[];
@@ -63,6 +66,9 @@ export const useRoutes = (filter?: {
           count = result.totalCount;
         }
 
+        // Ignore stale responses if a newer request was started.
+        if (requestId !== latestRequestIdRef.current) return;
+
         if (isRefresh) {
           setRoutes(newRoutes);
           setTotalCount(count);
@@ -91,9 +97,13 @@ export const useRoutes = (filter?: {
 
         setError(null);
       } catch (err) {
+        if (requestId !== latestRequestIdRef.current) return;
         setError(err instanceof Error ? err : new Error('Unknown error'));
       } finally {
-        setLoading(false);
+        if (requestId === latestRequestIdRef.current) {
+          setLoading(false);
+          setHasLoadedOnce(true);
+        }
       }
     },
     [bboxKey, debouncedSearchQuery, sortBy]
@@ -116,5 +126,5 @@ export const useRoutes = (filter?: {
     loadRoutes(0, true);
   }, [loadRoutes]);
 
-  return { routes, totalCount, loading, error, loadMore, hasMore, refresh };
+  return { routes, totalCount, loading, error, loadMore, hasMore, refresh, hasLoadedOnce };
 };

@@ -1,11 +1,14 @@
 # TODO items for the front end
 
+** all items in web first 
+
 * be consistent in coordinate handling. e.g. ItineraryMapProps is userLocation?: { latitude[!!!!SIC first]: number; longitude: number } | null; VS   initialCenter?: [number, number] | null;
 * standardize on geojson [lon lat]
 
 ## Discovery
 
-* add search for places - maputnik has a nice implementation
+* route filter: bug when in incremental search nothing is found, pan -> map flickers
+* add search for places in the map view - maputnik has a nice implementation
 * add zoom and compass buttons
 * route sidebar: "Hiking Trails" instead of "routes"
 * review and update symbol/icon generation (should it be done in the backend maybe?)
