@@ -34,6 +34,15 @@ services:
     volumes:
       - ./:/data
 
+  osmium:
+    image: iboates/osmium:latest
+    container_name: osmium
+    profiles:
+      - tools
+    volumes:
+      - ./:/data
+    command: ["--help"]
+
   martin:
     image: maplibre/martin:latest
     container_name: martin
