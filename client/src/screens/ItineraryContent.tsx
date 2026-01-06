@@ -6,7 +6,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,17 +15,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AmenityCluster, Route, RouteAmenity, AmenityFilterPreset } from '../types';
 import { useItinerary } from '../hooks/useItinerary';
-import { AMENITY_FILTER_PRESETS } from '../config/amenityFilter';
+import { AmenityFilterEditor } from '../components/amenityFilter/AmenityFilterEditor';
+import { useAmenityFilters } from '../hooks/useAmenityFilters';
+import { useFilterStorage } from '../hooks/useFilterStorage';
+import { BUILT_IN_PRESETS } from '../data/presets';
 import { ITINERARY_THEME } from '../styles/itineraryTheme';
-import { Shadow } from 'react-native-shadow-2';
 import { DEVELOPER_MODE } from '../constants';
 import {
   addItineraryEndpointClusters,
-  getAvailableClasses,
   getDisplayedClusters,
   getItineraryMarker,
   getTimelineMarginTop,
-  normalizeAmenityClassLabel,
   sanitizeSelectedClusterKey,
 } from './itinerary/itineraryModel';
 import { ListContainer } from '../components/ListContainer';
@@ -101,9 +100,11 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const listRef = React.useRef<FlatList>(null);
-  const [filterPreset, setFilterPreset] = React.useState<AmenityFilterPreset>(
-    AMENITY_FILTER_PRESETS[1]
-  );
+  const filterStorage = useFilterStorage();
+  const amenityFilter = useAmenityFilters(BUILT_IN_PRESETS[1].data);
+
+  // Keep a lightweight "current preset" concept for the map's cycle button.
+  const [filterPreset, setFilterPreset] = React.useState<AmenityFilterPreset>(BUILT_IN_PRESETS[1]);
   const [routeGeoJSON, setRouteGeoJSON] = React.useState<any>(null);
   const [customStartKm, setCustomStartKm] = React.useState<number | null>(null);
 
@@ -150,7 +151,6 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   }, [route.osm_id]);
 
   const [filterModalVisible, setFilterModalVisible] = React.useState(false);
-  const [selectedClasses, setSelectedClasses] = React.useState<Set<string>>(new Set());
   const [internalSelectedKey, setInternalSelectedKey] = React.useState<string | null>(null);
   const [devTagsOverlay, setDevTagsOverlay] = React.useState<{
     title: string;
@@ -176,25 +176,15 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const effectiveSelectedKey = selectedClusterKey ?? internalSelectedKey;
   const setSelectedKey = onSelectClusterKey ?? setInternalSelectedKey;
 
-  const allowedClasses = React.useMemo(
-    () => (selectedClasses.size > 0 ? [...selectedClasses] : undefined),
-    [selectedClasses]
-  );
-
-  const { rawAmenities, presetFilteredAmenities, clusters, loading, error } = useItinerary({
+  const { rawAmenities, clusters, loading, error } = useItinerary({
     routeOsmId: route.osm_id,
-    filterPreset,
+    filter: amenityFilter.currentFilter,
     clusterBucketKm: 0.5,
     timeoutMs: 8000,
-    allowedClasses,
   });
 
   const fromLoc = route.tags?.from;
   const toLoc = route.tags?.to;
-
-  const availableClasses = React.useMemo(() => {
-    return getAvailableClasses(presetFilteredAmenities);
-  }, [presetFilteredAmenities]);
 
   const showDevTags = React.useCallback(
     (key: string, overlay: { title: string; tags: Record<string, string> | null }) => {
@@ -224,92 +214,13 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       onRequestClose={() => setFilterModalVisible(false)}
     >
       <View style={styles.modalOverlay}>
-        <Shadow startColor="rgba(0,0,0,0.12)" distance={8} offset={[0, 4]}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filters & Settings</Text>
-              <TouchableOpacity
-                onPress={() => setFilterModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <Text style={styles.closeText}>×</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              <View style={styles.radiusRow}>
-                <Text style={styles.controlLabel}>🎯 Complexity Level</Text>
-                <Text style={styles.radiusValue}>{filterPreset.name}</Text>
-              </View>
-              <View style={styles.presetContainer}>
-                {AMENITY_FILTER_PRESETS.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    onPress={() => setFilterPreset(p)}
-                    style={[
-                      styles.presetButton,
-                      filterPreset.id === p.id && styles.presetButtonActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.presetLabel,
-                        filterPreset.id === p.id && styles.presetLabelActive,
-                      ]}
-                    >
-                      {p.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.filterRow}>
-                <Text style={styles.controlLabel}>🏷️ Filter Amenities</Text>
-                <View style={styles.filterChipsContainer}>
-                  <Pressable
-                    onPress={() => setSelectedClasses(new Set())}
-                    style={[
-                      styles.filterChip,
-                      selectedClasses.size === 0 && styles.filterChipActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        selectedClasses.size === 0 && styles.filterChipTextActive,
-                      ]}
-                    >
-                      All
-                    </Text>
-                  </Pressable>
-                  {availableClasses.map((cls) => {
-                    const active = selectedClasses.has(cls);
-                    return (
-                      <Pressable
-                        key={cls}
-                        onPress={() => {
-                          setSelectedClasses((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(cls)) next.delete(cls);
-                            else next.add(cls);
-                            return next;
-                          });
-                        }}
-                        style={[styles.filterChip, active && styles.filterChipActive]}
-                      >
-                        <Text
-                          style={[styles.filterChipText, active && styles.filterChipTextActive]}
-                        >
-                          {normalizeAmenityClassLabel(cls)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </Shadow>
+        <View style={[styles.modalContent, styles.modalEditorContent]}>
+          <AmenityFilterEditor
+            filter={amenityFilter}
+            storage={filterStorage}
+            onClose={() => setFilterModalVisible(false)}
+          />
+        </View>
       </View>
     </Modal>
   );
@@ -412,6 +323,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   const lastFollowToggleRef = React.useRef<boolean>(false);
   const lastScrollYRef = React.useRef(0);
   const lastProgrammaticScrollRef = React.useRef<{ ts: number; index: number } | null>(null);
+  const lastSelectionAutoScrollKeyRef = React.useRef<string | null>(null);
 
   const getItemLayout = React.useCallback((data: any, index: number) => {
     const clusters = data as AmenityCluster[];
@@ -520,6 +432,39 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     if (next !== effectiveSelectedKey) setSelectedKey(next);
   }, [clusters, effectiveSelectedKey, setSelectedKey]);
 
+  React.useEffect(() => {
+    if (!effectiveSelectedKey) {
+      lastSelectionAutoScrollKeyRef.current = null;
+      return;
+    }
+
+    if (isFollowingUser) return;
+    if (effectiveSelectedKey === 'user-location') return;
+    if (lastSelectionAutoScrollKeyRef.current === effectiveSelectedKey) return;
+
+    const index = displayedClusters.findIndex((c) => c.key === effectiveSelectedKey);
+    if (index === -1) return;
+
+    lastSelectionAutoScrollKeyRef.current = effectiveSelectedKey;
+
+    // Allow layout/virtualization to settle.
+    const t = setTimeout(() => {
+      if (!listRef.current) return;
+      try {
+        listRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.15 });
+      } catch {
+        try {
+          const layout = getItemLayout(displayedClusters, index);
+          listRef.current.scrollToOffset({ offset: layout.offset, animated: true });
+        } catch (e2) {
+          console.warn('[ItineraryContent] Auto-scroll to selection failed:', e2);
+        }
+      }
+    }, 50);
+
+    return () => clearTimeout(t);
+  }, [displayedClusters, effectiveSelectedKey, getItemLayout, isFollowingUser]);
+
   const [leftPaneWidthPx, setLeftPaneWidthPx] = React.useState<number | null>(null);
   const leftPaneRef = React.useRef<any>(null);
 
@@ -617,11 +562,14 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
 
   const onCycleFilter = React.useCallback(() => {
     setFilterPreset((prev) => {
-      const idx = AMENITY_FILTER_PRESETS.findIndex((p) => p.id === prev.id);
-      const nextIdx = (idx + 1) % AMENITY_FILTER_PRESETS.length;
-      return AMENITY_FILTER_PRESETS[nextIdx];
+      const idx = BUILT_IN_PRESETS.findIndex((p) => p.id === prev.id);
+      const nextIdx = (idx + 1) % BUILT_IN_PRESETS.length;
+      const next = BUILT_IN_PRESETS[nextIdx];
+      amenityFilter.applyPreset(next);
+      filterStorage.setActiveFilterId(next.id);
+      return next;
     });
-  }, []);
+  }, [amenityFilter, filterStorage]);
 
   const rightPaneNode = React.useMemo(() => {
     if (!renderRightPane) return null;
@@ -631,7 +579,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
       rawAmenities,
       filterPreset,
       onCycleFilter,
-      allowedClasses,
+      allowedClasses: undefined,
       selectedClusterKey: effectiveSelectedKey,
       setSelectedClusterKey: setSelectedKey,
       onOpenFilters: () => setFilterModalVisible(true),
@@ -645,7 +593,6 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
     rawAmenities,
     filterPreset,
     onCycleFilter,
-    allowedClasses,
     effectiveSelectedKey,
     setSelectedKey,
     mapCenter,
@@ -697,7 +644,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
         </TouchableOpacity>
       </View>
 
-      {!split ? controlsNode : null}
+      {!split && !renderWrapper ? controlsNode : null}
 
       <View style={[styles.content, split && styles.contentSplit]}>
         {loading && (
@@ -731,7 +678,7 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
                   : null,
               ]}
             >
-              {split ? controlsNode : null}
+              {split && !renderWrapper ? controlsNode : null}
               <ListContainer<AmenityCluster>
                 ref={listRef}
                 testID="itinerary-list"
@@ -814,14 +761,19 @@ export const ItineraryContent: React.FC<ItineraryContentProps> = ({
   );
 
   if (renderWrapper) {
-    return renderWrapper({
-      content,
-      clusters: displayedClusters.filter((c) => c.key !== 'user-location'),
-      selectedClusterKey: effectiveSelectedKey,
-      setSelectedClusterKey: setSelectedKey,
-      route,
-      onOpenFilters: () => setFilterModalVisible(true),
-    });
+    return (
+      <>
+        {controlsNode}
+        {renderWrapper({
+          content,
+          clusters: displayedClusters.filter((c) => c.key !== 'user-location'),
+          selectedClusterKey: effectiveSelectedKey,
+          setSelectedClusterKey: setSelectedKey,
+          route,
+          onOpenFilters: () => setFilterModalVisible(true),
+        })}
+      </>
+    );
   }
 
   return content;
@@ -1253,11 +1205,20 @@ const styles = StyleSheet.create({
   },
 
   modalOverlay: {
-    flex: 1,
+    ...(Platform.OS === 'web'
+      ? {
+          position: 'fixed' as any,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+        }
+      : { flex: 1 }),
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    zIndex: 10000,
   },
   modalContent: {
     width: '100%',
@@ -1266,6 +1227,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
 
     maxHeight: '80%',
+  },
+  modalEditorContent: {
+    maxWidth: 980,
+    width: '100%',
+    height: '90%',
+    maxHeight: undefined as any,
+    ...(Platform.OS === 'web' ? ({ overflow: 'hidden' } as any) : null),
   },
   modalHeader: {
     flexDirection: 'row',

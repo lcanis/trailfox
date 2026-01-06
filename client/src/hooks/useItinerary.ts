@@ -1,11 +1,12 @@
 import * as React from 'react';
-import { AmenityCluster, RouteAmenity, AmenityFilterPreset } from '../types';
+import { AmenityCluster, RouteAmenity, AmenityFilterPreset, AmenityFilterSchema } from '../types';
 import { ItineraryService } from '../services/itineraryService';
 import { buildAmenityClusters } from '../screens/itinerary/itineraryModel';
-import { shouldShowAmenity } from '../config/amenityFilter';
+import { shouldShowAmenity } from '../utils/filterLogic';
 
 export const useItinerary = (params: {
   routeOsmId: number | null;
+  filter?: AmenityFilterSchema;
   filterPreset?: AmenityFilterPreset;
   clusterBucketKm?: number;
   timeoutMs?: number;
@@ -13,6 +14,7 @@ export const useItinerary = (params: {
 }) => {
   const {
     routeOsmId,
+    filter,
     filterPreset,
     clusterBucketKm = 0.05,
     timeoutMs = 8000,
@@ -64,8 +66,16 @@ export const useItinerary = (params: {
     let filteredByPreset = rawAmenities;
 
     // 1. Apply Filter Preset (Offline)
-    if (filterPreset) {
-      filteredByPreset = filteredByPreset.filter((a) => shouldShowAmenity(a, filterPreset.data));
+    const effectiveFilter = filter ?? filterPreset?.data;
+    if (effectiveFilter) {
+      filteredByPreset = filteredByPreset.filter((a) =>
+        shouldShowAmenity(
+          effectiveFilter,
+          a.properties.class,
+          a.properties.subclass ?? null,
+          a.properties.distance_from_trail_m
+        )
+      );
     }
     setPresetFilteredAmenities(filteredByPreset);
 
@@ -76,7 +86,7 @@ export const useItinerary = (params: {
     }
 
     setClusters(buildAmenityClusters(finalFiltered, clusterBucketKm));
-  }, [rawAmenities, filterPreset, allowedClasses, clusterBucketKm]);
+  }, [rawAmenities, filterPreset, filter, allowedClasses, clusterBucketKm]);
 
   return { rawAmenities, presetFilteredAmenities, clusters, loading, error };
 };

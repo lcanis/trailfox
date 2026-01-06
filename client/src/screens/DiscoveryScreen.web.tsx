@@ -84,6 +84,7 @@ export const DiscoveryScreen = () => {
           route={detailsRoute}
           onClose={handleCloseDetails}
           onOpenItinerary={handleOpenItinerary}
+          onNavigateToRoute={(routeId) => handleMapSelect(routeId)}
         />
       )}
 

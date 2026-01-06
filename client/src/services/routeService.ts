@@ -7,6 +7,9 @@ const SELECT_FIELDS =
 
 const DEFAULT_PAGE_SIZE = 20;
 
+// Sanitize user-provided search queries to avoid malformed PostgREST filters
+const sanitizeSearchQuery = (q: string): string => q.replace(/[*"'%\\]/g, '').trim();
+
 const getOrderParam = (sortBy: SortOption): string => {
   if (sortBy === 'name') return 'name.asc';
   if (sortBy === 'length') return 'length_m.desc';
@@ -26,7 +29,8 @@ export const RouteService = {
       let url = `${API_URL}?select=${SELECT_FIELDS}&order=${order}&limit=${limit}&offset=${offset}`;
 
       if (searchQuery) {
-        url += `&name=ilike.*${encodeURIComponent(searchQuery)}*`;
+        const safe = sanitizeSearchQuery(searchQuery);
+        url += `&name=ilike.*${encodeURIComponent(safe)}*`;
       }
 
       // Request exact count from PostgREST
@@ -62,8 +66,9 @@ export const RouteService = {
       url += `&order=${order}`;
 
       if (searchQuery) {
-        // Pass search query to the RPC function
-        url += `&search_query=${encodeURIComponent(searchQuery)}`;
+        // Pass sanitized search query to the RPC function
+        const safe = sanitizeSearchQuery(searchQuery);
+        url += `&search_query=${encodeURIComponent(safe)}`;
       }
 
       const urlWithSelect = `${url}&select=${SELECT_FIELDS}`;

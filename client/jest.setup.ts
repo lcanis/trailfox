@@ -73,6 +73,27 @@ jest.mock('react-native-shadow-2', () => {
     Shadow,
   };
 });
+
+// Mock react-native-mmkv (ESM package) to avoid Jest transform errors
+jest.mock('react-native-mmkv', () => {
+  class MMKV {
+    private store: Record<string, string> = {};
+    getString(key: string) {
+      return this.store[key] ?? undefined;
+    }
+    set(key: string, value: string) {
+      this.store[key] = String(value);
+    }
+    delete(key: string) {
+      delete this.store[key];
+    }
+  }
+
+  return {
+    __esModule: true,
+    MMKV,
+  };
+});
 jest.mock('@gorhom/bottom-sheet', () => {
   const React = require('react');
   const { View, Text } = require('react-native');

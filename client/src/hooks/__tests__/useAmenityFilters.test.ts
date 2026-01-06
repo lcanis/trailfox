@@ -138,7 +138,7 @@ describe('useAmenityFilters', () => {
       });
 
       expect(result.current.currentFilter).toEqual(preset.data);
-      expect(result.current.isDirty).toBe(true);
+      expect(result.current.isDirty).toBe(false);
     });
 
     it('should reset to original filter', () => {

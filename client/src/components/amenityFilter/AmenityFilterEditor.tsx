@@ -19,14 +19,27 @@ import { CategorySidebar } from './CategorySidebar';
 import { DetailPanel } from './DetailPanel';
 import type { AmenityFilterPreset } from '../../types';
 
-export const AmenityFilterEditor: React.FC = () => {
+type AmenityFilterEditorProps = {
+  onClose?: () => void;
+  filter?: ReturnType<typeof useAmenityFilters>;
+  storage?: ReturnType<typeof useFilterStorage>;
+};
+
+export const AmenityFilterEditor: React.FC<AmenityFilterEditorProps> = ({
+  onClose,
+  filter: filterProp,
+  storage: storageProp,
+}) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState('water-toilets');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [savePresetName, setSavePresetName] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
 
-  const storage = useFilterStorage();
-  const filter = useAmenityFilters(BUILT_IN_PRESETS[0].data);
+  const internalStorage = useFilterStorage();
+  const internalFilter = useAmenityFilters(BUILT_IN_PRESETS[0].data);
+
+  const storage = storageProp ?? internalStorage;
+  const filter = filterProp ?? internalFilter;
 
   // Combine built-in + custom presets
   const allPresets = [...BUILT_IN_PRESETS, ...storage.presets];
@@ -37,8 +50,42 @@ export const AmenityFilterEditor: React.FC = () => {
     const preset = allPresets.find((p) => p.id === presetId);
     if (preset) {
       filter.applyPreset(preset);
+      storage.setActiveFilterId(preset.id);
     }
   };
+
+  // Load/persist active working filter
+  React.useEffect(() => {
+    if (storage.loading) return;
+
+    const activeSchema = storage.getActiveFilter();
+    if (activeSchema) {
+      filter.replaceFilter(activeSchema, { markAsBaseline: true });
+      return;
+    }
+
+    const activeId = storage.getActiveFilterId();
+    if (!activeId) return;
+
+    const builtin = allPresets.find((p) => p.id === activeId);
+    if (builtin) {
+      filter.applyPreset(builtin);
+      return;
+    }
+
+    storage.loadPreset(activeId).then((loaded) => {
+      if (loaded) filter.applyPreset(loaded);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storage.loading]);
+
+  React.useEffect(() => {
+    if (storage.loading) return;
+    const t = setTimeout(() => {
+      storage.setActiveFilter(filter.currentFilter);
+    }, 150);
+    return () => clearTimeout(t);
+  }, [filter.currentFilter, storage]);
 
   const handleSavePreset = async () => {
     if (!savePresetName.trim()) return;
@@ -115,8 +162,19 @@ export const AmenityFilterEditor: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Amenity Filters</Text>
-        <Text style={styles.subtitle}>Show & hide trail amenities by category</Text>
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Amenity Filters</Text>
+            <Text style={styles.subtitle}>Show & hide trail amenities by category</Text>
+          </View>
+          {onClose ? (
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeText}>×</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       <ScrollView style={styles.scrollContent}>
@@ -249,6 +307,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 4,
+  },
+  closeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  closeText: {
+    fontSize: 22,
+    lineHeight: 22,
+    color: '#111',
   },
   scrollContent: {
     flex: 1,

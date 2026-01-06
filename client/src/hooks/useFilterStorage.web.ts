@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { AmenityFilterPreset } from '../types';
+import { AmenityFilterPreset, AmenityFilterSchema } from '../types';
 
 export interface UseFilterStorageReturn {
   presets: AmenityFilterPreset[];
@@ -10,11 +10,14 @@ export interface UseFilterStorageReturn {
   deletePreset: (id: string) => Promise<void>;
   getActiveFilterId: () => string | null;
   setActiveFilterId: (id: string) => void;
+  getActiveFilter: () => AmenityFilterSchema | null;
+  setActiveFilter: (filter: AmenityFilterSchema) => void;
 }
 
 const DB_NAME = 'trailfox';
 const STORE_NAME = 'amenityFilters';
 const ACTIVE_FILTER_KEY = 'activeFilterId';
+const ACTIVE_FILTER_SCHEMA_KEY = 'activeFilterSchema';
 
 /**
  * Open IndexedDB connection.
@@ -169,6 +172,24 @@ export const useFilterStorage = (): UseFilterStorageReturn => {
     localStorage.setItem(ACTIVE_FILTER_KEY, id);
   }, []);
 
+  const getActiveFilter = useCallback((): AmenityFilterSchema | null => {
+    try {
+      const raw = localStorage.getItem(ACTIVE_FILTER_SCHEMA_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw) as AmenityFilterSchema;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const setActiveFilter = useCallback((filter: AmenityFilterSchema) => {
+    try {
+      localStorage.setItem(ACTIVE_FILTER_SCHEMA_KEY, JSON.stringify(filter));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   return {
     presets,
     loading,
@@ -178,5 +199,7 @@ export const useFilterStorage = (): UseFilterStorageReturn => {
     deletePreset,
     getActiveFilterId,
     setActiveFilterId,
+    getActiveFilter,
+    setActiveFilter,
   };
 };

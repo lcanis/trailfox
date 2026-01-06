@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
-  useWindowDimensions,
   ActivityIndicator,
 } from 'react-native';
 import { Route } from '../types';
@@ -16,7 +15,6 @@ import { createGpx } from '../utils/gpx';
 import { OsmSymbol } from './OsmSymbol';
 import { allowMultistring } from '../config/settings';
 import { ScrollContainer } from './ScrollContainer';
-import { Shadow } from 'react-native-shadow-2';
 
 interface RouteDetailsProps {
   route: Route;
@@ -35,8 +33,6 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({
   const [parents, setParents] = React.useState<any[]>([]);
   const [children, setChildren] = React.useState<any[]>([]);
   const [hierarchyLoading, setHierarchyLoading] = React.useState(false);
-  const { width, height } = useWindowDimensions();
-  const isSmallScreen = width < 768;
 
   const q = route.geom_quality || '';
   const ok = q.startsWith('ok_');
@@ -173,254 +169,243 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({
   };
 
   return (
-    <Shadow
-      startColor="rgba(0,0,0,0.12)"
-      distance={8}
-      offset={[0, 4]}
-      containerStyle={{ height: isSmallScreen ? height * 0.6 : '100%' }}
-    >
-      <View style={[styles.sidebar, isSmallScreen && styles.sidebarSmall]}>
-        <View style={styles.sidebarHeader}>
-          <View style={styles.headerContent}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.title}>{route.name || 'Unnamed Route'}</Text>
-              {hierarchyLoading && <ActivityIndicator size="small" testID="hierarchy-loading" />}
-            </View>
-            {networkInfo && (
-              <View style={[styles.badge, { backgroundColor: networkInfo.color, marginTop: 4 }]}>
-                <Text style={styles.badgeText}>{networkInfo.label}</Text>
-              </View>
-            )}
+    <View style={styles.sidebar}>
+      <View style={styles.sidebarHeader}>
+        <View style={styles.headerContent}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.title}>{route.name || 'Unnamed Route'}</Text>
+            {hierarchyLoading && <ActivityIndicator size="small" testID="hierarchy-loading" />}
           </View>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.closeButton}>×</Text>
-          </TouchableOpacity>
+          {networkInfo && (
+            <View style={[styles.badge, { backgroundColor: networkInfo.color, marginTop: 4 }]}>
+              <Text style={styles.badgeText}>{networkInfo.label}</Text>
+            </View>
+          )}
         </View>
-        <ScrollContainer style={styles.content}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Info</Text>
+        <TouchableOpacity onPress={onClose}>
+          <Text style={styles.closeButton}>×</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollContainer style={styles.content}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Info</Text>
 
-            {fromLoc && toLoc && (
-              <View style={styles.routeRow}>
-                <Text style={styles.routeText}>
-                  {fromLoc} → {toLoc}
-                </Text>
-              </View>
-            )}
-
-            {route.tags?.website && (
-              <TouchableOpacity
-                style={styles.linkRow}
-                onPress={() => Linking.openURL(route.tags!.website)}
-              >
-                <Text style={styles.link}>Website</Text>
-              </TouchableOpacity>
-            )}
-
-            {route.tags?.url && (
-              <TouchableOpacity
-                style={styles.linkRow}
-                onPress={() => {
-                  const raw = route.tags!.url;
-                  const url = raw.startsWith('http') ? raw : `https://${raw}`;
-                  Linking.openURL(url);
-                }}
-              >
-                <Text style={styles.link}>URL</Text>
-              </TouchableOpacity>
-            )}
-
-            {!ok && route.geom_parts != null && (
-              <InfoRow label="Segments" value={route.geom_parts} />
-            )}
-
-            {route.tags?.wikipedia && (
-              <TouchableOpacity
-                style={styles.linkRow}
-                onPress={() =>
-                  Linking.openURL(`https://wikipedia.org/wiki/${route.tags!.wikipedia}`)
-                }
-              >
-                <Text style={styles.link}>Wikipedia</Text>
-              </TouchableOpacity>
-            )}
-
-            {route.tags?.source &&
-              (route.tags.source.startsWith('http') ? (
-                <TouchableOpacity
-                  style={styles.linkRow}
-                  onPress={() => Linking.openURL(route.tags!.source)}
-                >
-                  <Text style={styles.link}>Source</Text>
-                </TouchableOpacity>
-              ) : (
-                <InfoRow label="Source" value={route.tags.source} />
-              ))}
-
-            <View style={styles.row}>
-              <Text style={styles.label}>Symbol</Text>
-              <View style={styles.valueContainer}>
-                <OsmSymbol symbol={route.symbol} />
-              </View>
-            </View>
-
-            <InfoRow
-              label="Length"
-              value={route.length_m ? `${(route.length_m / 1000).toFixed(2)} km` : 'N/A'}
-            />
-
-            <View style={styles.geomStatusRow}>
-              <Text
-                style={[
-                  styles.geomStatusIcon,
-                  ok ? styles.geomStatusIconOk : styles.geomStatusIconWarn,
-                ]}
-              >
-                {ok ? '✅' : '⚠️'}
+          {fromLoc && toLoc && (
+            <View style={styles.routeRow}>
+              <Text style={styles.routeText}>
+                {fromLoc} → {toLoc}
               </Text>
-              <Text style={styles.geomStatusText}>
-                {ok
-                  ? 'Route builder OK'
-                  : `Route builder reports ${q || 'unknown'}. Itinerary may not be correct.`}
-                {route.geom_parts && route.geom_parts > 1 ? ` (${route.geom_parts} segments)` : ''}
-              </Text>
-            </View>
-
-            {route.route_type !== 'hiking' && route.route_type !== 'foot' && (
-              <InfoRow label="Type" value={route.route_type} />
-            )}
-
-            <TouchableOpacity
-              style={[styles.itineraryBtn, itineraryDisabled && styles.itineraryBtnDisabled]}
-              disabled={itineraryDisabled}
-              onPress={() => onOpenItinerary(route)}
-            >
-              <Text style={styles.itineraryBtnText}>Get Itinerary</Text>
-            </TouchableOpacity>
-
-            {!allowMultistring && isMultiLineString && (
-              <Text style={styles.itineraryHint}>
-                Itinerary disabled for MultiLineString routes (enable allowMultistring to override).
-              </Text>
-            )}
-
-            <TouchableOpacity style={styles.downloadBtn} onPress={handleDownloadGpx}>
-              <Text style={styles.downloadBtnText}>Download GPX</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Route Hierarchy */}
-          {(parents.length > 0 || children.length > 0) && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Route Hierarchy</Text>
-
-              {parents.length > 0 && (
-                <View style={styles.hierarchyGroup}>
-                  <Text style={styles.hierarchyGroupTitle}>Part of:</Text>
-                  {parents.map((parent) => (
-                    <TouchableOpacity
-                      key={parent.parent_id}
-                      style={styles.hierarchyItem}
-                      onPress={() => {
-                        if (onNavigateToRoute) {
-                          onNavigateToRoute(parent.parent_id);
-                        }
-                      }}
-                    >
-                      <View style={styles.hierarchyItemContent}>
-                        <Text style={styles.hierarchyItemName}>{parent.parent_name}</Text>
-                        {parent.parent_network ? (
-                          <Text style={styles.hierarchyItemMeta}>{parent.parent_network}</Text>
-                        ) : null}
-                        {!parent.network_compatible ? (
-                          <Text style={styles.hierarchyWarning}>⚠️</Text>
-                        ) : null}
-                      </View>
-                      <Text style={styles.hierarchyChevron}>›</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {children.length > 0 && (
-                <View style={styles.hierarchyGroup}>
-                  <Text style={styles.hierarchyGroupTitle}>
-                    {children.length === 1 ? '1 stage' : `${children.length} stages`}:
-                  </Text>
-                  {children.map((child, index) => (
-                    <TouchableOpacity
-                      key={child.child_id}
-                      style={styles.hierarchyItem}
-                      onPress={() => {
-                        if (onNavigateToRoute) {
-                          onNavigateToRoute(child.child_id);
-                        }
-                      }}
-                    >
-                      <View style={styles.hierarchyItemContent}>
-                        <View style={styles.hierarchyItemHeader}>
-                          <Text style={styles.hierarchySequence}>{index + 1}</Text>
-                          {child.role && child.role !== '' && child.role !== 'main' ? (
-                            <View style={[styles.roleBadge, getRoleStyle(child.role)]}>
-                              <Text style={styles.roleBadgeText}>{child.role}</Text>
-                            </View>
-                          ) : null}
-                        </View>
-                        <Text style={styles.hierarchyItemName}>{child.child_name}</Text>
-                        {child.child_length_m ? (
-                          <Text style={styles.hierarchyItemMeta}>
-                            {(child.child_length_m / 1000).toFixed(1)} km
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Text style={styles.hierarchyChevron}>›</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
             </View>
           )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Details</Text>
-            {renderTags(route.tags, true)}
+          {route.tags?.website && (
+            <TouchableOpacity
+              style={styles.linkRow}
+              onPress={() => Linking.openURL(route.tags!.website)}
+            >
+              <Text style={styles.link}>Website</Text>
+            </TouchableOpacity>
+          )}
+
+          {route.tags?.url && (
+            <TouchableOpacity
+              style={styles.linkRow}
+              onPress={() => {
+                const raw = route.tags!.url;
+                const url = raw.startsWith('http') ? raw : `https://${raw}`;
+                Linking.openURL(url);
+              }}
+            >
+              <Text style={styles.link}>URL</Text>
+            </TouchableOpacity>
+          )}
+
+          {!ok && route.geom_parts != null && <InfoRow label="Segments" value={route.geom_parts} />}
+
+          {route.tags?.wikipedia && (
+            <TouchableOpacity
+              style={styles.linkRow}
+              onPress={() => Linking.openURL(`https://wikipedia.org/wiki/${route.tags!.wikipedia}`)}
+            >
+              <Text style={styles.link}>Wikipedia</Text>
+            </TouchableOpacity>
+          )}
+
+          {route.tags?.source &&
+            (route.tags.source.startsWith('http') ? (
+              <TouchableOpacity
+                style={styles.linkRow}
+                onPress={() => Linking.openURL(route.tags!.source)}
+              >
+                <Text style={styles.link}>Source</Text>
+              </TouchableOpacity>
+            ) : (
+              <InfoRow label="Source" value={route.tags.source} />
+            ))}
+
+          <View style={styles.row}>
+            <Text style={styles.label}>Symbol</Text>
+            <View style={styles.valueContainer}>
+              <OsmSymbol symbol={route.symbol} />
+            </View>
           </View>
 
-          <View style={styles.section}>
-            <TouchableOpacity
-              onPress={() => setOsmTagsCollapsed(!osmTagsCollapsed)}
-              style={styles.collapsibleHeader}
+          <InfoRow
+            label="Length"
+            value={route.length_m ? `${(route.length_m / 1000).toFixed(2)} km` : 'N/A'}
+          />
+
+          <View style={styles.geomStatusRow}>
+            <Text
+              style={[
+                styles.geomStatusIcon,
+                ok ? styles.geomStatusIconOk : styles.geomStatusIconWarn,
+              ]}
             >
-              <Text style={styles.sectionTitle}>OSM Tags</Text>
-              <Text style={styles.chevron}>{osmTagsCollapsed ? '▼' : '▲'}</Text>
-            </TouchableOpacity>
-            {!osmTagsCollapsed && (
-              <>
-                <TouchableOpacity
-                  style={styles.linkRow}
-                  onPress={() =>
-                    Linking.openURL(`https://www.openstreetmap.org/relation/${route.osm_id}`)
-                  }
-                >
-                  <Text style={styles.link}>View Relation {route.osm_id} on OSM</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.linkRow}
-                  onPress={() =>
-                    Linking.openURL(
-                      `https://hiking.waymarkedtrails.org/#route?id=${route.osm_id}&type=relation`
-                    )
-                  }
-                >
-                  <Text style={styles.link}>View on Waymarked Trails</Text>
-                </TouchableOpacity>
-                {renderTags(route.tags, false)}
-              </>
+              {ok ? '✅' : '⚠️'}
+            </Text>
+            <Text style={styles.geomStatusText}>
+              {ok
+                ? 'Route builder OK'
+                : `Route builder reports ${q || 'unknown'}. Itinerary may not be correct.`}
+              {route.geom_parts && route.geom_parts > 1 ? ` (${route.geom_parts} segments)` : ''}
+            </Text>
+          </View>
+
+          {route.route_type !== 'hiking' && route.route_type !== 'foot' && (
+            <InfoRow label="Type" value={route.route_type} />
+          )}
+
+          <TouchableOpacity
+            style={[styles.itineraryBtn, itineraryDisabled && styles.itineraryBtnDisabled]}
+            disabled={itineraryDisabled}
+            onPress={() => onOpenItinerary(route)}
+          >
+            <Text style={styles.itineraryBtnText}>Get Itinerary</Text>
+          </TouchableOpacity>
+
+          {!allowMultistring && isMultiLineString && (
+            <Text style={styles.itineraryHint}>
+              Itinerary disabled for MultiLineString routes (enable allowMultistring to override).
+            </Text>
+          )}
+
+          <TouchableOpacity style={styles.downloadBtn} onPress={handleDownloadGpx}>
+            <Text style={styles.downloadBtnText}>Download GPX</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Route Hierarchy */}
+        {(parents.length > 0 || children.length > 0) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Route Hierarchy</Text>
+
+            {parents.length > 0 && (
+              <View style={styles.hierarchyGroup}>
+                <Text style={styles.hierarchyGroupTitle}>Part of:</Text>
+                {parents.map((parent) => (
+                  <TouchableOpacity
+                    key={parent.parent_id}
+                    style={styles.hierarchyItem}
+                    onPress={() => {
+                      if (onNavigateToRoute) {
+                        onNavigateToRoute(parent.parent_id);
+                      }
+                    }}
+                  >
+                    <View style={styles.hierarchyItemContent}>
+                      <Text style={styles.hierarchyItemName}>{parent.parent_name}</Text>
+                      {parent.parent_network ? (
+                        <Text style={styles.hierarchyItemMeta}>{parent.parent_network}</Text>
+                      ) : null}
+                      {!parent.network_compatible ? (
+                        <Text style={styles.hierarchyWarning}>⚠️</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.hierarchyChevron}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {children.length > 0 && (
+              <View style={styles.hierarchyGroup}>
+                <Text style={styles.hierarchyGroupTitle}>
+                  {children.length === 1 ? '1 stage' : `${children.length} stages`}:
+                </Text>
+                {children.map((child, index) => (
+                  <TouchableOpacity
+                    key={child.child_id}
+                    style={styles.hierarchyItem}
+                    onPress={() => {
+                      if (onNavigateToRoute) {
+                        onNavigateToRoute(child.child_id);
+                      }
+                    }}
+                  >
+                    <View style={styles.hierarchyItemContent}>
+                      <View style={styles.hierarchyItemHeader}>
+                        <Text style={styles.hierarchySequence}>{index + 1}</Text>
+                        {child.role && child.role !== '' && child.role !== 'main' ? (
+                          <View style={[styles.roleBadge, getRoleStyle(child.role)]}>
+                            <Text style={styles.roleBadgeText}>{child.role}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.hierarchyItemName}>{child.child_name}</Text>
+                      {child.child_length_m ? (
+                        <Text style={styles.hierarchyItemMeta}>
+                          {(child.child_length_m / 1000).toFixed(1)} km
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.hierarchyChevron}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
           </View>
-        </ScrollContainer>
-      </View>
-    </Shadow>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Details</Text>
+          {renderTags(route.tags, true)}
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity
+            onPress={() => setOsmTagsCollapsed(!osmTagsCollapsed)}
+            style={styles.collapsibleHeader}
+          >
+            <Text style={styles.sectionTitle}>OSM Tags</Text>
+            <Text style={styles.chevron}>{osmTagsCollapsed ? '▼' : '▲'}</Text>
+          </TouchableOpacity>
+          {!osmTagsCollapsed && (
+            <>
+              <TouchableOpacity
+                style={styles.linkRow}
+                onPress={() =>
+                  Linking.openURL(`https://www.openstreetmap.org/relation/${route.osm_id}`)
+                }
+              >
+                <Text style={styles.link}>View Relation {route.osm_id} on OSM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.linkRow}
+                onPress={() =>
+                  Linking.openURL(
+                    `https://hiking.waymarkedtrails.org/#route?id=${route.osm_id}&type=relation`
+                  )
+                }
+              >
+                <Text style={styles.link}>View on Waymarked Trails</Text>
+              </TouchableOpacity>
+              {renderTags(route.tags, false)}
+            </>
+          )}
+        </View>
+      </ScrollContainer>
+    </View>
   );
 };
 
@@ -433,37 +418,14 @@ const InfoRow = ({ label, value }: { label: string; value: string | number | nul
 
 const styles = StyleSheet.create({
   sidebar: {
-    ...(Platform.OS === 'web'
-      ? {
-          position: 'absolute',
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 300,
-          borderLeftWidth: 1,
-          borderLeftColor: '#eee',
-          zIndex: 30,
-        }
-      : {
-          flex: 1,
-          width: '100%',
-        }),
+    flex: 1,
+    width: '100%',
+    maxWidth: 500,
     backgroundColor: 'white',
     padding: 20,
   },
   sidebarSmall: {
-    ...(Platform.OS === 'web'
-      ? {
-          width: '100%',
-          top: 'auto',
-          bottom: 0,
-          borderLeftWidth: 0,
-          borderTopWidth: 1,
-          borderTopColor: '#eee',
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-        }
-      : {}),
+    flex: 1,
   },
   itineraryBtn: {
     backgroundColor: '#111',

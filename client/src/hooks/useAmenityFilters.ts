@@ -6,6 +6,9 @@ export interface UseAmenityFiltersReturn {
   currentFilter: AmenityFilterSchema;
   isDirty: boolean;
 
+  // Replace the entire filter (e.g., load from storage)
+  replaceFilter: (next: AmenityFilterSchema, opts?: { markAsBaseline?: boolean }) => void;
+
   // Global controls
   setShowAll: (show: boolean) => void;
   setGlobalDistance: (distance: number) => void;
@@ -28,9 +31,19 @@ export interface UseAmenityFiltersReturn {
  */
 export const useAmenityFilters = (initialFilter: AmenityFilterSchema): UseAmenityFiltersReturn => {
   const [currentFilter, setCurrentFilter] = useState<AmenityFilterSchema>(initialFilter);
-  const [originalFilter] = useState<AmenityFilterSchema>(initialFilter);
+  const [baselineFilter, setBaselineFilter] = useState<AmenityFilterSchema>(initialFilter);
 
-  const isDirty = JSON.stringify(currentFilter) !== JSON.stringify(originalFilter);
+  const isDirty = JSON.stringify(currentFilter) !== JSON.stringify(baselineFilter);
+
+  const replaceFilter = useCallback(
+    (next: AmenityFilterSchema, opts?: { markAsBaseline?: boolean }) => {
+      setCurrentFilter(next);
+      if (opts?.markAsBaseline) {
+        setBaselineFilter(next);
+      }
+    },
+    []
+  );
 
   const setShowAll = useCallback((show: boolean) => {
     setCurrentFilter((prev) => ({
@@ -105,15 +118,17 @@ export const useAmenityFilters = (initialFilter: AmenityFilterSchema): UseAmenit
 
   const applyPreset = useCallback((preset: AmenityFilterPreset) => {
     setCurrentFilter(preset.data);
+    setBaselineFilter(preset.data);
   }, []);
 
   const reset = useCallback(() => {
-    setCurrentFilter(originalFilter);
-  }, [originalFilter]);
+    setCurrentFilter(baselineFilter);
+  }, [baselineFilter]);
 
   return {
     currentFilter,
     isDirty,
+    replaceFilter,
     setShowAll,
     setGlobalDistance,
     setClassRule,

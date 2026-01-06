@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 
 // @ts-ignore - MMKV is a value constructor, TypeScript sometimes has trouble with ESM/CJS mix
 import { MMKV } from 'react-native-mmkv';
-import type { AmenityFilterPreset } from '../types';
+import type { AmenityFilterPreset, AmenityFilterSchema } from '../types';
 
 export interface UseFilterStorageReturn {
   presets: AmenityFilterPreset[];
@@ -13,12 +13,15 @@ export interface UseFilterStorageReturn {
   deletePreset: (id: string) => Promise<void>;
   getActiveFilterId: () => string | null;
   setActiveFilterId: (id: string) => void;
+  getActiveFilter: () => AmenityFilterSchema | null;
+  setActiveFilter: (filter: AmenityFilterSchema) => void;
 }
 
 // @ts-expect-error - MMKV is a value constructor, TypeScript sometimes has trouble with ESM/CJS mix
 const storage = new MMKV({ id: 'amenityFilters' });
 const PRESETS_KEY = 'presets';
 const ACTIVE_FILTER_KEY = 'activeFilterId';
+const ACTIVE_FILTER_SCHEMA_KEY = 'activeFilterSchema';
 
 /**
  * Hook for managing amenity filter storage on native (MMKV).
@@ -112,6 +115,24 @@ export const useFilterStorage = (): UseFilterStorageReturn => {
     storage.set(ACTIVE_FILTER_KEY, id);
   }, []);
 
+  const getActiveFilter = useCallback((): AmenityFilterSchema | null => {
+    try {
+      const raw = storage.getString(ACTIVE_FILTER_SCHEMA_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw) as AmenityFilterSchema;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const setActiveFilter = useCallback((filter: AmenityFilterSchema) => {
+    try {
+      storage.set(ACTIVE_FILTER_SCHEMA_KEY, JSON.stringify(filter));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   return {
     presets,
     loading,
@@ -121,5 +142,7 @@ export const useFilterStorage = (): UseFilterStorageReturn => {
     deletePreset,
     getActiveFilterId,
     setActiveFilterId,
+    getActiveFilter,
+    setActiveFilter,
   };
 };

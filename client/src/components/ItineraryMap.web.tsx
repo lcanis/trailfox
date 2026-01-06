@@ -413,15 +413,25 @@ export default function ItineraryMap({
       ) : null}
 
       {/* Filter Button */}
-      {onCycleFilter && (
+      {onOpenFilters ? (
         <TouchableOpacity
-          style={[styles.mapButton, { top: insets.top + 16, right: 72 }]}
+          style={[styles.mapButton, { top: insets.top + 16, right: 16 }]}
+          onPress={onOpenFilters}
+          activeOpacity={0.8}
+        >
+          <Ionicons name={'options-outline'} size={20} color={THEME.accent} />
+        </TouchableOpacity>
+      ) : null}
+
+      {onCycleFilter ? (
+        <TouchableOpacity
+          style={[styles.mapButton, { top: insets.top + 16, right: onOpenFilters ? 72 : 16 }]}
           onPress={onCycleFilter}
           activeOpacity={0.8}
         >
           <Ionicons name={'filter'} size={20} color={THEME.accent} />
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 }
