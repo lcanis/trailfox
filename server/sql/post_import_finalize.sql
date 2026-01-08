@@ -13,43 +13,43 @@
 CREATE OR REPLACE FUNCTION itinerarius.assemble_parent_route_geometries()
 RETURNS void AS $$
 DECLARE
-    parent_rec RECORD;
-    child_geoms geometry[];
-    assembled_geom geometry;
-    geom_length numeric;
+    rows_affected integer;
 BEGIN
-    FOR parent_rec IN
-        SELECT DISTINCT h.parent_id, ri.geom_m as existing_geom, ri.geom_build_case
-        FROM itinerarius.route_hierarchy h
-        LEFT JOIN itinerarius.ri ri ON h.parent_id = ri.osm_id
-        WHERE ri.geom_m IS NULL  -- Only assemble if routebuilder didn't create geometry
-           OR (ri.geom_build_case NOT LIKE 'wmt_%' AND ri.geom_build_case != 'hierarchy_assembly')
-        ORDER BY h.parent_id
+    -- Bottom-up assembly: iterate until no more parents can be assembled.
+    -- A parent is eligible once *all* of its main-role children have geom_m.
     LOOP
-        -- Skip if routebuilder already handled this
-        IF parent_rec.geom_build_case LIKE 'wmt_%' THEN
-            CONTINUE;
-        END IF;
-        
-        -- Collect child geometries in sequence order (main role only for now)
-        SELECT array_agg(ri.geom_m ORDER BY h.sequence)
-        INTO child_geoms
-        FROM itinerarius.route_hierarchy h
-        JOIN itinerarius.ri ri ON h.child_id = ri.osm_id
-        WHERE h.parent_id = parent_rec.parent_id
-          AND ri.geom_m IS NOT NULL
-          AND (h.role IS NULL OR h.role = '' OR h.role = 'main');
-        
-        IF child_geoms IS NULL OR array_length(child_geoms, 1) = 0 THEN
-            RAISE WARNING 'Parent route % has no main-role child geometries', parent_rec.parent_id;
-            CONTINUE;
-        END IF;
-        
-        -- Merge child geometries: ST_Collect preserves child structure, ST_LineMerge connects endpoints
-        assembled_geom := ST_Multi(ST_LineMerge(ST_Collect(child_geoms)));
-        geom_length := ST_Length(ST_Transform(assembled_geom, 4326)::geography);
-        
-        -- Insert or update in ri table
+        WITH child_counts AS (
+            SELECT
+                h.parent_id,
+                count(*)::int AS expected_children
+            FROM itinerarius.route_hierarchy h
+            WHERE (h.role IS NULL OR h.role = '' OR h.role = 'main')
+            GROUP BY h.parent_id
+        ),
+        candidates AS (
+            SELECT
+                h.parent_id,
+                ST_Multi(ST_LineMerge(ST_Collect(ri_child.geom_m))) AS assembled_geom,
+                ST_Length(ST_Transform(ST_Multi(ST_LineMerge(ST_Collect(ri_child.geom_m))), 4326)::geography) AS geom_length,
+                GeometryType(ST_Multi(ST_LineMerge(ST_Collect(ri_child.geom_m)))) AS merged_geom_type,
+                ST_NumGeometries(ST_Multi(ST_LineMerge(ST_Collect(ri_child.geom_m)))) AS geom_parts
+            FROM itinerarius.route_hierarchy h
+            JOIN child_counts cc ON cc.parent_id = h.parent_id
+            JOIN itinerarius.ri ri_child ON ri_child.osm_id = h.child_id
+            LEFT JOIN itinerarius.ri ri_parent ON ri_parent.osm_id = h.parent_id
+            WHERE
+                (h.role IS NULL OR h.role = '' OR h.role = 'main')
+                AND ri_child.geom_m IS NOT NULL
+                AND (
+                    ri_parent.geom_m IS NULL
+                    OR (
+                        ri_parent.geom_build_case NOT LIKE 'wmt_%'
+                        AND ri_parent.geom_build_case NOT LIKE 'hierarchy_assembly_%'
+                    )
+                )
+            GROUP BY h.parent_id, cc.expected_children
+            HAVING count(*)::int = cc.expected_children
+        )
         INSERT INTO itinerarius.ri (
             osm_id,
             geom_m,
@@ -58,18 +58,19 @@ BEGIN
             geom_build_case,
             geom_quality,
             geom_parts
-        ) VALUES (
-            parent_rec.parent_id,
-            ST_AddMeasure(assembled_geom, 0, geom_length),
-            geom_length,
-            GeometryType(assembled_geom),
+        )
+        SELECT
+            c.parent_id,
+            ST_AddMeasure(c.assembled_geom, 0, c.geom_length),
+            c.geom_length,
+            c.merged_geom_type,
             'hierarchy_assembly_fallback',
             CASE
-                WHEN GeometryType(assembled_geom) = 'LINESTRING' THEN 'ok_singleline'
-                ELSE concat(ST_NumGeometries(assembled_geom)::text, ' parts')
+                WHEN c.merged_geom_type = 'LINESTRING' THEN 'ok_singleline'
+                ELSE concat(c.geom_parts::text, ' parts')
             END,
-            ST_NumGeometries(assembled_geom)
-        )
+            c.geom_parts
+        FROM candidates c
         ON CONFLICT (osm_id) DO UPDATE SET
             geom_m = EXCLUDED.geom_m,
             length_m = EXCLUDED.length_m,
@@ -77,16 +78,59 @@ BEGIN
             geom_build_case = EXCLUDED.geom_build_case,
             geom_quality = EXCLUDED.geom_quality,
             geom_parts = EXCLUDED.geom_parts;
-        
+
+        GET DIAGNOSTICS rows_affected = ROW_COUNT;
+        EXIT WHEN rows_affected = 0;
     END LOOP;
-    
-    RAISE NOTICE 'Assembled geometry for % parent routes (fallback)', (SELECT count(DISTINCT parent_id) FROM itinerarius.route_hierarchy WHERE parent_id NOT IN (SELECT osm_id FROM itinerarius.ri WHERE geom_build_case LIKE 'wmt_%'));
 END;
 $$ LANGUAGE plpgsql;
 
 -- Execute fallback geometry assembly (skip if routebuilder handled it)
 DO $$ BEGIN RAISE NOTICE 'Assembling parent route geometries (fallback)...'; END $$;
 SELECT itinerarius.assemble_parent_route_geometries();
+
+-- ---------------------------------------------------------------------------
+-- Naming backfill for missing route names
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION itinerarius.route_display_name(tags jsonb, name text)
+RETURNS text AS $$
+DECLARE
+    final_name text;
+    v_ref text;
+    v_from text;
+    v_to text;
+BEGIN
+    final_name := NULLIF(btrim(name), '');
+    v_ref := NULLIF(btrim(tags->>'ref'), '');
+    v_from := NULLIF(btrim(tags->>'from'), '');
+    v_to := NULLIF(btrim(tags->>'to'), '');
+
+    -- If name is missing, build it from 'from' and 'to'
+    IF final_name IS NULL THEN
+        IF v_from IS NOT NULL AND v_to IS NOT NULL THEN
+            final_name := v_from || ' -> ' || v_to;
+        ELSIF v_from IS NOT NULL THEN
+            final_name := v_from;
+        ELSIF v_to IS NOT NULL THEN
+            final_name := v_to;
+        END IF;
+    END IF;
+
+    -- If we still have no name, use ref
+    IF final_name IS NULL THEN
+        final_name := v_ref;
+    ELSIF v_ref IS NOT NULL AND NOT (final_name LIKE v_ref || '%') THEN
+        -- Prepend ref if not already there
+        final_name := v_ref || ': ' || final_name;
+    END IF;
+
+    RETURN final_name;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+UPDATE itinerarius.routes r
+SET name = itinerarius.route_display_name(r.tags, r.name)
+WHERE name IS DISTINCT FROM itinerarius.route_display_name(r.tags, r.name);
 
 -- ---------------------------------------------------------------------------
 -- Roundtrip (loop) precomputation
@@ -147,7 +191,7 @@ DROP MATERIALIZED VIEW IF EXISTS itinerarius.routes_info CASCADE;
 CREATE MATERIALIZED VIEW itinerarius.routes_info AS
 SELECT
     r.osm_id,
-    r.name,
+    itinerarius.route_display_name(r.tags, r.name) AS name,
     r.tags->>'network' AS network,
     COALESCE((r.tags->>'network:type' = 'node_network'), false) AS is_node_network,
     route_type,

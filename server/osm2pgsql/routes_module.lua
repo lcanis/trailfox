@@ -143,15 +143,12 @@ local function process_relation(object)
 		return
 	end
 
-	-- Skip routes with invalid or empty geometry (unless superroute)
-	-- See: https://wiki.openstreetmap.org/wiki/Relation:route#Hierarchies
-	-- This filters out broken relations with only node members or no members
-	-- In osm2pgsql flex, `as_linestring()` is only valid in process_way.
-	-- For relations we import as MultiLineString and line-merge later in SQL -> if indeed a linestring, 
-	-- everything is fine. Otherwise, keeping the members allows us to reconstruct 
-	-- the route if needed using wmt routebuilder.
+	-- Skip routes with no members and no immediate geometry.
+	-- If it has members (even if they are other relations), we keep it to
+	-- allow hierarchy assembly in SQL.
 	local geom = object:as_multilinestring()
-	if (not geom or geom:is_null()) and tags.type ~= "superroute" then
+	local has_members = object.members and #object.members > 0
+	if (not geom or geom:is_null()) and tags.type ~= "superroute" and not has_members then
 		return nil
 	end
 

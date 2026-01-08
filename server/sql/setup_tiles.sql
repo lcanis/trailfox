@@ -16,7 +16,8 @@ BEGIN
             network,
             is_node_network,
             ST_AsMVTGeom(
-                geom,
+                -- Simplify geometry based on zoom level to stay well under the 65k vertex limit per tile
+                ST_Simplify(geom, 40075016.68 / (pow(2, z) * 4096)),
                 ST_TileEnvelope(z, x, y),
                 4096,
                 256,

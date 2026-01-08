@@ -23,17 +23,20 @@ export const useRoutes = (filter?: {
   const sortBy = filter?.sortBy || null;
   const loop = filter?.loop || 'any';
 
-  // Debounce search query
+  // Debounce search query and bbox to prevent rapid API calls
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  const [debouncedBbox, setDebouncedBbox] = useState(bbox);
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-    }, 300);
+      setDebouncedBbox(bbox);
+    }, 400); // 400ms delay for search and interaction
     return () => clearTimeout(handler);
-  }, [searchQuery]);
+  }, [searchQuery, bbox]);
 
   // Create a stable key for bbox to use in dependency array
-  const bboxKey = bbox ? bbox.join(',') : '';
+  const bboxKey = debouncedBbox ? debouncedBbox.join(',') : '';
 
   const loadRoutes = useCallback(
     async (currentOffset: number, isRefresh: boolean = false) => {
