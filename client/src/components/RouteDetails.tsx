@@ -13,7 +13,7 @@ import { NETWORK_MAP, IGNORED_TAGS, COLLAPSE_OSM_TAGS_BY_DEFAULT } from '../cons
 import { RouteService } from '../services/routeService';
 import { createGpx } from '../utils/gpx';
 import { OsmSymbol } from './OsmSymbol';
-import { allowMultistring } from '../config/settings';
+import { allowMultistring, DEVELOPER_MODE } from '../config/settings';
 import { ScrollContainer } from './ScrollContainer';
 
 interface RouteDetailsProps {
@@ -172,8 +172,13 @@ export const RouteDetails: React.FC<RouteDetailsProps> = ({
     <View style={styles.sidebar}>
       <View style={styles.sidebarHeader}>
         <View style={styles.headerContent}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.title}>{route.name || 'Unnamed Route'}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {route.name || 'Unnamed Route'}
+            </Text>
+            {DEVELOPER_MODE && (
+              <Text style={styles.osmId}>#{route.osm_id}</Text>
+            )}
             {hierarchyLoading && <ActivityIndicator size="small" testID="hierarchy-loading" />}
           </View>
           {networkInfo && (
@@ -419,13 +424,15 @@ const InfoRow = ({ label, value }: { label: string; value: string | number | nul
 const styles = StyleSheet.create({
   sidebar: {
     flex: 1,
-    width: '100%',
-    maxWidth: 500,
+    maxWidth: Platform.OS === 'web' ? 450 : '100%',
+    height: '100%',
     backgroundColor: 'white',
-    padding: 20,
+    borderLeftWidth: Platform.OS === 'web' ? 1 : 0,
+    borderLeftColor: '#ddd',
   },
   sidebarSmall: {
     flex: 1,
+    width: '100%',
   },
   itineraryBtn: {
     backgroundColor: '#111',
@@ -470,26 +477,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    paddingBottom: 10,
   },
   headerContent: {
     flex: 1,
     marginRight: 10,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#333',
+    flexShrink: 1,
+  },
+  osmId: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: 'bold',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginLeft: 4,
   },
   closeButton: {
     fontSize: 28,
     color: '#999',
     lineHeight: 28,
+    padding: 5,
   },
   content: {
     flex: 1,
+    padding: 20,
   },
   section: {
     marginBottom: 20,

@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   ActivityIndicator,
   Platform,
+  Pressable,
 } from 'react-native';
 import { Route, RouteFilter } from '../types';
 import { NETWORK_MAP } from '../constants';
@@ -67,63 +68,89 @@ export const RouteList: React.FC<RouteListProps> = ({
         ListFooterComponent={
           loading && routes.length > 0 ? <ActivityIndicator style={{ margin: 10 }} /> : null
         }
-        renderItem={({ item }: { item: Route }) => {
-          const networkInfo = item.network ? NETWORK_MAP[item.network] : null;
-          return (
-            <TouchableOpacity
-              style={[styles.listItem, isSmallScreen && styles.listItemSmall]}
-              onPress={() => onSelect(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.listItemContent}>
-                <View style={styles.listItemHeader}>
-                  <Text
-                    style={[styles.listItemTitle, isSmallScreen && styles.listItemTitleSmall]}
-                    numberOfLines={1}
-                  >
-                    {item.name || 'Unnamed Route'}
-                  </Text>
-                  <Text style={styles.chevron}>›</Text>
-                </View>
-
-                <View style={styles.listItemMeta}>
-                  {networkInfo ? (
-                    <View style={[styles.badge, { backgroundColor: networkInfo.color }]}>
-                      <Text style={styles.badgeText}>{networkInfo.label}</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.listItemBadge}>{item.network || '?'}</Text>
-                  )}
-
-                  {item.roundtrip ? (
-                    <Text accessibilityLabel="Loop route" style={styles.loopIcon}>
-                      🔁
-                    </Text>
-                  ) : null}
-
-                  {/* Route quality indicator: green check when geom_quality starts with ok_, otherwise yellow cross */}
-                  {(() => {
-                    const q = item.geom_quality || '';
-                    const ok = q.startsWith('ok_');
-                    return (
-                      <Text
-                        accessibilityLabel={ok ? 'Route quality OK' : 'Route quality warning'}
-                        style={[styles.qualityIcon, ok ? styles.qualityOk : styles.qualityWarn]}
-                      >
-                        {ok ? '✅' : '✖️'}
-                      </Text>
-                    );
-                  })()}
-                  <Text style={styles.listItemSub}>
-                    {item.length_m ? `${(item.length_m / 1000).toFixed(1)} km` : ''}
-                    {item.geom_parts && item.geom_parts > 1 ? ` • ${item.geom_parts} seg` : ''}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={({ item }: { item: Route }) => (
+          <RouteListItem item={item} onSelect={onSelect} isSmallScreen={isSmallScreen} />
+        )}
       />
+    </View>
+  );
+};
+
+const RouteListItem: React.FC<{
+  item: Route;
+  onSelect: (route: Route) => void;
+  isSmallScreen: boolean;
+}> = ({ item, onSelect, isSmallScreen }) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+  const networkInfo = item.network ? NETWORK_MAP[item.network] : null;
+
+  return (
+    <View style={styles.itemWrapper}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.listItem,
+          isSmallScreen && styles.listItemSmall,
+          isHovered && Platform.OS === 'web' && styles.hoveredItem,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+        onPress={() => onSelect(item)}
+        // @ts-ignore - web tooltip
+        title={Platform.OS === 'web' ? item.name : undefined}
+        onHoverIn={() => Platform.OS === 'web' && setIsHovered(true)}
+        onHoverOut={() => Platform.OS === 'web' && setIsHovered(false)}
+      >
+        <View style={styles.listItemContent}>
+          <View style={styles.listItemHeader}>
+            <Text
+              style={[styles.listItemTitle, isSmallScreen && styles.listItemTitleSmall]}
+              numberOfLines={1}
+            >
+              {item.name || 'Unnamed Route'}
+            </Text>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+
+          <View style={styles.listItemMeta}>
+            {networkInfo ? (
+              <View style={[styles.badge, { backgroundColor: networkInfo.color }]}>
+                <Text style={styles.badgeText}>{networkInfo.label}</Text>
+              </View>
+            ) : (
+              <Text style={styles.listItemBadge}>{item.network || '?'}</Text>
+            )}
+
+            {item.roundtrip ? (
+              <Text accessibilityLabel="Loop route" style={styles.loopIcon}>
+                🔁
+              </Text>
+            ) : null}
+
+            {/* Route quality indicator: green check when geom_quality starts with ok_, otherwise yellow cross */}
+            {(() => {
+              const q = item.geom_quality || '';
+              const ok = q.startsWith('ok_');
+              return (
+                <Text
+                  accessibilityLabel={ok ? 'Route quality OK' : 'Route quality warning'}
+                  style={[styles.qualityIcon, ok ? styles.qualityOk : styles.qualityWarn]}
+                >
+                  {ok ? '✅' : '✖️'}
+                </Text>
+              );
+            })()}
+            <Text style={styles.listItemSub}>
+              {item.length_m ? `${(item.length_m / 1000).toFixed(1)} km` : ''}
+              {item.geom_parts && item.geom_parts > 1 ? ` • ${item.geom_parts} seg` : ''}
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+
+      {isHovered && Platform.OS === 'web' && item.name && (
+        <View style={styles.tooltip}>
+          <Text style={styles.tooltipText}>{item.name}</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -220,5 +247,31 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  itemWrapper: {
+    position: 'relative',
+    zIndex: 1,
+  },
+  tooltip: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    top: -30,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    zIndex: 9999,
+    // @ts-ignore - web pointer events
+    pointerEvents: 'none',
+  },
+  tooltipText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  hoveredItem: {
+    backgroundColor: '#f0f4f8',
   },
 });
