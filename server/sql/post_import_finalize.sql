@@ -90,7 +90,9 @@ DO $$ BEGIN RAISE NOTICE 'Assembling parent route geometries (fallback)...'; END
 SELECT itinerarius.assemble_parent_route_geometries();
 
 -- ---------------------------------------------------------------------------
--- Naming backfill for missing route names
+-- Set proper route display names - the rationale for doing it in SQL 
+-- and not in lua nor frontend is to account for national conventions in the 
+-- future and have consistent names in all clients
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION itinerarius.route_display_name(tags jsonb, name text)
 RETURNS text AS $$
@@ -100,7 +102,7 @@ DECLARE
     v_from text;
     v_to text;
 BEGIN
-    final_name := NULLIF(btrim(name), '');
+    final_name := NULLIF(btrim(tags->>'name'), '');
     v_ref := NULLIF(btrim(tags->>'ref'), '');
     v_from := NULLIF(btrim(tags->>'from'), '');
     v_to := NULLIF(btrim(tags->>'to'), '');

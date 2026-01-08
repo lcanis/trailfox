@@ -24,7 +24,10 @@ SELECT
     r.roundtrip,
     r.length_m,
     r.tags,
-    r.geom_4326 AS geom,
+    -- Simple baseline simplification for the API view to reduce payload size 
+    -- and stay within WebGL/MapLibre vertex limits (65535) for most routes.
+    -- 0.00005 degrees is ~5.5m at the equator.
+    ST_Simplify(r.geom_4326, 0.00005) AS geom,
     r.merged_geom_type,
     r.geom_build_case,
     r.geom_quality,
@@ -78,19 +81,42 @@ CREATE OR REPLACE FUNCTION api.routes_in_bbox(
     min_lat double precision, 
     max_lon double precision, 
     max_lat double precision,
-        search_query text DEFAULT NULL,
-        roundtrip_filter boolean DEFAULT NULL
+    search_query text DEFAULT NULL,
+    roundtrip_filter boolean DEFAULT NULL
 )
 RETURNS SETOF api.routes AS $$
+  -- We use the itinerarius.routes_info table directly for the spatial filter to ensure index usage,
+  -- but we select from api.routes to match the expected return type.
+  -- This version uses stepped network filtering to avoid timeouts on large bounding boxes.
   SELECT r.*
   FROM api.routes r
-  JOIN itinerarius.routes_info ri ON r.osm_id = ri.osm_id
-  WHERE ri.geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
-    AND (
+  JOIN (
+    SELECT ri.osm_id
+    FROM itinerarius.routes_info ri
+    WHERE ri.geom && ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
+      AND (
+          -- Stepped network filtering:
+          -- 1. Very small boxes (< 2.5 deg): Show everything
+          (max_lon - min_lon) < 2.5
+          -- 2. Medium boxes (2.5 - 7 deg): Show international, national, and regional routes
+          OR ((max_lon - min_lon) < 7 AND ri.network IN ('iwn', 'nwn', 'rwn'))
+          -- 3. Large boxes (7 - 12 deg): Show only international and national routes
+          OR ((max_lon - min_lon) < 12 AND ri.network IN ('iwn', 'nwn'))
+          -- 4. Huge boxes (> 12 deg): Show only international routes
+          OR (ri.network = 'iwn')
+      )
+      -- Use a precise intersection check only for candidates that pass the network filter.
+      -- This avoids running expensive ST_Intersects on thousands of local routes in large bboxes.
+      AND ST_Intersects(
+        ri.geom,
+        ST_Transform(ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326), 3857)
+      )
+  ) filtered_ids ON r.osm_id = filtered_ids.osm_id
+  WHERE (
             roundtrip_filter IS NULL
             OR r.roundtrip = roundtrip_filter
     )
-  AND (
+    AND (
       search_query IS NULL 
       OR search_query = '' 
       OR r.name ILIKE '%' || search_query || '%' 

@@ -153,7 +153,7 @@ local function process_relation(object)
 	end
 
 	local route_data = {
-		name = object:grab_tag("name"),
+		name = object.tags["name"],
 		route_type = route_type,
 		network = object.tags.network,
 		distance = in_meters(object.tags["route:distance"] or object.tags.distance),
