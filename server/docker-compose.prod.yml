@@ -42,7 +42,6 @@ services:
     command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.river
     depends_on:
       - postgis
-    network_mode: "container:postgis"
 
 volumes:
   trailfox_pg_data:
