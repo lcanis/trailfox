@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Wrapper to run osmium (from the iboates/osmium Docker image in docker-compose)
 # Usage: ./extract_osm_docker.sh <input.osm.pbf> [output_prefix]
+# Example: ./extract_osm_docker.sh luxembourg-latest.osm.pbf lux
 
 INPUT_PBF="$1"
 OUTPUT_PREFIX="${2:-extracted}"
@@ -18,7 +19,7 @@ echo "--- Extracting with Docker Osmium: $INPUT_PBF -> $OUT_PBF ---"
 # Run osmium tags-filter inside the docker container via docker-compose service `osmium`.
 # The project mounts the repo root as /data in the container.
 
-cmd=(docker compose -f "$(dirname "$0")/docker-compose.yml" run --rm -T osmium \
+cmd=(docker compose -f "$(dirname "$0")/docker-compose.yml" run --user "$(id -u):$(id -g)" --rm -T osmium \
   tags-filter /data/"$INPUT_PBF"
   r/type=route,superroute \
   r/route=hiking,foot,walking,ferry \
@@ -38,15 +39,31 @@ cmd=(docker compose -f "$(dirname "$0")/docker-compose.yml" run --rm -T osmium \
 # Show the constructed command (for debugging)
 echo "Running: ${cmd[*]}"
 
-# Time the command using /usr/bin/time if available, else use shell time
-TIME_CMD=(/usr/bin/time -v)
-if command -v /usr/bin/time >/dev/null 2>&1; then
-  ("${TIME_CMD[@]}" "${cmd[@]}")
+# Use wall-clock timing (simpler and less confusing than the verbose /usr/bin/time output)
+start_ts=$(date +%s)
+if "${cmd[@]}"; then
+  status=0
 else
-  time "${cmd[@]}"
+  status=$?
+fi
+end_ts=$(date +%s)
+elapsed=$((end_ts - start_ts))
+printf 'Elapsed time: %d:%02d:%02d\n' $((elapsed/3600)) $((elapsed%3600/60)) $((elapsed%60))
+
+# Show output
+ls -lh "$OUT_PBF"
+
+# If the output is owned by root but we are not root, attempt to fix ownership via the container
+owner_uid=$(stat -c %u "$OUT_PBF" || true)
+if [ "${owner_uid:-}" = "0" ] && [ "$(id -u)" != "0" ]; then
+  echo "Output is owned by root; attempting to fix ownership via container chown..."
+  docker compose -f "$(dirname "$0")/docker-compose.yml" run --rm -T osmium chown "$(id -u):$(id -g)" /data/"$OUT_PBF" || true
+  ls -lh "$OUT_PBF"
 fi
 
-ls -lh "$OUT_PBF"
-sha256sum "$OUT_PBF" > "$OUT_PBF.sha256"
+if [ "$status" -ne 0 ]; then
+  echo "Extraction command failed with exit status $status"
+  exit "$status"
+fi
 
-echo "Extraction complete. Output: $OUT_PBF and checksum in $OUT_PBF.sha256"
+echo "Extraction complete. Output: $OUT_PBF"
